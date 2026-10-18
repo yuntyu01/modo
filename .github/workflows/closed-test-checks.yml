@@ -6,6 +6,36 @@ on:
 permissions:
   contents: read
 jobs:
+  upload-key-recovery:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Restore encrypted upload key and verify signing without exposing secrets
+        env:
+          MODO_UPLOAD_KEYSTORE_B64: ${{ secrets.MODO_UPLOAD_KEYSTORE_B64 }}
+          MODO_UPLOAD_STORE_PASSWORD: ${{ secrets.MODO_UPLOAD_STORE_PASSWORD }}
+          MODO_UPLOAD_KEY_ALIAS: ${{ secrets.MODO_UPLOAD_KEY_ALIAS }}
+          MODO_UPLOAD_KEY_PASSWORD: ${{ secrets.MODO_UPLOAD_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          key_path=$(mktemp "$RUNNER_TEMP/modo-upload-XXXXXX.jks")
+          probe_path=$(mktemp "$RUNNER_TEMP/modo-probe-XXXXXX.txt")
+          jar_path="$probe_path.jar"
+          trap 'rm -f "$key_path" "$probe_path" "$jar_path" "$probe_path.log"' EXIT
+          printf '%s' "$MODO_UPLOAD_KEYSTORE_B64" | base64 --decode > "$key_path"
+          chmod 600 "$key_path"
+          digest=$(keytool -exportcert -keystore "$key_path" -alias "$MODO_UPLOAD_KEY_ALIAS" -storepass:env MODO_UPLOAD_STORE_PASSWORD | sha256sum | cut -d' ' -f1)
+          test "$digest" = 664e6748990e279b1d891166cb1bf63231e3fa16a3235b904af4444ad309b5b0
+          printf '%s\n' 'modo upload key recovery check' > "$probe_path"
+          jar --create --file "$jar_path" -C "$(dirname "$probe_path")" "$(basename "$probe_path")"
+          jarsigner -keystore "$key_path" -storepass:env MODO_UPLOAD_STORE_PASSWORD -keypass:env MODO_UPLOAD_KEY_PASSWORD "$jar_path" "$MODO_UPLOAD_KEY_ALIAS" > "$probe_path.log" 2>&1
+          jarsigner -verify "$jar_path" > "$probe_path.log" 2>&1
+          echo 'Upload key backup restored; certificate matched; private-key signing and verification passed.' >> "$GITHUB_STEP_SUMMARY"
   server:
     runs-on: ubuntu-latest
     services:

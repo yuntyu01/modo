@@ -279,14 +279,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (boot && filterRef.current && !liveFolder(snap, filterRef.current)) setFilter(null);
   }, [boot, snap, setFilter]);
 
+  const prefsRefresh = useRef<ReturnType<typeof setTimeout> | null>(null);
   const setPrefs = useCallback(
     (p: Partial<Prefs>) => {
       setPrefsState((cur) => {
         const next = { ...cur, ...p };
         // 테마색을 바꾸면 바꾼 시각을 남긴다(계정 테마와 맞출 때 늦게 바꾼 쪽이 이긴다). 계정에서 받아 온 값은 그 시각을 그대로
         if (p.accent && p.accent !== cur.accent && p.accentAt === undefined) next.accentAt = Date.now();
-        // 저장한 뒤 다른 창(PC 미니창 ↔ 큰 창)에 알린다
-        boot?.repo.write(() => boot.repo.setKv('prefs', next)).then(() => desktop?.notifyDataChanged(['kv']));
+        // 저장한 뒤 다른 창(PC 미니창 ↔ 큰 창)에 알린다. 휴대폰은 위젯 색·잠금화면 알림이 설정을 읽어 그리니 조금 모아 다시 그린다
+        // (안 그러면 잠금화면 알림을 켜도 앱을 나가야 생겼다)
+        boot?.repo.write(() => boot.repo.setKv('prefs', next)).then(() => {
+          desktop?.notifyDataChanged(['kv']);
+          if (desktop) return;
+          if (prefsRefresh.current) clearTimeout(prefsRefresh.current);
+          prefsRefresh.current = setTimeout(() => native.refresh(), 500);
+        });
         return next;
       });
     },

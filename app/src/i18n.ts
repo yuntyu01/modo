@@ -338,7 +338,7 @@ const ko = {
 export type StringKey = keyof typeof ko;
 
 const en: Record<StringKey, string> = {
-  appTitle: 'modo - Simple, modern Memo & ToDo',
+  appTitle: 'modo - Simple Memo & ToDo',
   tagline: 'Simple, modern Memo & ToDo.',
   nameMeaning: 'Memo + Do',
   all: 'All',

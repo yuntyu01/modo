@@ -119,7 +119,8 @@ export function makeTheme(p: Prefs, systemDark: boolean, surface?: SurfaceTheme)
   return {
     dark,
     accent,
-    mark: p.logoAccent === false ? (miniDark ? MINI_DARK_POINT : BRAND) : ensureContrast(point, dark ? '#1B1C20' : '#FFFFFF', 1.4),
+    // 로고 심볼: 테마색과 똑같이(아이콘·선택 표시와 같은 값). 끄면 대표색
+    mark: p.logoAccent === false ? (miniDark ? MINI_DARK_POINT : BRAND) : accent,
     bg,
     // 테마색 위 체크·화살표: 대표색처럼 중간 밝기는 흰색(시안), 아주 밝은 색만 검정
     onAccent: luminance(accent) > 0.45 ? '#0B0C0E' : '#FFFFFF',

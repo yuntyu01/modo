@@ -9,6 +9,8 @@ import { BRAND } from '../brand';
  */
 const D = 'M124.5 794.5V764.5A173.5 173.5 0 0 1 471.5 764.5V796.2M496 796.2V764.5A173.5 173.5 0 0 1 843 764.5V779.5L883 798L1127.5 511.5';
 const VB = '51.8 438.8 1148.5 432';
+/** 심볼 선 경로·보이는 범위(다른 그림 안에 심볼을 넣을 때: ui/HowToArt.tsx) */
+export const MARK_PATH = { d: D, x: 51.8, y: 438.8, width: 1148.5, height: 432, stroke: 145.5 };
 const ASPECT = 2.6586;
 const WORD_ASPECT = 894 / 278;
 

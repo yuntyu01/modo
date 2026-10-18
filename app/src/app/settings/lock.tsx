@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Platform, View } from 'react-native';
 
@@ -42,6 +43,11 @@ export default function Lock() {
               : t('lockUnsupported', { reason: support ? ` (${support.reason})` : '' })}
         </Note>
       )}
+      {Platform.OS === 'android' && (support?.supported || support?.maybe) ? (
+        <Group>
+          <Row label={t('howtoLock')} onPress={() => router.push({ pathname: '/settings/howto/[topic]', params: { topic: 'lock' } })} last />
+        </Group>
+      ) : null}
       {Platform.OS === 'android' ? (
         <>
           <Group>

@@ -123,7 +123,9 @@ const DURATION = 520;
 function Ghost({ flight, offset, onDone }: { flight: Flight; offset: { x: number; y: number }; onDone: () => void }) {
   const { theme } = useApp();
   const p = useSharedValue(0);
-  const { from, to } = flight;
+  // UI 스레드 함수(useAnimatedStyle)에는 숫자만 넘긴다: flight에는 과녁(⋯ 버튼 화면 요소)이 들어 있어
+  // 통째로 쓰면 복사하지 못해 앱이 멈췄다('Cannot copy value of type ReactNativeElement', 2026-10-18)
+  const { from, to, radius } = flight;
   // 카드 가운데 → ⋯ 가운데. 위로 살짝 휘어 날아간다(포물선).
   const sx = from.x + from.width / 2 - offset.x;
   const sy = from.y + from.height / 2 - offset.y;
@@ -143,7 +145,7 @@ function Ghost({ flight, offset, onDone }: { flight: Flight; offset: { x: number
     const squash = Math.min(1, t / 0.35); // 0~0.35: 알약으로
     return {
       opacity: t < 0.75 ? 1 : 1 - (t - 0.75) / 0.25,
-      borderRadius: flight.radius + (from.height / 2 - flight.radius) * squash,
+      borderRadius: radius + (from.height / 2 - radius) * squash,
       transform: [
         { translateX: sx + (ex - sx) * t - from.width / 2 },
         { translateY: sy + (ey - sy) * t + arc - from.height / 2 },

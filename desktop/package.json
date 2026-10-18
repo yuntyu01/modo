@@ -7,11 +7,13 @@
   "scripts": {
     "renderer": "cd ../app && npx expo export -p web --output-dir ../desktop/renderer",
     "start": "electron .",
-    "dist:win": "electron-builder --win zip --x64",
+    "dist:win": "npm run build && electron-builder --win zip --x64 --publish never",
     "test:sync": "esbuild test/desktop-sync.e2e.ts --bundle --platform=node --format=cjs --external:node:sqlite --outfile=test/.out/desktop-sync.cjs && ELECTRON_RUN_AS_NODE=1 electron test/.out/desktop-sync.cjs",
-    "core": "esbuild src/core-entry.ts --bundle --platform=node --format=cjs --target=node22 --outfile=core.cjs",
-    "build": "npm run core && npm run renderer",
-    "test:unit": "node test/userdata.test.cjs && npm run core && ELECTRON_RUN_AS_NODE=1 electron test/host.test.cjs"
+    "core": "node scripts/build-core.cjs",
+    "build": "npm run core:release && npm run renderer",
+    "test:unit": "node scripts/test.cjs",
+    "core:release": "node scripts/build-core.cjs --release",
+    "dist:store": "npm run build && electron-builder --config electron-builder.store.cjs --win appx --x64 --publish never"
   },
   "build": {
     "appId": "com.yuntyu01.naegirok",
@@ -25,16 +27,21 @@
       "core.cjs",
       "sync-host.cjs",
       "renderer/**",
-      "assets/**"
+      "assets/**",
+      "navigation.cjs",
+      "local-erasure.cjs"
     ],
     "win": {
       "target": "zip",
       "icon": "assets/icon.png",
-      "signAndEditExecutable": false
+      "signExecutable": false
     }
   },
   "devDependencies": {
     "electron": "^44.7.2",
+    "electron-builder": "26.15.3",
     "esbuild": "^0.28.2"
-  }
+  },
+  "author": "yuntyu01",
+  "homepage": "https://midi-broccoli-56c.notion.site/modo-3fd50284670881ac8891f94314cb63f1"
 }

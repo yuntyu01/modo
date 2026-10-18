@@ -21,11 +21,11 @@ function errorOf(e) {
  * backupBeforeMigrate(fromVersion): 스키마 버전이 올라가는 첫 실행에서 고치기 전에 DB를 통째로 복사해 둔다(main.cjs가 VACUUM INTO로).
  * 되돌리는 법은 README '백업·복구'.
  */
-function createSyncHost({ db, fetch, device, broadcast, hasVisibleWindow, openAuth, backupBeforeMigrate }) {
+function createSyncHost({ db, fetch, device, broadcast, hasVisibleWindow, openAuth, backupBeforeMigrate, afterAccountDeleted }) {
   const repo = new Repo(db, randomUUID);
   const engine = new SyncEngine(repo, fetch, device);
   let started = false;
-  let defaultServer = 'http://127.0.0.1:8080';
+  let defaultServer = 'https://modo.kodeploy.com';
   let server = { api: null, gate: false, at: 0 };
   let probeTimer = null;
   let firstProbe = true;
@@ -168,6 +168,7 @@ function createSyncHost({ db, fetch, device, broadcast, hasVisibleWindow, openAu
             return { ok: true };
           case 'deleteAccount':
             await engine.deleteAccount();
+            await afterAccountDeleted?.();
             broadcast('data-changed', ['*']);
             return { ok: true };
           case 'shareApi':

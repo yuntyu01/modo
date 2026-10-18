@@ -10,6 +10,7 @@ import { desktop } from '../native/bridge';
 import { useApp } from '../state/AppContext';
 import { KakaoIcon } from './Icons';
 import { Logo } from './Logo';
+import { GoogleLoginButton } from './GoogleLoginButton';
 
 /**
  * 처음 실행 로그인(서버가 닿을 때만): 카카오로 바로 로그인하면 휴대폰·PC가 늘 동기화된다.
@@ -22,11 +23,11 @@ export function LoginGate() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const server = account?.server ?? prefs.server;
-  const kakao = async () => {
+  const external = async (provider: 'kakao' | 'google') => {
     setBusy(true);
     setError(null);
     try {
-      await sync.loginExternal(server, 'kakao', openAuth, await makePkce(), makeState());
+      await sync.loginExternal(server, provider, openAuth, await makePkce(), makeState());
       await refreshAccount();
     } catch (e) {
       if (!(e instanceof AuthCancelled)) setError(errorText(e, t));
@@ -41,8 +42,9 @@ export function LoginGate() {
         <Text style={theme.kfont(16, { color: theme.muted, marginTop: 22, textAlign: 'center', lineHeight: 24 })}>{t('loginTagline')}</Text>
       </View>
       <View style={styles.actions}>
+        {serverApi?.google ? <GoogleLoginButton label={t('googleLogin')} busy={busy} onPress={() => external('google')} /> : null}
         {serverApi?.kakao ? (
-          <Pressable accessibilityRole="button" disabled={busy} onPress={kakao} style={[styles.button, styles.kakao, { opacity: busy ? 0.6 : 1 }]}>
+          <Pressable accessibilityRole="button" disabled={busy} onPress={() => external('kakao')} style={[styles.button, styles.kakao, { opacity: busy ? 0.6 : 1 }]}>
             {busy ? <ActivityIndicator color="#000000" /> : <KakaoIcon color="#000000" size={20} />}
             <Text style={theme.font(16, { color: 'rgba(0,0,0,0.85)', fontWeight: '600' })}>{t('kakaoLogin')}</Text>
           </Pressable>

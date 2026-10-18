@@ -26,15 +26,15 @@ const serverReply = (url: string) => {
   return { results: [] };
 };
 
-test('카카오: 시작 주소에 앱 주소·state·challenge를 싣고, 돌아온 code를 verifier와 함께 바꾼다', async () => {
+test.each(['kakao', 'google'] as const)('%s: 시작 주소에 앱 주소·state·challenge를 싣고, 돌아온 code를 verifier와 함께 바꾼다', async (provider) => {
   const { sync, calls } = await engine(serverReply);
   let opened = '';
-  const acc = await sync.loginExternal('http://srv/', 'kakao', async (url, redirect) => {
+  const acc = await sync.loginExternal('http://srv/', provider, async (url, redirect) => {
     opened = url;
     expect(redirect).toBe(AUTH_REDIRECT);
     return `${AUTH_REDIRECT}?code=abc%2B1&state=st-1`;
   }, pkce, 'st-1');
-  expect(opened.startsWith('http://srv/api/auth/kakao/start?')).toBe(true);
+  expect(opened.startsWith(`http://srv/api/auth/${provider}/start?`)).toBe(true);
   expect(opened).toContain(`redirect_uri=${encodeURIComponent(AUTH_REDIRECT)}`);
   expect(opened).toContain(`code_challenge=${pkce.challenge}`);
   expect(opened).toContain('state=st-1');

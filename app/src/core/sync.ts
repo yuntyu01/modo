@@ -142,14 +142,14 @@ export class SyncEngine {
 
   /** 서버가 켜 둔 로그인 수단 */
   async providers(server: string) {
-    return api<{ password: boolean; kakao: boolean }>(this.fetchFn, server, '/api/auth/providers');
+    return api<{ password: boolean; kakao: boolean; google?: boolean }>(this.fetchFn, server, '/api/auth/providers');
   }
 
   /**
    * 카카오 로그인: 서버가 카카오와 인가 코드를 주고받고, 앱에는 일회용 코드를 돌려준다.
    * 그 코드는 이 기기만 아는 PKCE verifier가 있어야 세션으로 바뀐다(다른 앱이 modo:// 주소를 가로채도 못 쓴다).
    */
-  async loginExternal(server: string, provider: 'kakao', browser: AuthBrowser, pkce: Pkce, state: string) {
+  async loginExternal(server: string, provider: 'kakao' | 'google', browser: AuthBrowser, pkce: Pkce, state: string) {
     const base = serviceBase(server);
     const url = `${base}/api/auth/${provider}/start?${encodeQuery({ redirect_uri: AUTH_REDIRECT, state, code_challenge: pkce.challenge })}`;
     const back = await browser(url, AUTH_REDIRECT);
@@ -158,7 +158,7 @@ export class SyncEngine {
     if (q.state !== state) throw new HttpError(400, '로그인 응답이 맞지 않아요. 다시 시도해 주세요', 'auth_mismatch');
     if (q.error === 'cancelled') throw new AuthCancelled();
     if (q.error === 'server') throw new HttpError(500, '서버 오류', 'server');
-    if (q.error || !q.code) throw new HttpError(502, '카카오 로그인에 실패했어요. 잠시 후 다시 시도해 주세요', 'kakao_failed');
+    if (q.error || !q.code) throw new HttpError(502, '로그인에 실패했어요. 잠시 후 다시 시도해 주세요', `${provider}_failed`);
     const r = await api<AuthResponse>(this.fetchFn, server, '/api/auth/exchange', {
       method: 'POST',
       body: JSON.stringify({ code: q.code, code_verifier: pkce.verifier, device: this.device }),

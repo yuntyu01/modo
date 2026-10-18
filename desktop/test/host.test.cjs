@@ -85,7 +85,7 @@ const until = async (fn, ms = 3000) => {
   host.begin(0);
   await until(() => sent.some((s) => s.channel === 'server:state'));
   const st = sent.find((s) => s.channel === 'server:state').payload;
-  assert.deepStrictEqual(st.api, { kakao: true, password: true });
+  assert.deepStrictEqual(st.api, { kakao: true, google: false, password: true });
   assert.strictEqual(st.gate, true, '켤 때 서버가 바로 답하면 처음 로그인 화면을 띄울 수 있다');
 
   // '나중에': 다른 창에도 다시 띄우지 않게 알린다

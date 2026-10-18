@@ -46,7 +46,7 @@ export default function MainLayout() {
   const web = Platform.OS === 'web';
   const navInset = keyboard || web ? 0 : NAV_HEIGHT + bottomGap;
   // 서버가 닿고 아직 로그인하지 않았으면 처음에 로그인 화면(이번 실행에서 '나중에'를 누르면 넘어간다)
-  const gate = !!serverApi && (serverApi.kakao || serverApi.password) && !account && !loginDeferred;
+  const gate = !!serverApi && (serverApi.kakao || serverApi.google || serverApi.password) && !account && !loginDeferred;
   // PC 창 버튼(– □ ×) 색을 테마에 맞춘다(라이트에서 밝은 회색이면 안 보인다)
   useEffect(() => {
     desktop?.setTitleBarDark?.(theme.dark);

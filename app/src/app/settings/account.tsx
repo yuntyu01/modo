@@ -5,6 +5,8 @@ import { AuthCancelled } from '../../core/sync';
 import { DELETION_URL, POLICY_URL } from '../../policies';
 import { codeText, errorText, resolveLang } from '../../i18n';
 import { makePkce, makeState, openAuth } from '../../native/auth';
+import { desktop } from '../../native/bridge';
+import { GoogleLoginButton } from '../../ui/GoogleLoginButton';
 import { useApp, useSyncStatus } from '../../state/AppContext';
 import { formatDateTime } from '../../ui/format';
 import { KakaoIcon } from '../../ui/Icons';
@@ -26,6 +28,7 @@ export default function Account() {
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [confirmDeletion, setConfirmDeletion] = useState(false);
   const [kakao, setKakao] = useState(false);
+  const [google, setGoogle] = useState(false);
   const open = (url: string) => Linking.openURL(url).catch(() => showToast({ message: t('linkOpenFailed') }));
   const policyLinks = (
     <Group>
@@ -41,8 +44,8 @@ export default function Account() {
     const timer = setTimeout(() => {
       sync
         .providers(server.trim())
-        .then((p) => alive && setKakao(!!p.kakao))
-        .catch(() => alive && setKakao(false));
+        .then((p) => { if (alive) { setKakao(!!p.kakao); setGoogle(!!p.google); } })
+        .catch(() => { if (alive) { setKakao(false); setGoogle(false); } });
     }, 400);
     return () => {
       alive = false;
@@ -66,6 +69,7 @@ export default function Account() {
   };
   const submit = () => run(() => sync.login(server.trim(), email.trim(), password, mode === 'register'));
   const kakaoLogin = () => run(async () => sync.loginExternal(server.trim(), 'kakao', openAuth, await makePkce(), makeState()));
+  const googleLogin = () => run(async () => sync.loginExternal(server.trim(), 'google', openAuth, await makePkce(), makeState()));
 
   const field = (value: string, onChange: (v: string) => void, placeholder: string, opts: object = {}) => (
     <TextInput
@@ -99,7 +103,7 @@ export default function Account() {
     return (
       <SubScreen title={t('account')}>
         <Group>
-          <Row label={account.email ? t('email') : t('kakaoAccount')} value={account.email || account.name || ''} />
+          <Row label={account.email ? t('email') : t('account')} value={account.email || account.name || ''} />
           <Row label={t('server')} value={account.server} />
           <Row label={stateText} right={status.state === 'syncing' ? <ActivityIndicator color={theme.muted} /> : <View />} />
           {status.lastSyncAt ? <Row label={t('lastSync', { time: formatDateTime(status.lastSyncAt, lang) })} right={<View />} /> : null}
@@ -110,7 +114,7 @@ export default function Account() {
         <Note>{t('accountSignedIn')}</Note>
         {policyLinks}
         <Group>
-          {Platform.OS !== 'web' ? <Row label={t('deleteAccount')} danger onPress={busy ? undefined : () => setConfirmDeletion(true)} /> : null}
+          {Platform.OS !== 'web' || desktop ? <Row label={t('deleteAccount')} danger onPress={busy ? undefined : () => setConfirmDeletion(true)} /> : null}
           <Row label={t('logout')} danger onPress={busy ? undefined : () => setConfirmLogout(true)} last />
         </Group>
         {busy ? <ActivityIndicator color={theme.accent} /> : null}
@@ -150,6 +154,7 @@ export default function Account() {
       <Note>{t('accountSignedOut')}</Note>
       <Note>{t('targetAudienceNotice')}</Note>
       {policyLinks}
+      {google ? <GoogleLoginButton label={t('googleLogin')} busy={busy} onPress={googleLogin} /> : null}
       {kakao ? (
         <>
           <Pressable

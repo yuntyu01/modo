@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS password_logins (
 
 -- 외부 계정(카카오): 공급자 안에서의 사용자 번호 하나가 우리 사용자 한 명.
 CREATE TABLE IF NOT EXISTS oauth_identities (
-    provider   TEXT        NOT NULL CHECK (provider IN ('kakao')),
+    provider   TEXT        NOT NULL CHECK (provider IN ('kakao', 'google')),
     subject    TEXT        NOT NULL,
     user_id    UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -47,6 +47,12 @@ CREATE TABLE IF NOT EXISTS oauth_states (
     challenge    TEXT        NOT NULL,
     expires_at   TIMESTAMPTZ NOT NULL
 );
+-- Preserve existing Kakao identities and pending sessions during upgrades.
+ALTER TABLE oauth_identities DROP CONSTRAINT IF EXISTS oauth_identities_provider_check;
+ALTER TABLE oauth_identities ADD CONSTRAINT oauth_identities_provider_check CHECK (provider IN ('kakao', 'google'));
+ALTER TABLE oauth_states ADD COLUMN IF NOT EXISTS provider TEXT NOT NULL DEFAULT 'kakao';
+ALTER TABLE oauth_states ADD COLUMN IF NOT EXISTS nonce_hash BYTEA;
+ALTER TABLE oauth_states ADD COLUMN IF NOT EXISTS upstream_verifier TEXT;
 -- 외부 로그인이 끝나 앱에 넘긴 일회용 코드(2분). 앱은 code_verifier와 함께 세션 토큰으로 바꾼다.
 CREATE TABLE IF NOT EXISTS login_codes (
     code_hash  BYTEA PRIMARY KEY,

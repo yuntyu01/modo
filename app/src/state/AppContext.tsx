@@ -42,7 +42,7 @@ type App = {
    * 서버(API)에 닿는지와 켜 둔 로그인 수단. 닿지 않으면 null: 공유·계정·동기화처럼 서버가 있어야 하는 기능은 숨긴다.
    * 휴대폰은 앞으로 올 때마다·1분마다 묻고, PC는 메인 프로세스가 물어 알려 준다(sync-host.cjs).
    */
-  serverApi: { kakao: boolean; password: boolean } | null;
+  serverApi: { kakao: boolean; google: boolean; password: boolean } | null;
   /** 처음 로그인 화면을 이번 실행 동안 띄우지 않는지('나중에'를 눌렀거나, 켤 때 서버에 닿지 않았으면) */
   loginDeferred: boolean;
   deferLogin: () => void;
@@ -312,7 +312,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [account, status.state, status.lastSyncAt, syncTheme]);
 
   // 서버(API)가 닿는지: 로그인 수단을 물어 본다(로그인 화면·공유 버튼을 보일지 정한다)
-  const [serverApi, setServerApi] = useState<{ kakao: boolean; password: boolean } | null>(null);
+  const [serverApi, setServerApi] = useState<{ kakao: boolean; google: boolean; password: boolean } | null>(null);
   const serverUrl = account?.server ?? prefs.server;
   const [loginDeferred, setLoginDeferred] = useState(false);
   const reachable = useRef(false);
@@ -321,9 +321,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const bridge = desktopSyncBridge();
     if (!boot || !bridge) return;
     bridge.call('setDefaults', [{ server: prefs.server }]);
-    const apply = (st: { api: { kakao: boolean; password: boolean } | null; gate: boolean; at: number }) => {
+    const apply = (st: { api: { kakao: boolean; google: boolean; password: boolean } | null; gate: boolean; at: number }) => {
       if (!st.at) return; // 메인이 아직 묻기 전
-      setServerApi((cur) => (cur && st.api && cur.kakao === st.api.kakao && cur.password === st.api.password ? cur : st.api));
+      setServerApi((cur) => (cur && st.api && cur.kakao === st.api.kakao && cur.google === st.api.google && cur.password === st.api.password ? cur : st.api));
       if (!st.gate) setLoginDeferred(true);
     };
     bridge.serverState().then(apply, () => {});
@@ -348,7 +348,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           // 끊겼다가 다시 닿으면 쌓아 둔 변경을 바로 보낸다(동기화 재시도 간격을 기다리지 않게)
           if (!reachable.current) boot.sync.account().then((acc) => acc && boot.sync.syncNow());
           reachable.current = true;
-          setServerApi((cur) => (cur && cur.kakao === !!p.kakao && cur.password === !!p.password ? cur : { kakao: !!p.kakao, password: !!p.password }));
+          setServerApi((cur) => (cur && cur.kakao === !!p.kakao && cur.google === !!p.google && cur.password === !!p.password ? cur : { kakao: !!p.kakao, google: !!p.google, password: !!p.password }));
           // 처음 로그인 화면은 켤 때 바로 서버에 닿았을 때만. 쓰는 도중에 인터넷이 연결돼도 갑자기 덮지 않는다(설정 → 내 계정에서 로그인)
           if (first && Date.now() - startedAt > 5000) setLoginDeferred(true);
           first = false;

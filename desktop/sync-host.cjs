@@ -57,7 +57,7 @@ function createSyncHost({ db, fetch, device, broadcast, hasVisibleWindow, openAu
     let api = null;
     try {
       const p = await engine.providers(await serverUrl());
-      api = { kakao: !!p.kakao, password: !!p.password };
+      api = { kakao: !!p.kakao, google: !!p.google, password: !!p.password };
     } catch {}
     const gate = firstProbe ? !!api && Date.now() - startedAt < GATE_WINDOW : server.gate;
     firstProbe = false;

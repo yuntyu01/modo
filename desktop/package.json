@@ -29,7 +29,8 @@
       "renderer/**",
       "assets/**",
       "navigation.cjs",
-      "local-erasure.cjs"
+      "local-erasure.cjs",
+      "oauth.cjs"
     ],
     "win": {
       "target": "zip",

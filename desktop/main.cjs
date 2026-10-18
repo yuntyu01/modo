@@ -10,6 +10,7 @@ const { adoptOldUserData } = require('./userdata.cjs');
 const { createSyncHost } = require('./sync-host.cjs');
 const { protectWindow } = require('./navigation.cjs');
 const { createLocalErasure } = require('./local-erasure.cjs');
+const { openSystemAuth } = require('./oauth.cjs');
 
 const RENDERER = path.join(__dirname, 'renderer');
 // 미니창 최소 높이: ⋯ → 최소화로 접으면 머리 한 줄(46)만
@@ -482,37 +483,15 @@ function releaseTx() {
   w.forEach((x) => x.resolve());
 }
 
-// 카카오 로그인: 서버의 시작 주소를 작은 창으로 열고, 서버가 modo://auth?… 로 돌려보내는 순간 그 주소를 렌더러에 준다.
-// (데스크톱은 modo:// 를 OS에 등록하지 않는다. 창 안의 이동만 가로챈다)
-function openAuth(parent, url, redirect) {
-  return new Promise((resolve) => {
-    const win = new BrowserWindow({
-      parent: parent ?? undefined,
-      modal: !!parent,
-      width: 480,
-      height: 720,
-      title: uiText().auth,
-      autoHideMenuBar: true,
-      webPreferences: { partition: 'auth', sandbox: true },
-    });
-    let done = false;
-    const finish = (value) => {
-      if (done) return;
-      done = true;
-      resolve(value);
-      if (!win.isDestroyed()) win.close();
-    };
-    const catchRedirect = (e, target) => {
-      if (!target.startsWith(redirect)) return;
-      e.preventDefault();
-      finish(target);
-    };
-    win.webContents.on('will-redirect', catchRedirect);
-    win.webContents.on('will-navigate', catchRedirect);
-    win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-    win.on('closed', () => finish(null));
-    win.loadURL(url).catch(() => {});
-  });
+// One system-browser login at a time; cancel pending loopback listener on app shutdown.
+let pendingAuth;
+app.on('before-quit', () => pendingAuth?.abort());
+function openAuth(_parent, url, redirect) {
+  pendingAuth?.abort();
+  const controller = new AbortController();
+  pendingAuth = controller;
+  return openSystemAuth(url, redirect, (target) => shell.openExternal(target), { signal: controller.signal })
+    .finally(() => { if (pendingAuth === controller) pendingAuth = null; });
 }
 
 function registerIpc() {

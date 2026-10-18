@@ -1,8 +1,8 @@
 name: modo Windows package
 on:
   push:
-    branches: [codex/modo-microsoft-store]
-    paths: [desktop/**, .github/workflows/build-windows.yml]
+    branches: [codex/modo-microsoft-store, codex/modo-social-login]
+    paths: [desktop/**, app/**, .github/workflows/build-windows.yml]
   workflow_dispatch:
 permissions:
   contents: read

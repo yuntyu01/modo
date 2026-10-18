@@ -8,6 +8,7 @@ function run(command, args, env = {}) {
 }
 run(process.execPath, ['test/userdata.test.cjs']);
 run(process.execPath, ['test/navigation.test.cjs']);
+run(process.execPath, ['test/oauth.test.cjs']);
 run(process.execPath, ['test/local-erasure.test.cjs']);
 run(process.execPath, ['scripts/build-core.cjs']);
 run(require('electron'), ['test/host.test.cjs'], { ELECTRON_RUN_AS_NODE: '1' });

@@ -233,3 +233,13 @@ CREATE TABLE IF NOT EXISTS share_links (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS share_links_folder ON share_links (folder_id);
+
+-- Independent of users: retry revoking a deleted account's Kakao connection.
+-- Contains only the provider subject and account UUID; expire within 7 days.
+CREATE TABLE IF NOT EXISTS kakao_unlink_jobs (
+    subject TEXT PRIMARY KEY,
+    account_id UUID NOT NULL,
+    requested_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    attempts INTEGER NOT NULL DEFAULT 0,
+    last_attempt_at TIMESTAMPTZ
+);

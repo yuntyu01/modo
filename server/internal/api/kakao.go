@@ -36,6 +36,8 @@ type Config struct {
 	Erasures       *ErasureJournal
 	KakaoKey       string // 카카오 REST API 키. 비어 있으면 카카오 로그인을 끈다
 	KakaoSecret    string // 카카오 Client Secret(콘솔에서 켰을 때만)
+	KakaoAdmin     string // 서버 전용. 연결 해제 웹훅 검증 및 탈퇴 시 연결 해제에만 사용.
+	KakaoAppID     string
 	PublicURL      string // 카카오가 돌아올 이 서버의 외부 주소(예: https://modo.example.com). 콘솔의 Redirect URI = PublicURL + /api/auth/kakao/callback
 	KakaoAuthURL   string // 기본 https://kauth.kakao.com (테스트에서 바꾼다)
 	KakaoAPIURL    string // 기본 https://kapi.kakao.com
@@ -71,7 +73,9 @@ func (c *Config) defaults() {
 	c.PublicURL = strings.TrimRight(c.PublicURL, "/")
 }
 
-func (s *Server) kakaoEnabled() bool { return s.cfg.KakaoKey != "" && s.cfg.PublicURL != "" }
+func (s *Server) kakaoEnabled() bool {
+	return s.cfg.KakaoKey != "" && s.cfg.PublicURL != "" && s.cfg.KakaoAdmin != "" && s.cfg.KakaoAppID != ""
+}
 
 func (s *Server) kakaoCallbackURL() string { return s.cfg.PublicURL + "/api/auth/kakao/callback" }
 
@@ -288,6 +292,15 @@ func (s *Server) findOrCreateOAuthUser(ctx context.Context, provider string, p k
 		// Serialize identical identities and email claims without linking accounts by email.
 		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, provider+":"+p.Subject); err != nil {
 			return err
+		}
+		if provider == "kakao" {
+			var pending bool
+			if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM kakao_unlink_jobs WHERE subject=$1)`, p.Subject).Scan(&pending); err != nil {
+				return err
+			}
+			if pending {
+				return errors.New("kakao_deletion_pending")
+			}
 		}
 		if p.Email != "" {
 			if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 1))`, p.Email); err != nil {

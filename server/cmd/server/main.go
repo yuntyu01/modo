@@ -53,6 +53,8 @@ func main() {
 		Erasures:       journal,
 		KakaoKey:       os.Getenv("KAKAO_REST_API_KEY"),
 		KakaoSecret:    os.Getenv("KAKAO_CLIENT_SECRET"),
+		KakaoAdmin:     os.Getenv("KAKAO_ADMIN_KEY"),
+		KakaoAppID:     os.Getenv("KAKAO_APP_ID"),
 		GoogleClientID: os.Getenv("GOOGLE_CLIENT_ID"),
 		GoogleSecret:   os.Getenv("GOOGLE_CLIENT_SECRET"),
 		PublicURL:      env("PUBLIC_URL", "http://127.0.0.1:"+env("PORT", "8080")),

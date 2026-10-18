@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -256,8 +257,8 @@ func (s *Server) ApplyErasures(ctx context.Context) error {
 	if err := s.cfg.Erasures.importRequests(); err != nil {
 		return err
 	}
-	for id := range s.cfg.Erasures.Entries() {
-		if _, err := s.db.Exec(ctx, `DELETE FROM users WHERE id = $1`, id); err != nil {
+	for id, entry := range s.cfg.Erasures.Entries() {
+		if err := s.eraseAccount(ctx, id, entry.CompletedAt.IsZero()); err != nil {
 			return err
 		}
 		if err := s.cfg.Erasures.Complete(id, time.Now()); err != nil {
@@ -289,7 +290,7 @@ func (s *Server) deleteAccount(w http.ResponseWriter, r *http.Request) {
 		serverError(w, err)
 		return
 	}
-	if _, err := s.db.Exec(r.Context(), `DELETE FROM users WHERE id = $1`, u.ID); err != nil {
+	if err := s.eraseAccount(r.Context(), u.ID.String(), true); err != nil {
 		// Accepted durable request; access is revoked and maintenance retries it.
 		writeJSON(w, http.StatusAccepted, map[string]string{"status": "pending"})
 		return
@@ -302,4 +303,13 @@ func (s *Server) deleteAccount(w http.ResponseWriter, r *http.Request) {
 	s.popular.data = nil
 	s.popular.mu.Unlock()
 	w.WriteHeader(http.StatusNoContent)
+	if s.cfg.KakaoAdmin != "" {
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			if s.retryKakaoUnlinks(ctx) != nil {
+				log.Print("kakao_unlink_retry_pending")
+			}
+		}()
+	}
 }

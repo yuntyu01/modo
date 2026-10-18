@@ -42,6 +42,9 @@ func (s *Server) Cleanup(ctx context.Context) error {
 	if err := s.ApplyErasures(ctx); err != nil {
 		return err
 	}
+	if err := s.retryKakaoUnlinks(ctx); err != nil {
+		return err
+	}
 	for _, q := range []string{
 		`DELETE FROM applied_ops WHERE created_at < now() - interval '30 days'`,
 		`DELETE FROM sessions WHERE last_used_at < now() - interval '180 days'`,
@@ -62,6 +65,8 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/auth/providers", s.providers)
 	mux.HandleFunc("GET /api/auth/kakao/start", s.kakaoStart)
 	mux.HandleFunc("GET /api/auth/kakao/callback", s.kakaoCallback)
+	mux.HandleFunc("GET /api/auth/kakao/unlink", s.kakaoUnlinkWebhook)
+	mux.HandleFunc("POST /api/auth/kakao/unlink", s.kakaoUnlinkWebhook)
 	mux.HandleFunc("GET /api/auth/google/start", s.googleStart)
 	mux.HandleFunc("GET /api/auth/google/callback", s.googleCallback)
 	mux.HandleFunc("POST /api/auth/exchange", s.exchange)

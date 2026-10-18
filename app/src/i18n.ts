@@ -5,8 +5,8 @@ import { ja } from './locales/ja';
 import { zh } from './locales/zh';
 
 const ko = {
-  appTitle: 'modo',
-  tagline: '메모와 할 일, 한곳에.',
+  appTitle: 'modo - 메모와 할 일',
+  tagline: '떠오른 생각과 해야 할 일을 한곳에.',
   nameMeaning: 'Memo + Do, 메모하고 실행하기',
   all: '전체',
   baseFolder: '기본',

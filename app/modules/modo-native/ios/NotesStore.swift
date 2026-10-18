@@ -416,7 +416,7 @@ public struct L {
   public func late(_ n: Int) -> String { pick("\(n)일 지남", n == 1 ? "1 day overdue" : "\(n) days overdue", "\(n)日経過", "逾期\(n)天") }
   public var noTodos: String { pick("할 일 없음", "No to-dos", "ToDoなし", "没有待办") }
   public var more: String { pick("더 보기", "More", "もっと見る", "查看更多") }
-  public var tagline: String { pick("메모와 할 일, 한곳에.", "Simple, modern Memo & ToDo.", "メモとToDoを、ひとつに。", "备忘与待办，尽在一处。") }
+  public var tagline: String { pick("떠오른 생각과 해야 할 일을 한곳에.", "Simple, modern Memo & ToDo.", "メモとToDoを、ひとつに。", "备忘与待办，尽在一处。") }
   public var quickAdd: String { pick("modo 빠른 추가", "modo quick add", "modo クイック追加", "modo 快速添加") }
   /// 위젯 고르기 화면의 미리보기
   public var sampleMemo: String { pick("회의 때 배포 일정 확인하기", "Check the release date at the meeting", "会議でリリース日を確認する", "开会时确认发布日期") }

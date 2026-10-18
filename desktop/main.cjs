@@ -124,7 +124,7 @@ function createMini() {
     resizable: true,
     alwaysOnTop: state.pinned,
     skipTaskbar: false,
-    title: 'modo',
+    title: 'modo - 메모와 할 일',
     // 없으면 작업 표시줄에 실행 파일 아이콘(Electron 기본)이 보였다
     icon: APP_ICON,
     show: false,
@@ -368,7 +368,7 @@ function openSettings(route) {
     height: sh || 700,
     minWidth: 380,
     minHeight: 520,
-    title: 'modo',
+    title: 'modo - 메모와 할 일',
     backgroundColor: '#000000',
     autoHideMenuBar: true,
     icon: APP_ICON,
@@ -411,7 +411,7 @@ function toggleMini() {
 
 // 트레이 메뉴·로그인 창 문구. 앱의 언어 설정(kv prefs.language) → 시스템 언어 → 영어(앱 src/i18n.ts resolveLang과 같은 순서).
 const TRAY_TEXT = {
-  ko: { tip: 'modo · 메모와 할 일, 한곳에.', toggle: '미니창 보이기/숨기기', open: 'modo 열기', pin: '항상 위에 표시', login: '로그인 시 실행', quit: '종료', auth: 'modo 로그인' },
+  ko: { tip: 'modo · 떠오른 생각과 해야 할 일을 한곳에.', toggle: '미니창 보이기/숨기기', open: 'modo 열기', pin: '항상 위에 표시', login: '로그인 시 실행', quit: '종료', auth: 'modo 로그인' },
   en: { tip: 'modo · Simple, modern Memo & ToDo.', toggle: 'Show/hide mini window', open: 'Open modo', pin: 'Always on top', login: 'Launch at login', quit: 'Quit', auth: 'Sign in to modo' },
   ja: { tip: 'modo · メモとToDoを、ひとつに。', toggle: 'ミニウィンドウの表示/非表示', open: 'modo を開く', pin: '常に手前に表示', login: 'ログイン時に起動', quit: '終了', auth: 'modo にログイン' },
   zh: { tip: 'modo · 备忘与待办，尽在一处。', toggle: '显示/隐藏迷你窗口', open: '打开 modo', pin: '始终置顶', login: '登录时启动', quit: '退出', auth: '登录 modo' },

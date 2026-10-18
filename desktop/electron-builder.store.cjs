@@ -12,7 +12,7 @@ module.exports = {
     identityName: process.env.MODO_STORE_IDENTITY,
     publisher: process.env.MODO_STORE_PUBLISHER,
     publisherDisplayName: process.env.MODO_STORE_PUBLISHER_NAME,
-    displayName: 'modo',
+    displayName: 'modo - 메모와 할 일',
     languages: ['ko-KR', 'en-US', 'ja-JP', 'zh-CN'],
     minVersion: '10.0.19041.0',
     maxVersionTested: '10.0.26100.0',

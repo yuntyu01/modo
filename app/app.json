@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "modo",
-    "description": "메모와 할 일, 한곳에.",
+    "name": "modo - 메모와 할 일",
+    "description": "떠오른 생각과 해야 할 일을 한곳에.",
     "slug": "modo",
     "version": "1.0.0",
     "orientation": "default",

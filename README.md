@@ -1,6 +1,6 @@
 # modo
 
-**메모와 할 일, 한곳에.** 영문 앱 이름은 **modo - Simple, modern Memo & ToDo** (끝에 마침표 없음). 이름은 Memo + Do, 메모하고 실행하기. 로고는 받은 시안(파란 m + 체크 심볼과 둥근 글자 modo): 심볼은 시안에 맞춰 다시 그린 벡터 선 경로(`app/src/ui/Logo.tsx`, 시안과 겹침 96.8%), 글자는 시안에서 오린 이미지(`app/assets/brand/modo-wordmark.png`).
+앱 이름은 **modo - 메모와 할 일**, 앱 안 로고는 **modo**, 소개 문구는 **떠오른 생각과 해야 할 일을 한곳에.** 영문 앱 이름은 **modo - Simple, modern Memo & ToDo** (끝에 마침표 없음). 이름은 Memo + Do, 메모하고 실행하기. 로고는 받은 시안(파란 m + 체크 심볼과 둥근 글자 modo): 심볼은 시안에 맞춰 다시 그린 벡터 선 경로(`app/src/ui/Logo.tsx`, 시안과 겹침 96.8%), 글자는 시안에서 오린 이미지(`app/assets/brand/modo-wordmark.png`).
 
 영문 전체 이름은 공백·기호를 포함해 33자다. Google Play의 앱 제목은 최대 30자이므로 전체 이름을 그대로 등록할 수 없다([공식 제목 규격](https://support.google.com/googleplay/android-developer/answer/9859152?hl=en)). 코드의 영문 이름과 스토어에 실제 게시된 제목은 구분한다. 설치 패키지 식별자와 로컬 데이터 경로용 짧은 이름은 `modo`를 사용한다.
 

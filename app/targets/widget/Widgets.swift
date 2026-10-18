@@ -10,7 +10,8 @@ import WidgetKit
 // - 기본 모드: 첫 쪽은 그 폴더의 메모만, 다음 쪽부터 할 일만. 점 = 메모 쪽 1 + 할 일 쪽 수.
 // - 메모를 누르면 메모 읽기 모드(본문을 실제 줄바꿈으로 쪽에 나눔, 점 = 메모 쪽만). 다시 누르면 메모 쪽으로.
 // - WidgetKit 위젯은 Button·Toggle(App Intents)과 Link만 받는다. 옆으로 밀기·스크롤 같은 제스처는 없어서 쪽은 점을 눌러 넘긴다.
-// - 폴더는 위젯마다 '위젯 편집'(길게 누르기)에서 고른다(AppIntentConfiguration). 위젯 안에서 목록을 펼치는 조작은 지원되지 않는다.
+// - 폴더: 앱과 같이 메모 위 폴더 탭을 누르면 그 폴더로(Button + App Intent). 처음 보일 폴더는 '위젯 편집'(길게 누르기)에서 고른다.
+//   중간 크기는 높이가 모자라 탭을 로고 줄 오른쪽에, 크게는 Android처럼 로고 줄 아래 따로 둔다.
 // - 크기: 중간 이상(작게는 머리 + 할 일 2줄 + 점 줄이 들어가지 않아 뺐다).
 
 struct NotesEntry: TimelineEntry {
@@ -21,6 +22,10 @@ struct NotesEntry: TimelineEntry {
   /// 보는 상태 열쇠: (폴더, 크기)
   var key: String = ""
   var view = NotesStore.WidgetView()
+  /// 폴더 탭 열쇠: (위젯 편집에서 고른 폴더, 크기)
+  var tabKey: String = ""
+  var family: String = ""
+  var folders: [NotesStore.Folder] = []
 }
 
 // MARK: - 폴더 고르기(위젯 편집)
@@ -74,12 +79,17 @@ struct NotesProvider: AppIntentTimelineProvider {
   }
 
   private func entry(_ c: NotesConfigIntent, _ context: Context) -> NotesEntry {
-    let wanted = c.folder.map { $0.id == FolderEntity.baseId ? nil : $0.id } ?? NotesStore.widgetFolder
+    let configured = c.folder.map { $0.id == FolderEntity.baseId ? nil : $0.id } ?? NotesStore.widgetFolder
+    let family = "\(context.family)"
+    let tabKey = "\(configured ?? FolderEntity.baseId)|\(family)"
+    // 폴더 탭으로 고른 폴더가 있으면 그 폴더
+    let wanted: String? = NotesStore.widgetTab(tabKey).map { $0 == FolderEntity.baseId ? nil : $0 } ?? configured
     let snap = NotesStore.snapshot(folderId: wanted)
     // 지워졌거나 공유 권한이 사라진 폴더는 이름을 못 읽어 기본 폴더로 보인다(snapshot이 기본 폴더 할 일을 읽는다)
     let fid = snap?.folderName == nil ? nil : wanted
-    let key = "\(fid ?? FolderEntity.baseId)|\(context.family)"
-    return NotesEntry(date: .now, snapshot: snap, folderId: fid, key: key, view: NotesStore.widgetView(key))
+    let key = "\(fid ?? FolderEntity.baseId)|\(family)"
+    return NotesEntry(
+      date: .now, snapshot: snap, folderId: fid, key: key, view: NotesStore.widgetView(key), tabKey: tabKey, family: family, folders: NotesStore.folders())
   }
 }
 
@@ -124,6 +134,28 @@ struct WidgetMemoIntent: AppIntent {
       v.readPage = 0
     }
     NotesStore.setWidgetView(key, v)
+    return .result()
+  }
+}
+
+/// 폴더 탭을 눌러 그 폴더의 첫 쪽으로(Android ACTION_FOLDER와 같다)
+struct WidgetFolderIntent: AppIntent {
+  static var title: LocalizedStringResource = "위젯 폴더 바꾸기"
+  static var isDiscoverable = false
+  @Parameter(title: "탭") var tabKey: String
+  @Parameter(title: "폴더") var folder: String
+  @Parameter(title: "위젯") var viewKey: String
+
+  init() {}
+  init(tabKey: String, folder: String, viewKey: String) {
+    self.tabKey = tabKey
+    self.folder = folder
+    self.viewKey = viewKey
+  }
+
+  func perform() async throws -> some IntentResult {
+    NotesStore.setWidgetTab(tabKey, folder)
+    NotesStore.setWidgetView(viewKey, NotesStore.WidgetView())
     return .result()
   }
 }
@@ -284,6 +316,8 @@ extension L {
   var emptyWidget: String { pick("비어 있어요. + 로 바로 적어 보세요", "Empty. Tap + to add one", "空です。+ で追加できます", "空空如也，点 + 添加") }
   var add: String { pick("추가", "Add", "追加", "添加") }
   var openApp: String { pick("modo 열기", "Open modo", "modoを開く", "打开 modo") }
+  func folderTab(_ name: String) -> String { pick("\(name) 폴더", "\(name) folder", "\(name)フォルダ", "\(name)文件夹") }
+  func currentFolderTab(_ name: String) -> String { pick("\(name) 폴더, 지금 보는 폴더", "\(name) folder, current", "\(name)フォルダ、表示中", "\(name)文件夹，当前") }
 }
 
 // MARK: - 그리기
@@ -339,6 +373,7 @@ struct NotesWidgetView: View {
 
 /// 홈 화면 위젯 한 장(머리 · 쪽 내용 · 점과 +). 쪽 수는 위젯 크기와 실제 글꼴(시스템 글자 크기 반영)로 센다.
 struct HomeWidgetView: View {
+  @Environment(\.widgetFamily) var family
   let entry: NotesEntry
   let l: L
   let mark: Color
@@ -351,12 +386,18 @@ struct HomeWidgetView: View {
   static let padTop: CGFloat = 6
   static let padBottom: CGFloat = 4
   static let header: CGFloat = 28
+  /// 폴더 탭 줄(크게만 따로, 중간은 로고 줄에). 탭 사이 tabGap
+  static let tabs: CGFloat = 28
+  static let tabGap: CGFloat = 18
+  static let tabSize: CGFloat = 15
   static let footer: CGFloat = 28
   static let check: CGFloat = 44
   /// 제목과 보조 줄 사이(앱 카드·Android 위젯과 같이 0)
   static let metaGap: CGFloat = 0
   static let memoSpacing: CGFloat = 6
-  static let dot: CGFloat = 36
+  /// 쪽 점 간격(시안 약 20). 양 끝 점은 바깥으로 dotEdge만큼 더 눌린다
+  static let dot: CGFloat = 20
+  static let dotEdge: CGFloat = 12
   static let slack: CGFloat = 2
 
   static let text = Color(white: 0.96)
@@ -366,6 +407,8 @@ struct HomeWidgetView: View {
   static let late = Color(hex: "#FF6B6B")
 
   var folderParam: String { entry.folderId ?? FolderEntity.baseId }
+  /// 중간 크기는 높이가 모자라(할 일 2줄) 폴더 탭을 로고 줄 오른쪽에
+  var tabsInHeader: Bool { family == .systemMedium }
 
   /// 앞뒤의 빈 문단은 빼고(앱 미니창과 같다)
   static func trimBlank(_ paragraphs: [String]) -> [String] {
@@ -386,12 +429,14 @@ struct HomeWidgetView: View {
     let preview = paragraphs.flatMap { $0.components(separatedBy: "\n") }.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }.joined(separator: "\n")
     let todos = s?.todos ?? []
     let width = size.width - Self.padH * 2
-    let area = size.height - Self.padTop - Self.padBottom - Self.header - Self.footer
+    let area = size.height - Self.padTop - Self.padBottom - Self.header - Self.footer - (tabsInHeader ? 0 : Self.tabs)
     let font = UIFont.systemFont(ofSize: memoSize)
     let pages = MemoPages.split(full, font: font, spacing: Self.memoSpacing, width: width, height: area - Self.slack)
     let previewLines = MemoPages.split(preview, font: font, spacing: Self.memoSpacing, width: width, height: area - Self.slack).first?.lines ?? 0
     let rowH = max(Self.check, ceil(UIFont.systemFont(ofSize: titleSize).lineHeight + Self.metaGap + UIFont.systemFont(ofSize: metaSize).lineHeight))
     let perPage = max(1, Int((area - Self.slack) / rowH))
+    // 남는 높이(한 줄이 안 되는 만큼)는 줄마다 나눠 마지막 할 일과 점이 멀어지지 않게(한 줄에 최대 16)
+    let rowFill = min(rowH + 16, (area - Self.slack) / CGFloat(perPage))
     let hasMemo = !pages.isEmpty
     let first = hasMemo ? 1 : 0
     let todoPages = max(1, (todos.count + perPage - 1) / perPage)
@@ -403,7 +448,8 @@ struct HomeWidgetView: View {
     let todoPage = !reading && page >= first ? page - first : -1
 
     VStack(alignment: .leading, spacing: 0) {
-      header.frame(height: Self.header)
+      headerRow(width).frame(height: Self.header)
+      if !tabsInHeader { tabRow(width).frame(height: Self.tabs) }
       Group {
         if reading {
           memoButton(String((full as NSString).substring(with: pages[readPage].range)), lines: pages[readPage].lines, hint: l.collapseMemo)
@@ -416,7 +462,7 @@ struct HomeWidgetView: View {
               .frame(maxWidth: .infinity, maxHeight: .infinity)
           } else {
             VStack(spacing: 0) {
-              ForEach(slice) { t in row(t, height: rowH) }
+              ForEach(slice) { t in row(t, height: rowFill) }
               Spacer(minLength: 0)
             }
           }
@@ -431,24 +477,58 @@ struct HomeWidgetView: View {
     .padding(.bottom, Self.padBottom)
   }
 
-  /// 머리: 로고 + modo(앱의 그 폴더) · 폴더 이름 ⌄(폴더는 '위젯 편집'에서 고른다)
-  var header: some View {
-    HStack(spacing: 8) {
+  static let markW: CGFloat = 15 * 1148.5 / 432
+
+  /// 머리: 로고 + modo(앱의 그 폴더). 중간 크기는 오른쪽에 폴더 탭
+  func headerRow(_ width: CGFloat) -> some View {
+    let brandW = Self.markW + 8 + ceil(("modo" as NSString).size(withAttributes: [.font: UIFont.systemFont(ofSize: 18, weight: .medium)]).width)
+    return HStack(spacing: 0) {
       Link(destination: URL(string: "naegirok://?folder=\(folderParam)")!) {
         HStack(spacing: 8) {
           // 예전 머리(글자 17에 심볼 높이 ×1.1, 선 ×0.42)와 같은 비율로 높이 15
           MarkShape().stroke(mark, style: StrokeStyle(lineWidth: 15 / 1.1 * 0.42 * 145.5 / 432, lineCap: .round, lineJoin: .round))
-            .frame(width: 15 * 1148.5 / 432, height: 15)
+            .frame(width: Self.markW, height: 15)
           Text("modo").font(.system(size: 18, weight: .medium)).foregroundStyle(Self.text)
         }
       }
       .accessibilityLabel(l.openApp)
-      Spacer(minLength: 8)
-      HStack(spacing: 5) {
-        Text(entry.snapshot?.folderName ?? l.baseFolder).font(.system(size: 14.5)).lineLimit(1)
-        Image(systemName: "chevron.down").font(.system(size: 11, weight: .semibold))
+      if tabsInHeader {
+        tabRow(width - brandW - Self.tabGap).padding(.leading, Self.tabGap)
       }
-      .foregroundStyle(Color(white: 0.9))
+      Spacer(minLength: 0)
+    }
+  }
+
+  /// 폴더 탭(앱과 같이: 글자만, 지금 폴더는 굵은 흰 글자). 누르면 그 폴더의 첫 쪽. 폭이 모자라면 지금 폴더가 보이게 그 근처만(Android와 같은 규칙)
+  func tabRow(_ room: CGFloat) -> some View {
+    let all: [(id: String, name: String)] = [(FolderEntity.baseId, l.baseFolder)] + entry.folders.map { ($0.id, $0.name) }
+    let cur = all.firstIndex(where: { $0.id == folderParam }) ?? 0
+    let widths = all.enumerated().map { i, f in
+      ceil((f.name as NSString).size(withAttributes: [.font: UIFont.systemFont(ofSize: Self.tabSize, weight: i == cur ? .bold : .regular)]).width) + Self.tabGap
+    }
+    var first = cur
+    var last = cur
+    var used = widths[cur]
+    while true {
+      let right = last + 1 < all.count && used + widths[last + 1] <= room
+      if right { last += 1; used += widths[last] }
+      let left = first > 0 && used + widths[first - 1] <= room
+      if left { first -= 1; used += widths[first] }
+      if !right && !left { break }
+    }
+    return HStack(spacing: 0) {
+      ForEach(first...last, id: \.self) { i in
+        let sel = i == cur
+        Button(intent: WidgetFolderIntent(tabKey: entry.tabKey, folder: all[i].id, viewKey: "\(all[i].id)|\(entry.family)")) {
+          Text(all[i].name).font(.system(size: Self.tabSize, weight: sel ? .bold : .regular)).foregroundStyle(sel ? Self.text : Self.muted).lineLimit(1)
+            .padding(.trailing, Self.tabGap)
+            .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(sel ? l.currentFolderTab(all[i].name) : l.folderTab(all[i].name))
+      }
+      Spacer(minLength: 0)
     }
   }
 
@@ -502,9 +582,9 @@ struct HomeWidgetView: View {
     .frame(height: height)
   }
 
-  /// 쪽 점(누르는 곳 36×28pt, 겹치지 않음) · +(할 일 쪽에서만). 쪽이 많으면 지금 쪽 근처만 그리고 양 끝을 작게
+  /// 쪽 점(시안처럼 20pt 간격, 누르는 곳 20×28pt·양 끝 32×28pt, 겹치지 않음) · +(할 일 쪽에서만). 쪽이 많으면 지금 쪽 근처만 그리고 양 끝을 작게
   func footer(reading: Bool, pages: Int, current: Int, memoFirst: Int, todoPages: Int, showAdd: Bool, width: CGFloat) -> some View {
-    let maxDots = min(7, max(3, Int((width - 2 * 44) / Self.dot)))
+    let maxDots = min(7, max(3, Int((width - 2 * 44 - 2 * Self.dotEdge) / Self.dot)))
     let start = pages <= maxDots ? 0 : min(max(current - maxDots / 2, 0), pages - maxDots)
     let window = Array(start..<min(pages, start + maxDots))
     return ZStack {
@@ -517,6 +597,9 @@ struct HomeWidgetView: View {
               Circle().fill(i == current ? Self.text : Self.dotOff)
                 .frame(width: edge ? 5 : 7, height: edge ? 5 : 7)
                 .frame(width: Self.dot, height: Self.footer)
+                // 양 끝 점은 바깥으로 더 눌리게(점 자리는 그대로)
+                .padding(.leading, i == window.first ? Self.dotEdge : 0)
+                .padding(.trailing, i == window.last ? Self.dotEdge : 0)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)

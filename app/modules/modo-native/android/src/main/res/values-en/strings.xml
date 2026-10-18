@@ -50,7 +50,8 @@
   <string name="widget_page_current">%1$s, current page</string>
   <string name="widget_memo_expand">%1$s. Tap to expand the memo</string>
   <string name="widget_memo_collapse">%1$s. Tap to collapse the memo</string>
-  <string name="widget_choose_folder">Choose folder: %1$s</string>
   <string name="widget_open_app">Open modo</string>
   <string name="widget_page_memo_only">Memo page</string>
+  <string name="widget_folder_tab">%1$s folder</string>
+  <string name="widget_folder_tab_current">%1$s folder, current</string>
 </resources>

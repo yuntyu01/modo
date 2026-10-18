@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 폴더 탭 하나(앱의 폴더 탭과 같은 모양: 글자만, 지금 폴더는 굵은 흰 글자). 누르는 곳은 글자 + 오른쪽 사이 18dp × 28dp -->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+  android:id="@+id/tab"
+  android:layout_width="wrap_content"
+  android:layout_height="28dp"
+  android:fontFamily="sans-serif"
+  android:gravity="center_vertical"
+  android:maxLines="1"
+  android:paddingEnd="18dp"
+  android:textColor="#A1A1A6"
+  android:textSize="15sp" />

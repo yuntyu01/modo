@@ -50,7 +50,8 @@
   <string name="widget_page_current">%1$s、表示中</string>
   <string name="widget_memo_expand">%1$s。タップでメモを広げる</string>
   <string name="widget_memo_collapse">%1$s。タップでメモを閉じる</string>
-  <string name="widget_choose_folder">フォルダを選ぶ: %1$s</string>
   <string name="widget_open_app">modoを開く</string>
   <string name="widget_page_memo_only">メモのページ</string>
+  <string name="widget_folder_tab">%1$sフォルダ</string>
+  <string name="widget_folder_tab_current">%1$sフォルダ、表示中</string>
 </resources>

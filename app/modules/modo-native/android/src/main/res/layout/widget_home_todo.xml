@@ -4,12 +4,13 @@
   줄 높이는 HomeWidget이 글자 높이로 정해 모든 줄이 같다(보조 줄 없는 줄은 제목이 세로 가운데).
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  android:id="@+id/item_row"
   android:layout_width="match_parent"
   android:layout_height="wrap_content"
   android:gravity="center_vertical"
   android:orientation="horizontal"
-  android:paddingTop="4dp"
-  android:paddingBottom="4dp">
+  android:paddingTop="3dp"
+  android:paddingBottom="3dp">
   <ImageView
     android:id="@+id/item_check"
     android:layout_width="44dp"

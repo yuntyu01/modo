@@ -77,6 +77,12 @@ public enum NotesStore {
     if let d = try? JSONEncoder().encode(v) { defaults?.set(d, forKey: "widgetView." + key) }
   }
 
+  /// 홈 위젯 폴더 탭으로 고른 폴더("base" = 기본). 열쇠 = (위젯 편집에서 고른 폴더, 크기): 편집에서 폴더를 바꾸면 그 폴더부터 다시 보인다.
+  /// nil = 탭을 누른 적 없음(편집에서 고른 폴더)
+  public static func widgetTab(_ key: String) -> String? { defaults?.string(forKey: "widgetTab." + key) }
+
+  public static func setWidgetTab(_ key: String, _ folder: String) { defaults?.set(folder, forKey: "widgetTab." + key) }
+
   static var url: URL? {
     FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroup)?.appendingPathComponent("naegirok.db")
   }

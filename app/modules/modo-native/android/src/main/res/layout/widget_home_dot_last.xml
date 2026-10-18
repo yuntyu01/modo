@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 맨 오른쪽 점: 바깥(오른쪽)으로 12dp 더 눌리게 32×32dp. 점은 왼쪽 20dp 칸의 가운데라 간격은 다른 점과 같다 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  android:id="@+id/dot_hit"
+  android:layout_width="32dp"
+  android:layout_height="32dp">
+  <ImageView
+    android:id="@+id/dot"
+    android:layout_width="8dp"
+    android:layout_height="8dp"
+    android:layout_gravity="start|center_vertical"
+    android:layout_marginStart="6dp"
+    android:importantForAccessibility="no"
+    android:src="@drawable/naegirok_dot" />
+</FrameLayout>

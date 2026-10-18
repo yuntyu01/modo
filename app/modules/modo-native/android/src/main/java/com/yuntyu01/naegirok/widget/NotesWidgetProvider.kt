@@ -56,6 +56,22 @@ class NotesWidgetProvider : AppWidgetProvider() {
       }.start()
       return
     }
+    // 홈 위젯: 폴더 탭을 누르면 그 폴더의 첫 쪽으로(위젯마다 따로 저장)
+    if (intent.action == ACTION_FOLDER) {
+      val id = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
+      if (id == AppWidgetManager.INVALID_APPWIDGET_ID) return
+      val folder = intent.getStringExtra(EXTRA_FOLDER)?.takeIf { it.isNotEmpty() }
+      val pending = goAsync()
+      Thread {
+        try {
+          WidgetPrefs.load(ctx, id).withFolder(folder).save(ctx, id)
+          update(ctx, AppWidgetManager.getInstance(ctx), id)
+        } finally {
+          pending.finish()
+        }
+      }.start()
+      return
+    }
     // 홈 위젯: 메모 읽기 켜기/끄기, 점으로 쪽 고르기(위젯마다 따로 저장)
     if (intent.action == ACTION_MEMO || intent.action == ACTION_GO) {
       val id = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
@@ -110,6 +126,8 @@ class NotesWidgetProvider : AppWidgetProvider() {
     const val ACTION_PAGE = "com.yuntyu01.naegirok.widget.PAGE"
     const val ACTION_MEMO = "com.yuntyu01.naegirok.widget.MEMO"
     const val ACTION_GO = "com.yuntyu01.naegirok.widget.GO"
+    const val ACTION_FOLDER = "com.yuntyu01.naegirok.widget.FOLDER"
+    const val EXTRA_FOLDER = "folder"
     const val EXTRA_KIND = "kind"
     const val EXTRA_STEP = "step"
     const val EXTRA_INDEX = "index"

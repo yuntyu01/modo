@@ -50,7 +50,8 @@
   <string name="widget_page_current">%1$s，当前页</string>
   <string name="widget_memo_expand">%1$s。点按展开备忘</string>
   <string name="widget_memo_collapse">%1$s。点按收起备忘</string>
-  <string name="widget_choose_folder">选择文件夹：%1$s</string>
   <string name="widget_open_app">打开 modo</string>
   <string name="widget_page_memo_only">备忘页</string>
+  <string name="widget_folder_tab">%1$s文件夹</string>
+  <string name="widget_folder_tab_current">%1$s文件夹，当前</string>
 </resources>

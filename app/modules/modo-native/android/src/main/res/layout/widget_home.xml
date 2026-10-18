@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  홈 화면 위젯(시안): 로고 + modo · 폴더 ⌄ / [첫 쪽: 메모만 | 다음 쪽부터: 할 일만] / 쪽 점 · +(할 일 쪽만).
+  홈 화면 위젯(시안): 로고 + modo / 폴더 탭(앱과 같이) / [첫 쪽: 메모만 | 다음 쪽부터: 할 일만] / 쪽 점 · +(할 일 쪽만).
   메모를 누르면 메모 읽기 모드(본문을 쪽으로 나눠 보여 준다). 줄·점은 HomeWidget이 채운다.
   잠금화면 위젯은 widget_notes_lock(그대로).
 -->
@@ -23,13 +23,13 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:paddingStart="22dp"
-    android:paddingTop="8dp"
+    android:paddingTop="2dp"
     android:paddingEnd="12dp"
-    android:paddingBottom="44dp">
+    android:paddingBottom="34dp">
 
     <LinearLayout
       android:layout_width="match_parent"
-      android:layout_height="40dp"
+      android:layout_height="30dp"
       android:gravity="center_vertical"
       android:orientation="horizontal">
       <LinearLayout
@@ -56,36 +56,15 @@
           android:textColor="#FFFFFF"
           android:textSize="18sp" />
       </LinearLayout>
-      <FrameLayout
-        android:layout_width="0dp"
-        android:layout_height="1dp"
-        android:layout_weight="1" />
-      <LinearLayout
-        android:id="@+id/widget_folder"
-        android:layout_width="wrap_content"
-        android:layout_height="match_parent"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingStart="12dp"
-        android:paddingEnd="8dp">
-        <TextView
-          android:id="@+id/widget_folder_name"
-          android:layout_width="wrap_content"
-          android:layout_height="wrap_content"
-          android:ellipsize="end"
-          android:maxWidth="150dp"
-          android:maxLines="1"
-          android:textColor="#E5E5EA"
-          android:textSize="14.5sp" />
-        <ImageView
-          android:id="@+id/widget_folder_chevron"
-          android:layout_width="13dp"
-          android:layout_height="13dp"
-          android:layout_marginStart="5dp"
-          android:importantForAccessibility="no"
-          android:src="@drawable/naegirok_chevron_down" />
-      </LinearLayout>
     </LinearLayout>
+
+    <!-- 폴더 탭(앱과 같이 메모 바로 위): 누르면 그 폴더로. 탭은 HomeWidget이 채운다(지금 폴더는 굵은 글자) -->
+    <LinearLayout
+      android:id="@+id/widget_tabs"
+      android:layout_width="match_parent"
+      android:layout_height="28dp"
+      android:gravity="center_vertical"
+      android:orientation="horizontal" />
 
     <!-- 메모 쪽·메모 읽기 쪽: 할 일 자리까지 한 쪽씩(줄 수는 HomeWidget이 잰다, 넘치면 마지막 줄 …) -->
     <TextView
@@ -127,29 +106,29 @@
       android:visibility="gone" />
   </LinearLayout>
 
-  <!-- 아래 줄: 쪽 점은 위젯 가운데, +는 오른쪽 -->
+  <!-- 아래 줄(32 + 아래 여백 2): 쪽 점은 위젯 가운데, +는 오른쪽. 마지막 할 일과 점이 멀어지지 않게 낮게 -->
   <FrameLayout
     android:layout_width="match_parent"
-    android:layout_height="40dp"
+    android:layout_height="32dp"
     android:layout_gravity="bottom"
-    android:layout_marginBottom="4dp">
+    android:layout_marginBottom="2dp">
     <LinearLayout
       android:id="@+id/widget_dots"
       android:layout_width="wrap_content"
-      android:layout_height="40dp"
+      android:layout_height="32dp"
       android:layout_gravity="center"
       android:orientation="horizontal" />
     <ImageView
       android:id="@+id/widget_add"
       android:layout_width="44dp"
-      android:layout_height="40dp"
+      android:layout_height="32dp"
       android:layout_gravity="end|center_vertical"
       android:layout_marginEnd="8dp"
       android:contentDescription="@string/add"
       android:paddingStart="11dp"
-      android:paddingTop="9dp"
+      android:paddingTop="5dp"
       android:paddingEnd="11dp"
-      android:paddingBottom="9dp"
+      android:paddingBottom="5dp"
       android:src="@drawable/naegirok_add" />
   </FrameLayout>
 </FrameLayout>

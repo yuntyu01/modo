@@ -68,11 +68,11 @@ test('반복 할 일: 정하면 첫 예정일로, 체크하면 다음 예정일�
   await repo.init();
   const id = await repo.addTodo('책 20분 읽기', null, 'bottom');
   await repo.setRemind(id, day(2026, 10, 16, 21));
-  // 월·수·금, 시작일 토요일 → 토요일부터 보이고 알림도 토요일 21시로
+  // 월·수·금, 시작일 토요일 → 그 뒤 첫 월요일부터 보이고 알림도 월요일 21시로
   await repo.setRepeat(id, { freq: 'weekly', days: 1 | 4 | 16 }, '2026-10-17');
   let t = (await repo.snapshot()).todos[0];
-  expect([t.repeat_freq, t.repeat_days, t.due_date]).toEqual(['weekly', 21, '2026-10-17']);
-  expect(t.remind_at).toBe(day(2026, 10, 17, 21));
+  expect([t.repeat_freq, t.repeat_days, t.due_date]).toEqual(['weekly', 21, '2026-10-19']);
+  expect(t.remind_at).toBe(day(2026, 10, 19, 21));
   // 월요일에 체크 → 수요일
   now = day(2026, 10, 19);
   const r = await repo.complete(id);
@@ -90,7 +90,7 @@ test('반복 할 일: 정하면 첫 예정일로, 체크하면 다음 예정일�
   // 실행 취소
   await repo.undoComplete(id, r!.prev);
   t = (await repo.snapshot()).todos[0];
-  expect([t.done, t.due_date, t.remind_at]).toEqual([false, '2026-10-17', day(2026, 10, 17, 21)]);
+  expect([t.done, t.due_date, t.remind_at]).toEqual([false, '2026-10-19', day(2026, 10, 19, 21)]);
   // 체크해 둔 것을 풀면 오늘 할 일로(알림도 오늘로), 오늘의 '한 날' 기록도 지운다
   await repo.complete(id);
   expect((await repo.snapshot()).todos[0].done_log).toBe('2026-10-19');

@@ -5,6 +5,8 @@
 할 일과 메모를 한 화면에서 쓰는 앱. Android·iOS(React Native/Expo), Windows 데스크톱 미니창(Electron), 동기화·공유 서버(Go + PostgreSQL).
 모든 기능 무료(개수 제한·Pro·결제·광고 없음).
 
+앱 아이콘 원본은 `app/assets/brand/app-icon-source.png`입니다. `node app/scripts/generate-icons.cjs`로 모바일·Android 적응형/단색·웹·Windows ICO·Store 타일을 다시 만듭니다. 받은 원본의 로고를 다시 그리지 않고 크기와 플랫폼 형식만 변환합니다.
+
 ```
 app/                          Expo(SDK 57) 앱. src/app = 화면, src/core = 로컬 DB·동기화(플랫폼 공통 TS)
 app/modules/modo-native       Android(Kotlin)·iOS(Swift) 네이티브: 위젯, 빠른 설정 타일, 빠른 추가, 잠금화면 알림, 리마인더

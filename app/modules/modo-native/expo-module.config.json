@@ -1,0 +1,9 @@
+{
+  "platforms": ["android", "apple"],
+  "android": {
+    "modules": ["com.yuntyu01.naegirok.ModoNativeModule"]
+  },
+  "apple": {
+    "modules": ["ModoNativeModule"]
+  }
+}

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 잠금화면 위젯: 메모와 할 일 사이 얇은 선 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  android:layout_width="match_parent"
+  android:layout_height="17dp">
+  <ImageView
+    android:id="@+id/divider"
+    android:layout_width="match_parent"
+    android:layout_height="1dp"
+    android:layout_gravity="center_vertical"
+    android:importantForAccessibility="no"
+    android:scaleType="fitXY"
+    android:src="@drawable/naegirok_circle" />
+</FrameLayout>

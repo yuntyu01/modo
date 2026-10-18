@@ -1,0 +1,5 @@
+<resources>
+  <color name="naegirok_icon_bg">#FF0E0F11</color>
+  <!-- 대표색: src/brand.ts와 같은 값(src/__tests__/brand.test.ts가 확인) -->
+  <color name="modo_brand">#FF85ADE2</color>
+</resources>

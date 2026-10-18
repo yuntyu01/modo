@@ -1,0 +1,18 @@
+node_modules/
+desktop/renderer/
+desktop/out/
+desktop/dist/
+app/android/
+app/ios/
+app/dist/
+*.log
+.env
+test/.out/
+app/scripts/.out/
+# 빌드할 때 생기는 파일
+desktop/core.cjs
+**/test/.out/
+app/modules/*/android/build/
+app/modules/*/android/.gradle/
+*.apk
+*.aab

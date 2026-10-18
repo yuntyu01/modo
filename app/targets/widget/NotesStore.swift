@@ -1,0 +1,1 @@
+../../modules/modo-native/ios/NotesStore.swift

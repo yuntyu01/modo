@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  홈 위젯 할 일 한 줄(상자·구분선 없음): 동그라미 = 완료, 글자 = 그 할 일 고치기.
+  줄 높이는 HomeWidget이 글자 높이로 정해 모든 줄이 같다(보조 줄 없는 줄은 제목이 세로 가운데).
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  android:layout_width="match_parent"
+  android:layout_height="wrap_content"
+  android:gravity="center_vertical"
+  android:orientation="horizontal"
+  android:paddingTop="4dp"
+  android:paddingBottom="4dp">
+  <ImageView
+    android:id="@+id/item_check"
+    android:layout_width="44dp"
+    android:layout_height="44dp"
+    android:layout_marginStart="-10dp"
+    android:padding="10dp"
+    android:src="@drawable/naegirok_check_off" />
+  <LinearLayout
+    android:id="@+id/item_body"
+    android:layout_width="0dp"
+    android:layout_height="wrap_content"
+    android:layout_weight="1"
+    android:layout_marginStart="8dp"
+    android:orientation="vertical">
+    <TextView
+      android:id="@+id/item_text"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:ellipsize="end"
+      android:fontFamily="sans-serif"
+      android:gravity="center_vertical"
+      android:letterSpacing="-0.02"
+      android:maxLines="1"
+      android:textColor="#FFFFFF"
+      android:textSize="16sp" />
+    <TextView
+      android:id="@+id/item_meta"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:layout_marginTop="0dp"
+      android:ellipsize="end"
+      android:fontFamily="sans-serif"
+      android:fontFeatureSettings="tnum"
+      android:gravity="center_vertical"
+      android:maxLines="1"
+      android:textColor="#A1A1A6"
+      android:textSize="13sp"
+      android:visibility="gone" />
+  </LinearLayout>
+</LinearLayout>

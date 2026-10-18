@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 반복 할 일 동그라미: naegirok_check_off와 같은 원을 시계 방향 두 곡선 화살표로(앱 Icons.tsx RepeatRingIcon과 같은 모양). 위젯이 통째로 색을 입힌다 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+  <path android:pathData="M5.894,19.277A9.5,9.5 0,0 1,11.668,2.506" android:strokeColor="#FFFFFFFF" android:strokeWidth="1.8" android:strokeLineCap="round" android:fillColor="#00000000" />
+  <path android:pathData="M15.707,3.253L11.59,0.257L11.747,4.754Z" android:fillColor="#FFFFFFFF" />
+  <path android:pathData="M18.106,4.723A9.5,9.5 0,0 1,12.332,21.494" android:strokeColor="#FFFFFFFF" android:strokeWidth="1.8" android:strokeLineCap="round" android:fillColor="#00000000" />
+  <path android:pathData="M8.293,20.747L12.41,23.743L12.253,19.246Z" android:fillColor="#FFFFFFFF" />
+</vector>

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  최소 크기 = 머리(40) + [할 일 2줄(52×2) 또는 메모 3줄] + 쪽 점 줄(44) + 위 여백(8) = 196dp. 이보다 작게는 줄이지 못한다.
+  폭은 머리(로고·폴더)와 아래 줄(점 3개 + +)이 들어가는 250dp. 기본으로 놓는 크기는 4×2칸(런처 칸이 작아 196dp가 안 되면 런처가 더 큰 칸을 준다).
+  잠금화면(keyguard)은 initialKeyguardLayout·widget_notes_lock 그대로.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+  android:minWidth="250dp"
+  android:minHeight="196dp"
+  android:minResizeWidth="250dp"
+  android:minResizeHeight="196dp"
+  android:targetCellWidth="4"
+  android:targetCellHeight="2"
+  android:resizeMode="horizontal|vertical"
+  android:updatePeriodMillis="1800000"
+  android:initialLayout="@layout/widget_home"
+  android:initialKeyguardLayout="@layout/widget_notes"
+  android:previewLayout="@layout/widget_preview"
+  android:description="@string/widget_description"
+  android:configure="com.yuntyu01.naegirok.widget.WidgetConfigActivity"
+  android:widgetFeatures="reconfigurable|configuration_optional"
+  android:widgetCategory="home_screen|keyguard" />

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 흰 도형. 위젯에서 카드색으로 물들이고 투명도를 조절한다. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+  <solid android:color="#FFFFFFFF" />
+  <corners android:radius="19dp" /><!-- 시안 위젯 모서리(약 19) -->
+</shape>

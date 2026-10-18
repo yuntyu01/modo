@@ -1,0 +1,6 @@
+{
+  "name": "modo-native",
+  "version": "1.0.0",
+  "private": true,
+  "description": "modo Android/iOS 네이티브 기능: 위젯, 빠른 설정 타일, 빠른 추가, 잠금화면 알림, 리마인더"
+}

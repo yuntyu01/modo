@@ -1,0 +1,22 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'com.yuntyu01.naegirok'
+version = '1.0.0'
+
+// namespace를 앱 패키지(com.yuntyu01.naegirok)와 다르게 둔다: 같으면 release에서 BuildConfig가 겹친다.
+android {
+  namespace "com.yuntyu01.naegirok.nativelib"
+  defaultConfig {
+    versionCode 1
+    versionName '1.0.0'
+  }
+}
+
+dependencies {
+  implementation 'androidx.core:core-ktx:1.13.1'
+  // 홈 위젯 쪽 계산·보조 줄 표기(Android 의존 없는 코드)의 JVM 단위 테스트
+  testImplementation 'junit:junit:4.13.2'
+}

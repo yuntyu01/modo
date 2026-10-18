@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 위젯 추가 화면의 미리보기(Android 12+). 실제 홈 위젯의 첫 쪽(메모 쪽)과 같은 배치에 예시 글. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  android:layout_width="match_parent"
+  android:layout_height="match_parent">
+  <ImageView
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:alpha="0.85"
+    android:scaleType="fitXY"
+    android:src="@drawable/naegirok_widget_bg"
+    android:tint="#2A2A2C" />
+  <LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:paddingStart="22dp"
+    android:paddingTop="8dp"
+    android:paddingEnd="20dp"
+    android:paddingBottom="4dp">
+    <LinearLayout
+      android:layout_width="match_parent"
+      android:layout_height="40dp"
+      android:gravity="center_vertical"
+      android:orientation="horizontal">
+      <ImageView
+        android:layout_width="wrap_content"
+        android:layout_height="15dp"
+        android:layout_marginEnd="8dp"
+        android:adjustViewBounds="true"
+        android:src="@drawable/naegirok_mark"
+        android:tint="@color/modo_brand" />
+      <TextView
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:fontFamily="sans-serif-medium"
+        android:text="@string/app_name_widget"
+        android:textColor="#F5F5F7"
+        android:textSize="18sp" />
+      <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/base_folder"
+        android:textColor="#E5E5EA"
+        android:textSize="14.5sp" />
+      <ImageView
+        android:layout_width="13dp"
+        android:layout_height="13dp"
+        android:layout_marginStart="5dp"
+        android:src="@drawable/naegirok_chevron_down"
+        android:tint="#E5E5EA" />
+    </LinearLayout>
+    <TextView
+      android:layout_width="match_parent"
+      android:layout_height="0dp"
+      android:layout_weight="1"
+      android:lineSpacingMultiplier="1.3"
+      android:paddingTop="4dp"
+      android:text="@string/preview_memo"
+      android:textColor="#F5F5F7"
+      android:textSize="16sp" />
+    <LinearLayout
+      android:layout_width="wrap_content"
+      android:layout_height="40dp"
+      android:layout_gravity="center_horizontal"
+      android:gravity="center"
+      android:orientation="horizontal">
+      <ImageView
+        android:layout_width="8dp"
+        android:layout_height="8dp"
+        android:layout_marginEnd="18dp"
+        android:src="@drawable/naegirok_dot"
+        android:tint="#F5F5F7" />
+      <ImageView
+        android:layout_width="8dp"
+        android:layout_height="8dp"
+        android:src="@drawable/naegirok_dot"
+        android:tint="#78787B" />
+    </LinearLayout>
+  </LinearLayout>
+</FrameLayout>

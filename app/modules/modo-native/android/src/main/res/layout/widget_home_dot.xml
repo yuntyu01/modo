@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 쪽 점 하나: 보이는 점은 작아도 누르는 곳은 44×40dp, 옆 점과 겹치지 않는다 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  android:id="@+id/dot_hit"
+  android:layout_width="44dp"
+  android:layout_height="40dp">
+  <ImageView
+    android:id="@+id/dot"
+    android:layout_width="8dp"
+    android:layout_height="8dp"
+    android:layout_gravity="center"
+    android:importantForAccessibility="no"
+    android:src="@drawable/naegirok_dot" />
+</FrameLayout>

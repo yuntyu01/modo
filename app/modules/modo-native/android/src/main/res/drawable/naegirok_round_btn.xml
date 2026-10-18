@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 잠금화면 위젯의 동그란 ‹ › 버튼 바탕 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
+  <solid android:color="#FF272B33" />
+</shape>

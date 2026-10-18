@@ -1,0 +1,83 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+  <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+  <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+
+  <!-- DB를 여는 부품은 모두 :native 프로세스(ModoEvents.kt 설명). -->
+  <application>
+    <!-- '빠른 추가' 별도 앱 아이콘: 누르면 RN 없이 바로 입력창 -->
+    <activity
+      android:name="com.yuntyu01.naegirok.QuickAddActivity"
+      android:process=":native"
+      android:exported="true"
+      android:label="@string/quick_add"
+      android:icon="@mipmap/naegirok_quick_add"
+      android:roundIcon="@mipmap/naegirok_quick_add"
+      android:taskAffinity="com.yuntyu01.naegirok.quickadd"
+      android:excludeFromRecents="true"
+      android:launchMode="singleTask"
+      android:theme="@style/Modo.QuickAdd"
+      android:windowSoftInputMode="stateAlwaysVisible|adjustResize">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+    </activity>
+
+    <!-- 위젯에서 글자를 누르면 뜨는 고치기 창(앱을 띄우지 않음) -->
+    <activity
+      android:name="com.yuntyu01.naegirok.WidgetEditActivity"
+      android:process=":native"
+      android:exported="false"
+      android:taskAffinity="com.yuntyu01.naegirok.widgetedit"
+      android:excludeFromRecents="true"
+      android:launchMode="singleTask"
+      android:theme="@style/Modo.QuickAdd"
+      android:windowSoftInputMode="stateAlwaysVisible|adjustResize" />
+
+    <receiver android:name="com.yuntyu01.naegirok.widget.NotesWidgetProvider"
+      android:process=":native" android:exported="true" android:label="@string/app_name_widget">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/naegirok_widget_info" />
+    </receiver>
+
+
+    <activity
+      android:name="com.yuntyu01.naegirok.widget.WidgetConfigActivity"
+      android:process=":native"
+      android:exported="true"
+      android:theme="@style/Modo.Config">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+      </intent-filter>
+    </activity>
+
+    <service
+      android:name="com.yuntyu01.naegirok.QuickAddTileService"
+      android:process=":native"
+      android:exported="true"
+      android:icon="@drawable/naegirok_tile"
+      android:label="@string/tile_label"
+      android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+      <intent-filter>
+        <action android:name="android.service.quicksettings.action.QS_TILE" />
+      </intent-filter>
+      <meta-data android:name="android.service.quicksettings.TOGGLEABLE_TILE" android:value="false" />
+    </service>
+
+    <receiver android:name="com.yuntyu01.naegirok.RefreshReceiver" android:process=":native" android:exported="false" />
+    <receiver android:name="com.yuntyu01.naegirok.notify.ReminderReceiver"
+      android:process=":native" android:exported="false" />
+    <receiver android:name="com.yuntyu01.naegirok.notify.BootReceiver"
+      android:process=":native" android:exported="true">
+      <intent-filter>
+        <action android:name="android.intent.action.BOOT_COMPLETED" />
+        <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+        <action android:name="android.intent.action.TIME_SET" />
+        <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+      </intent-filter>
+    </receiver>
+  </application>
+</manifest>

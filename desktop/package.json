@@ -1,0 +1,40 @@
+{
+  "name": "modo-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "modo Windows 데스크톱 미니창 (Electron + 앱의 RN 화면을 웹으로 렌더링)",
+  "main": "main.cjs",
+  "scripts": {
+    "renderer": "cd ../app && npx expo export -p web --output-dir ../desktop/renderer",
+    "start": "electron .",
+    "dist:win": "electron-builder --win zip --x64",
+    "test:sync": "esbuild test/desktop-sync.e2e.ts --bundle --platform=node --format=cjs --external:node:sqlite --outfile=test/.out/desktop-sync.cjs && ELECTRON_RUN_AS_NODE=1 electron test/.out/desktop-sync.cjs",
+    "core": "esbuild src/core-entry.ts --bundle --platform=node --format=cjs --target=node22 --outfile=core.cjs",
+    "build": "npm run core && npm run renderer",
+    "test:unit": "node test/userdata.test.cjs && npm run core && ELECTRON_RUN_AS_NODE=1 electron test/host.test.cjs"
+  },
+  "build": {
+    "appId": "com.yuntyu01.naegirok",
+    "productName": "modo",
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "db.cjs",
+      "window-state.cjs",
+      "userdata.cjs",
+      "core.cjs",
+      "sync-host.cjs",
+      "renderer/**",
+      "assets/**"
+    ],
+    "win": {
+      "target": "zip",
+      "icon": "assets/icon.png",
+      "signAndEditExecutable": false
+    }
+  },
+  "devDependencies": {
+    "electron": "^44.7.2",
+    "esbuild": "^0.28.2"
+  }
+}

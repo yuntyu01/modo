@@ -1,0 +1,4 @@
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+  <item><shape android:shape="oval"><solid android:color="#FF1E2024" /></shape></item>
+  <item android:drawable="@drawable/naegirok_quick_add_fg" />
+</layer-list>

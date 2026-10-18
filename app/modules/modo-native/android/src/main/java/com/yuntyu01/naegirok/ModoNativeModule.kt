@@ -49,6 +49,16 @@ class ModoNativeModule : Module() {
     // 앱 프로세스에서는 DB를 직접 열지 않는다(위 ModoEvents 설명). 갱신은 :native에 맡긴다.
     AsyncFunction("refresh") { ModoEvents.requestRefresh(ctx) }
 
+    // null means Talk is unavailable: JS keeps the existing browser/PKCE flow.
+    AsyncFunction("loginWithKakaoTalk") { promise: Promise ->
+      val activity = appContext.currentActivity
+      if (activity == null) {
+        promise.reject("ERR_KAKAO_UNAVAILABLE", "No foreground activity", null)
+      } else {
+        activity.runOnUiThread { KakaoTalkLogin.start(activity, promise) }
+      }
+    }
+
     AsyncFunction("requestPinWidget") {
       val mgr = AppWidgetManager.getInstance(ctx)
       if (Build.VERSION.SDK_INT < 26 || !mgr.isRequestPinAppWidgetSupported) return@AsyncFunction false

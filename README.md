@@ -7,7 +7,9 @@
 할 일과 메모를 한 화면에서 쓰는 앱. Android·iOS(React Native/Expo), Windows 데스크톱 미니창(Electron), 동기화·공유 서버(Go + PostgreSQL).
 모든 기능 무료(개수 제한·Pro·결제·광고 없음).
 
-앱 아이콘 원본은 `app/assets/brand/app-icon-source.png`입니다. `node app/scripts/generate-icons.cjs`로 모바일·Android 적응형/단색·웹·Windows ICO·Store 타일을 다시 만듭니다. 받은 원본의 로고를 다시 그리지 않고 크기와 플랫폼 형식만 변환합니다.
+앱 아이콘은 원래 사용하던 단색 배경의 벡터 심볼 버전으로 복원했습니다. 모바일·Android 적응형/단색·Windows 아이콘도 같은 이전 버전입니다. `app/assets/brand/app-icon-source.png`는 복원한 아이콘 원본입니다.
+
+Android 카카오 로그인은 카카오톡이 있으면 공식 SDK로 인증하고 없으면 기존 웹 로그인을 사용합니다. 네이티브 앱 키는 로컬 `app/.env.local` 또는 빌드의 `MODO_KAKAO_NATIVE_APP_KEY`로 전달합니다(저장소 비밀값). REST/Client Secret/Admin 키는 서버 전용입니다. 서버는 토큰의 앱 ID·만료·회원번호를 카카오에 검증하고 기존 PKCE 일회용 코드로 교환하므로, 웹 로그인 계정과 같은 기록을 사용합니다. 카카오 콘솔에는 패키지 `com.yuntyu01.naegirok`과 Google Play 앱 서명 인증서의 SHA-1 Base64 키 해시를 등록해야 합니다.
 
 ```
 app/                          Expo(SDK 57) 앱. src/app = 화면, src/core = 로컬 DB·동기화(플랫폼 공통 TS)

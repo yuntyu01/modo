@@ -6,6 +6,7 @@ import { PermissionsAndroid, Platform } from 'react-native';
  * 모듈이 없는 환경(Expo Go, 웹)에서는 아무 일도 하지 않는다.
  */
 type NativeModule = {
+  loginWithKakaoTalk?(): Promise<string | null>;
   /** 위젯·잠금화면 알림·리마인더를 DB 기준으로 다시 그린다/예약한다 */
   refresh(): Promise<void>;
   requestPinWidget(): Promise<boolean>;
@@ -26,6 +27,7 @@ const mod = Platform.OS === 'web' ? null : requireOptionalNativeModule<NativeMod
 
 export const native = {
   available: !!mod,
+  loginWithKakaoTalk: () => mod?.loginWithKakaoTalk?.() ?? Promise.resolve(null),
   refresh: () => mod?.refresh().catch(() => {}),
   requestPinWidget: async () => (mod ? mod.requestPinWidget() : false),
   requestAddTile: async () => (mod ? mod.requestAddTile() : 'unsupported'),

@@ -94,10 +94,13 @@ jobs:
           VERSION_CODE=$code node -e "const n=Number(process.env.VERSION_CODE);if(!Number.isInteger(n)||n<2)throw new Error('bad versionCode '+process.env.VERSION_CODE);const f='app/app.json',fs=require('fs'),j=JSON.parse(fs.readFileSync(f,'utf8'));j.expo.android.versionCode=n;fs.writeFileSync(f,JSON.stringify(j,null,2)+'\n')"
           echo "versionCode $code (version $(node -p "require('./app/app.json').expo.version"))" >> "$GITHUB_STEP_SUMMARY"
 
-      - run: npx expo prebuild --platform android --no-install
+      - run: |
+          node -e "if(!/^[a-f0-9]{32}$/.test(process.env.MODO_KAKAO_NATIVE_APP_KEY || '')) throw new Error('MODO_KAKAO_NATIVE_APP_KEY is required for the Kakao Talk release')"
+          npx expo prebuild --platform android --no-install
         working-directory: app
         env:
           CI: '1'
+          MODO_KAKAO_NATIVE_APP_KEY: ${{ secrets.MODO_KAKAO_NATIVE_APP_KEY }}
 
       - uses: gradle/actions/setup-gradle@v4
 

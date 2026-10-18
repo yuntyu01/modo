@@ -116,7 +116,6 @@ export function makeTheme(p: Prefs, systemDark: boolean, surface?: SurfaceTheme)
   const card = cardPref ? mix(baseCard, cardPref, dark ? 0.32 : 0.16) : baseCard;
   // PC 큰 창·미니창도 색(바탕·그라데이션·블록·글자)은 휴대폰 앱과 같다(사용자 요청). 배치·크기만 PC 시안대로
   const desk = onDesktop() && !surface && !window.location.pathname.startsWith('/mini');
-  // 미니창(메모)은 그라데이션을 은은하게: 색은 더 옅게, 길게 천천히 바탕색으로 녹아들게(아래 gradientStops). 다크는 파란 기도 줄여서
   const top = gradientTop(rawAccent, p.gradient, dark, bg);
   const scale = SIZE[p.size];
   const family = fontFamily(p.font);

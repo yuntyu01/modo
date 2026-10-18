@@ -1,15 +1,18 @@
 import Constants from 'expo-constants';
-import { Text, View } from 'react-native';
+import { Linking, Text, View } from 'react-native';
 
 import type { StringKey } from '../../i18n';
 import { useApp } from '../../state/AppContext';
+import { DELETION_URL, POLICY_URL, SUPPORT_URL } from '../../policies';
+import { Group, Row } from '../../ui/primitives';
 import { Logo } from '../../ui/Logo';
-import { SubScreen } from '../../ui/SubScreen';
+import { Note, SubScreen } from '../../ui/SubScreen';
 
 const STEPS = [1, 2, 3, 4, 5, 6, 7].map((n) => [`guide${n}t`, `guide${n}b`] as [StringKey, StringKey]);
 
 export default function Guide() {
-  const { theme, t } = useApp();
+  const { theme, t, showToast } = useApp();
+  const open = (url: string) => Linking.openURL(url).catch(() => showToast({ message: t('linkOpenFailed') }));
   return (
     <SubScreen title={t('help')}>
       {/* 앱 소개: 로고 + 한 줄 소개 + 이름 뜻 */}
@@ -20,6 +23,12 @@ export default function Guide() {
           {t('nameMeaning')} · {Constants.expoConfig?.version ?? ''}
         </Text>
       </View>
+      <Group>
+        <Row label={t('privacyPolicy')} onPress={() => open(POLICY_URL)} />
+        <Row label={t('requestAccountDeletion')} onPress={() => open(DELETION_URL)} />
+        <Row label={t('contactSupport')} onPress={() => open(SUPPORT_URL)} last />
+      </Group>
+      <Note>{t('targetAudienceNotice')}</Note>
       {STEPS.map(([title, body]) => (
         <View key={title} style={{ backgroundColor: theme.card, borderRadius: 14, padding: 18, marginBottom: 10 }}>
           <Text style={theme.font(16, { color: theme.text, fontWeight: '600', marginBottom: 6 })}>{t(title)}</Text>

@@ -25,6 +25,13 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.yuntyu01.naegirok",
+      "versionCode": 1,
+      "allowBackup": false,
+      "blockedPermissions": [
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ],
       "softwareKeyboardLayoutMode": "resize"
     },
     "web": {
@@ -92,11 +99,14 @@
         "expo-build-properties",
         {
           "android": {
-            "usesCleartextTraffic": true
+            "usesCleartextTraffic": false,
+            "targetSdkVersion": 36,
+            "compileSdkVersion": 36
           }
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      "./plugins/withReleaseSigning"
     ]
   }
 }

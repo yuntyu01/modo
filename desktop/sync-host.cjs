@@ -166,6 +166,10 @@ function createSyncHost({ db, fetch, device, broadcast, hasVisibleWindow, openAu
             await engine.logout();
             broadcast('data-changed', ['*']);
             return { ok: true };
+          case 'deleteAccount':
+            await engine.deleteAccount();
+            broadcast('data-changed', ['*']);
+            return { ok: true };
           case 'shareApi':
             return { ok: true, value: await engine.shareApi(args[0], args[1] ?? {}) };
           case 'deferLogin':

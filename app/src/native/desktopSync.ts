@@ -72,6 +72,9 @@ export class DesktopSync implements SyncApi {
   logout() {
     return this.call<void>('logout');
   }
+  deleteAccount() {
+    return this.call<void>('deleteAccount');
+  }
   /** 테마색은 메인이 동기화가 끝날 때·테마색을 바꿨을 때 맞추고 바뀌면 모든 창에 알린다 */
   async syncTheme() {
     return null;

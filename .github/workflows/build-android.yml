@@ -1,0 +1,46 @@
+name: modo signed Android bundle
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - run: npm ci --no-audit --no-fund
+        working-directory: app
+      - run: npx expo prebuild --platform android --no-install
+        working-directory: app
+        env:
+          CI: "1"
+          EXPO_NO_TELEMETRY: "1"
+      - name: Restore encrypted upload key
+        shell: bash
+        env:
+          MODO_KEY_B64: ${{ secrets.MODO_UPLOAD_KEYSTORE_B64 }}
+        run: |
+          umask 077
+          printf '%s' "$MODO_KEY_B64" | base64 --decode > "$RUNNER_TEMP/modo-upload.jks"
+      - run: ./gradlew :app:bundleRelease --max-workers=2 -PreactNativeArchitectures=arm64-v8a,x86_64
+        working-directory: app/android
+        env:
+          MODO_UPLOAD_KEYSTORE: ${{ runner.temp }}/modo-upload.jks
+          MODO_UPLOAD_STORE_PASSWORD: ${{ secrets.MODO_UPLOAD_STORE_PASSWORD }}
+          MODO_UPLOAD_KEY_PASSWORD: ${{ secrets.MODO_UPLOAD_KEY_PASSWORD }}
+          MODO_UPLOAD_KEY_ALIAS: ${{ secrets.MODO_UPLOAD_KEY_ALIAS }}
+          EXPO_NO_TELEMETRY: "1"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: modo-1.0.0-release-aab
+          path: app/android/app/build/outputs/bundle/release/app-release.aab
+          retention-days: 14

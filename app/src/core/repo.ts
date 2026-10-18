@@ -128,6 +128,15 @@ export function touchesData(tables: Touched) {
 }
 
 export class Repo {
+  /** Called only after an authenticated account deletion was accepted by the server. */
+  async eraseLocalData() {
+    await this.write(async () => {
+      for (const table of ['outbox', 'todos', 'paragraphs', 'folders', 'shared_folders', 'people']) {
+        await this.db.run(`DELETE FROM ${table}`);
+      }
+      await this.db.run(`DELETE FROM kv WHERE key NOT IN ('schema_version', 'prefs')`);
+    });
+  }
   private mutex = new Mutex();
   private listeners = new Set<Listener>();
   private last: Snapshot = { folders: [], todos: [], paragraphs: [], shared: [] };

@@ -63,7 +63,7 @@ export const CARD_SWATCHES = [
   '#B4467E',
 ];
 
-export const DEFAULT_SERVER = process.env.EXPO_PUBLIC_API_URL ?? 'http://127.0.0.1:8080';
+export const DEFAULT_SERVER = process.env.EXPO_PUBLIC_API_URL ?? 'https://modo.kodeploy.com';
 
 export const DEFAULT_PREFS: Prefs = {
   themeMode: 'system',

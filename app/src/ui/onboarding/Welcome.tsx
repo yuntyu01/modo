@@ -80,14 +80,15 @@ export function Welcome({ onStart, onHidden, onLogin }: { onStart: (todoId: stri
         style={StyleSheet.absoluteFill}
       />
       {/* 키보드가 올라오면 첫 할 일 칸과 '시작하기'가 키보드 위로(홈 틀과 같이 Android도 padding: 창이 줄지 않는 기기가 있다) */}
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'web' ? undefined : 'padding'}>
+      {/* 상태 표시줄 높이는 스크롤 밖에서 띄운다(안쪽 여백으로 두면 올렸을 때 글이 시계 뒤로 비쳤다) */}
+      <KeyboardAvoidingView style={{ flex: 1, marginTop: insets.top }} behavior={Platform.OS === 'web' ? undefined : 'padding'}>
         <ScrollView
           ref={scroll}
           onLayout={() => kbOpen.current && scroll.current?.scrollToEnd({ animated: true })}
           keyboardShouldPersistTaps="handled"
           // 시작하기도 같은 흐름 안에(아래에 따로 고정해 두면 키보드가 뜰 때 첫 할 일 칸·안내를 덮었다: 사용자 지적 2026-10-18).
           // 화면이 길면 빈 자리(flex)만큼 아래로 내려가 맨 아래에 붙는다
-          contentContainerStyle={{ flexGrow: 1, paddingTop: insets.top + 18, paddingHorizontal: 22, paddingBottom: insets.bottom + 14 }}
+          contentContainerStyle={{ flexGrow: 1, paddingTop: 18, paddingHorizontal: 22, paddingBottom: insets.bottom + 14 }}
         >
           <Logo height={19.5} color={theme.text} markColor={theme.mark} markRatio={0.83} wordStretch={1.06} />
           <Text style={theme.kfont(33, { color: theme.text, fontWeight: '700', lineHeight: 44, marginTop: 30 })}>{t('welcomeTitle')}</Text>

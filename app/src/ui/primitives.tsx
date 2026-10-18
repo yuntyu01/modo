@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { inputColors } from './theme';
 import { useApp } from '../state/AppContext';
 import { ChevronIcon } from './Icons';
+import { useSlidingPill } from './motion';
 
 /** 아래에서 올라오는 시트. 상태바·내비게이션 영역을 피한다. */
 export function Sheet({ visible, onClose, children }: { visible: boolean; onClose: () => void; children: ReactNode }) {
@@ -379,9 +380,12 @@ export function Segmented<V extends string>({
   onChange: (v: V) => void;
 }) {
   const { theme } = useApp();
+  // 고른 칸의 바탕이 새 칸으로 미끄러진다(하단바와 같은 움직임)
+  const { onItemLayout, pill } = useSlidingPill(options.findIndex((o) => o.value === value));
   return (
     <View style={[styles.segment, { backgroundColor: theme.dark ? '#141518' : '#EEF0F3' }]}>
-      {options.map((o) => {
+      {pill ? <Animated.View pointerEvents="none" style={[styles.segmentPill, pill, { backgroundColor: theme.raised }]} /> : null}
+      {options.map((o, i) => {
         const on = o.value === value;
         return (
           <Pressable
@@ -389,7 +393,8 @@ export function Segmented<V extends string>({
             accessibilityRole="radio"
             accessibilityState={{ selected: on }}
             onPress={() => onChange(o.value)}
-            style={[styles.segmentItem, on && { backgroundColor: theme.raised }]}
+            onLayout={onItemLayout(i)}
+            style={styles.segmentItem}
           >
             <Text style={theme.font(14, { color: on ? theme.text : theme.muted, fontWeight: on ? '600' : '400' })}>{o.label}</Text>
           </Pressable>
@@ -449,4 +454,5 @@ const styles = StyleSheet.create({
   rowLine: { position: 'absolute', bottom: 0, height: StyleSheet.hairlineWidth },
   segment: { flexDirection: 'row', borderRadius: 14, padding: 4 },
   segmentItem: { flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 10 },
+  segmentPill: { top: 4, bottom: 4, borderRadius: 10 },
 });

@@ -9,10 +9,9 @@ import { withAlpha } from '../ui/color';
 import { EditableText } from '../ui/EditableText';
 import { MINI_CARD_GAP, MINI_RADIUS, TodoCard, type Editing } from '../ui/home/Cards';
 import { Composer } from '../ui/home/Composer';
-import { homeFolder, isRepeatDone, isUpcomingRepeat, liveFolderIds, splitDone, trimTrailingBlank } from '../ui/home/model';
+import { homeFolder, isRepeatDone, liveFolderIds, splitDone, trimTrailingBlank } from '../ui/home/model';
 import { useWebReorder } from '../ui/home/webReorder';
 import { useTabScroller } from '../ui/home/tabScroller';
-import { localDate } from '../ui/format';
 import { CloseIcon, CollapseIcon, DotsIcon, ExpandIcon, PinIcon, PlusIcon } from '../ui/Icons';
 import { IconButton } from '../ui/IconButton';
 import { ItemSheets, type SheetState } from '../ui/ItemSheets';
@@ -73,9 +72,8 @@ export default function Mini() {
   const live = liveFolderIds(snap.folders);
   const inView = (id: string | null) => homeFolder(id, live) === filter;
   const paragraphs: Paragraph[] = snap.paragraphs.filter((p) => !p.deleted_at && inView(p.folder_id));
-  // 앞날에 시작하는 반복(아직 안 한 것)은 그날까지 숨기고, 이번 회차를 끝낸 반복은 다음 회차까지 체크된 채로 맨 아래에(완료 숨기기여도)
-  const today = localDate(new Date());
-  const [openTodos, doneTodos] = splitDone(snap.todos.filter((x) => !x.deleted_at && inView(x.folder_id) && (isRepeatDone(x) || !isUpcomingRepeat(x, today))));
+  // 앞날에 시작하는 반복도 보인다(아래 줄에 시작일). 이번 회차를 끝낸 반복은 다음 회차까지 체크된 채로 맨 아래에(완료 숨기기여도)
+  const [openTodos, doneTodos] = splitDone(snap.todos.filter((x) => !x.deleted_at && inView(x.folder_id)));
   const shownDone = showDone ? doneTodos : doneTodos.filter(isRepeatDone);
   // 꾹 눌러 끌어서 순서 바꾸기(놓으면 앞뒤 할 일 사이로 옮긴다). 그냥 꾹 누르기·오른쪽 클릭은 항목 정보
   const byId = new Map(openTodos.map((x) => [x.id, x]));

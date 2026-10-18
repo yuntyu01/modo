@@ -8,6 +8,7 @@ import { useApp, useDrafts } from '../../state/AppContext';
 import { EditableText } from '../EditableText';
 import { cardLate, cardWhen, formatDue, localDate, repeatShort } from '../format';
 import { CheckIcon, RepeatRingIcon, RingIcon } from '../Icons';
+import { coachTodoRef, useCoach } from '../onboarding/coach';
 import { useWebLongPress } from '../webLongPress';
 import { trimTrailingBlank } from './model';
 import { SwipeToDelete } from './SwipeToDelete';
@@ -47,8 +48,8 @@ export function useCardStyles() {
     padY,
     /** 카드 사이 간격(미니 6 · PC 8 · 휴대폰 8) */
     gap: CARD_GAP[kind],
-    /** 동그라미 지름: PC 큰 창 24, 미니창 18(시안), 휴대폰 28. 반복 동그라미도 같은 크기·같은 자리 */
-    circle: (theme.desk ? 24 : theme.mini ? 18 : CIRCLE) * z * theme.scale,
+    /** 동그라미 지름: PC 큰 창 19, 미니창 14.5, 휴대폰 22.5(예전 24·18·28보다 약 20% 작게: 사용자 요청 2026-10-18). 반복 동그라미도 바깥 크기가 같다 */
+    circle: (theme.desk ? 19 : theme.mini ? 14.5 : CIRCLE) * z * theme.scale,
     /** 동그라미와 제목 사이 */
     circleGap: right ? 20 * z : theme.desk ? 20 : theme.mini ? 14 : 20 * z,
     /** 카드 좌우 안쪽 여백(모든 카드 같게: 제목 시작 자리·오른쪽 끝이 카드마다 같다) */
@@ -101,6 +102,8 @@ type TodoProps = {
   surface?: string;
   /** 보조 줄의 반복 아이콘·주기를 눌렀을 때(반복 설정 열기). 없으면 눌리지 않는다 */
   onRepeatPress?: () => void;
+  /** 휴대폰: 카드를 오른쪽으로 밀었을 때(정보 시트). 왼쪽은 지우기 */
+  onInfo?: () => void;
 };
 
 export const TodoCard = memo(function TodoCard({
@@ -116,6 +119,7 @@ export const TodoCard = memo(function TodoCard({
   minHeight,
   surface,
   onRepeatPress,
+  onInfo,
 }: TodoProps) {
   const { theme, prefs, repo, t, showToast } = useApp();
   const st = useCardStyles();
@@ -165,6 +169,8 @@ export const TodoCard = memo(function TodoCard({
 
   // PC: 카드 어디를 꾹 누르거나 오른쪽 클릭해도(제목·보조 줄·빈 곳) 길게 누르기(정보·끌어서 순서 바꾸기).
   // 제목 글자에서만 되던 것을 카드 전체로. 동그라미·버튼(반복 주기·날짜 지정)·편집 중 입력칸은 제 동작 그대로
+  // 첫 실행 안내가 짚을 카드(방금 적은 첫 할 일)
+  const coach = useCoach();
   const webLong = useWebLongPress(isEditing ? undefined : onLongPress, {
     skip: (el) => !!el.closest('[role="checkbox"], [role="button"], textarea, input'),
   });
@@ -174,7 +180,8 @@ export const TodoCard = memo(function TodoCard({
   // 반복 할 일은 같은 크기·굵기의 동그라미를 두 곡선 화살표로(완료하면 다른 할 일처럼 테마색 + 흰 체크)
   const repeatRing = !!rule && !done;
   const ring = (theme.desk || theme.mini) && !done && !repeatRing;
-  const stroke = theme.desk ? 1.6 : theme.mini ? 1.5 : styles.circle.borderWidth;
+  // 테두리도 크기에 맞춰 얇게(PC 1.35 · 미니 1.25 · 휴대폰 1.6)
+  const stroke = theme.desk ? 1.35 : theme.mini ? 1.25 : styles.circle.borderWidth;
   const check = (
     <Pressable
       accessibilityRole="checkbox"
@@ -195,7 +202,7 @@ export const TodoCard = memo(function TodoCard({
     >
       {ring ? <RingIcon color={theme.circle} size={circle} strokeWidth={stroke} /> : null}
       {repeatRing ? <RepeatRingIcon color={theme.circle} size={circle} strokeWidth={stroke} /> : null}
-      {done ? <CheckIcon color={theme.onAccent} size={(theme.desk ? 16 : 15) * theme.zoom * theme.scale} /> : null}
+      {done ? <CheckIcon color={theme.onAccent} size={(theme.desk ? 12.5 : theme.mini ? 11 : 12) * theme.zoom * theme.scale} /> : null}
     </Pressable>
   );
 
@@ -203,6 +210,7 @@ export const TodoCard = memo(function TodoCard({
     <SwipeToDelete
       enabled={!readOnly && !isEditing && !active}
       onDelete={remove}
+      onInfo={onInfo}
       label={todo.text}
       radius={theme.mini ? MINI_RADIUS : theme.desk ? DESK_RADIUS : styles.card.borderRadius}
       // 카드 사이(미니 6 · PC 8 · 휴대폰 8). 카드 위·목록 쪽에는 따로 여백을 두지 않아 겹쳐 커지지 않는다
@@ -210,6 +218,8 @@ export const TodoCard = memo(function TodoCard({
     >
       <View
         {...(webLong as object)}
+        ref={coach?.todoId === todo.id ? coachTodoRef : undefined}
+        collapsable={false}
         style={[
           styles.card,
           // 높이: 최소 높이(고정 아님)에 동그라미와 글 묶음(제목, 또는 제목 + 보조 줄)을 세로 가운데로. 내용이 길면 늘어난다
@@ -286,6 +296,7 @@ function sameTodoCard(a: TodoProps, b: TodoProps) {
     a.minHeight === b.minHeight &&
     a.surface === b.surface &&
     a.onRepeatPress === b.onRepeatPress &&
+    a.onInfo === b.onInfo &&
     a.setEditing === b.setEditing &&
     a.onLongPress === b.onLongPress
   );
@@ -298,7 +309,7 @@ export const MINI_RADIUS = 8;
 /** PC 큰 창 블록 모서리(시안) */
 const DESK_RADIUS = 12;
 /** 완료 동그라미 지름(dp) */
-const CIRCLE = 28;
+const CIRCLE = 22.5;
 
 /** 완료 묶음 머리: '완료 N'과 비우기. 구분선 없이 글자 밝기로만 나눈다. */
 export function DoneHeader({ count, onClear }: { count: number; onClear?: () => void }) {
@@ -364,7 +375,8 @@ export function MemoBlock({ paragraphs: all, editing, setEditing, onLongPressPar
         disabled={!writableBlank && !onEmptyPress}
         accessibilityRole="button"
         accessibilityLabel={t('continueMemo')}
-        style={[styles.memo, pad, { backgroundColor: theme.todoCard }]}
+        // 글을 쓰기 전과 같은 칸 크기(PC 여백 포함): 쓰기 시작해도 높이가 바뀌지 않게
+        style={[styles.memo, theme.desk && styles.memoDesk, pad, { backgroundColor: theme.todoCard }]}
       >
         <Text style={[st.memo, { color: theme.subtle }]}>{t('memoEmpty')}</Text>
       </Pressable>
@@ -500,7 +512,7 @@ const styles = StyleSheet.create({
   // 카드 사이 간격은 바깥(SwipeToDelete)이 맡는다: 밀 때 드러나는 빨간 바탕이 간격까지 덮지 않게
   card: { borderRadius: 14.5, flexDirection: 'row', alignItems: 'center' },
   preview: { backgroundColor: 'transparent', borderWidth: 1 },
-  circle: { borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  circle: { borderWidth: 1.6, alignItems: 'center', justifyContent: 'center' },
   // 보조 줄: 한 줄이 기본, 좁은 창·큰 글자에서는 잘리거나 겹치지 않게 그 안에서 줄바꿈
   metaRow: { flexDirection: 'row', alignItems: 'flex-start' },
   repeat: { flexDirection: 'row', alignItems: 'flex-start', flexShrink: 1 },

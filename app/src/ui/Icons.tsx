@@ -86,7 +86,10 @@ export const RingIcon = ({ color, size = 24, strokeWidth = 1.6 }: P) => (
  */
 export const RepeatRingIcon = ({ color, size = 24, strokeWidth = 1.6 }: P) => {
   const c = size / 2;
-  const r = (size - strokeWidth) / 2;
+  // 화살촉 밑변 반쪽(반지름 방향). 화살촉 바깥 끝까지 빈 동그라미(지름 size)와 같은 크기 안에 들게 원을 그만큼 안쪽에
+  // (예전엔 화살촉이 테두리 밖으로 나와 빈 동그라미보다 커 보였다: 사용자 요청 2026-10-18)
+  const half = Math.max(size * 0.09, strokeWidth * 1.3);
+  const r = size / 2 - half;
   // 12시에서 시계 방향 각도(도) → 원 위의 점
   const at = (deg: number) => {
     const a = (deg * Math.PI) / 180;
@@ -94,7 +97,6 @@ export const RepeatRingIcon = ({ color, size = 24, strokeWidth = 1.6 }: P) => {
   };
   // 화살촉은 작게, 다만 선 굵기보다는 넉넉히 넓어야 화살로 보인다
   const head = Math.max(size * 0.17, strokeWidth * 2.3);
-  const half = Math.max(size * 0.12, strokeWidth * 1.5);
   const arrow = (from: number) => {
     const to = from + REPEAT_ARC;
     const [x0, y0] = at(from);
@@ -108,10 +110,8 @@ export const RepeatRingIcon = ({ color, size = 24, strokeWidth = 1.6 }: P) => {
   };
   const top = arrow(220);
   const bottom = arrow(40);
-  // 화살촉은 테두리 바깥으로 살짝 나온다(시안): 그 만큼 넓게 그리고 바깥 여백을 음수로 줘서 차지하는 크기는 빈 동그라미와 같게
-  const pad = Math.ceil(half);
   return (
-    <Svg width={size + 2 * pad} height={size + 2 * pad} viewBox={`${-pad} ${-pad} ${size + 2 * pad} ${size + 2 * pad}`} style={{ margin: -pad }}>
+    <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
       <Path d={top.arc} stroke={color} strokeWidth={strokeWidth} {...base} />
       <Path d={bottom.arc} stroke={color} strokeWidth={strokeWidth} {...base} />
       <Path d={top.head} fill={color} stroke={color} strokeWidth={strokeWidth * 0.35} strokeLinejoin="round" />
@@ -249,6 +249,15 @@ export const LockIcon = ({ color, size, strokeWidth = 1.7 }: P) => (
 export const TrashIcon = ({ color, size, strokeWidth = 1.7 }: P) => (
   <S size={size}>
     <Path d="M4.5 7h15M9.5 7V4.8h5V7M6.5 7l.9 12.2a1.5 1.5 0 0 0 1.5 1.3h6.2a1.5 1.5 0 0 0 1.5-1.3L17.5 7" stroke={color} strokeWidth={strokeWidth} {...base} />
+  </S>
+);
+
+/** 정보(동그라미 안 i): 할 일을 오른쪽으로 밀 때 */
+export const InfoIcon = ({ color, size, strokeWidth = 1.7 }: P) => (
+  <S size={size}>
+    <Circle cx={12} cy={12} r={8.5} stroke={color} strokeWidth={strokeWidth} {...base} />
+    <Path d="M12 11v5.2" stroke={color} strokeWidth={strokeWidth + 0.3} {...base} />
+    <Circle cx={12} cy={7.9} r={1.1} fill={color} />
   </S>
 );
 

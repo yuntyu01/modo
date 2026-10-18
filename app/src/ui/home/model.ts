@@ -1,7 +1,6 @@
 import { compareKey, keyBetween } from '../../core/frac';
 import type { Folder, FolderFilter, Paragraph, Snapshot, Todo } from '../../core/types';
 import type { Prefs } from '../../state/prefs';
-import { localDate } from '../format';
 
 export type Block =
   | { kind: 'todo'; key: string; sort: string; todo: Todo }
@@ -43,14 +42,11 @@ export function splitDone<T extends Pick<Todo, 'done' | 'done_at' | 'position' |
 export const isOrdered = (b: Block) => b.kind === 'todo' && !b.todo.done;
 
 /**
- * 반복 할 일은 완료하면 다음 예정일로 넘어가 그날 다시 올라온다. 그 전까지는 체크된 채로 목록 맨 아래에(완료 묶음),
- * 처음부터 앞날에 시작하는 반복(아직 한 번도 안 한 것)은 그날까지 캘린더에서만 보인다.
+ * 반복 할 일은 완료하면 다음 예정일로 넘어가 그날 다시 올라온다. 그 전까지는 체크된 채로 목록 맨 아래에(완료 묶음).
+ * 처음부터 앞날에 시작하는 반복(아직 한 번도 안 한 것)도 목록에 보인다(아래 줄 '매월 20일 · 10월 20일').
+ * 예전엔 그날까지 캘린더에서만 보여, 매월 반복을 만들면 목록에서 사라진 것처럼 보였다(사용자 제보 2026-10-18).
  */
 export const isRepeatDone = (t: Pick<Todo, 'done' | 'repeat_freq'>) => t.done && !!t.repeat_freq;
-
-export function isUpcomingRepeat(t: Pick<Todo, 'repeat_freq' | 'due_date'>, today: string) {
-  return !!t.repeat_freq && !!t.due_date && t.due_date > today;
-}
 
 function matches(text: string, q: string) {
   return !q || text.toLowerCase().includes(q.toLowerCase());
@@ -71,14 +67,12 @@ export function buildBlocks(args: {
   const { snap, filter, prefs, query, todoMode, composing } = args;
   const live = liveFolderIds(snap.folders);
   const inView = (folderId: string | null) => homeFolder(folderId, live) === filter;
-  const today = localDate(new Date());
   const todos = snap.todos.filter(
     (t) =>
       !t.deleted_at &&
       inView(t.folder_id) &&
       // 완료한 반복 할 일은 '완료 항목 숨기기'여도 다음 회차까지 맨 아래에 체크된 채로 보인다
       (prefs.showDone || !t.done || isRepeatDone(t) || !!query) &&
-      (!!query || isRepeatDone(t) || !isUpcomingRepeat(t, today)) &&
       matches(t.text, query),
   );
   const paragraphs: Paragraph[] = snap.paragraphs.filter(

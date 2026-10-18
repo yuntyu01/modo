@@ -62,7 +62,7 @@ describe('폴더마다 메모 하나 + 그 폴더의 할 일', () => {
   });
 });
 
-test('반복 할 일은 예정일이 오기 전엔 폴더 화면에서 숨고, 검색하면 보인다', () => {
+test('앞날에 시작하는 반복 할 일도 폴더 화면에 보인다(매월 반복이 사라진 것처럼 보이지 않게), 검색도 된다', () => {
   const today = new Date();
   const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   const tomorrow = fmt(new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1));
@@ -71,7 +71,7 @@ test('반복 할 일은 예정일이 오기 전엔 폴더 화면에서 숨고, �
   const plain: Todo = { ...todo('c', 'a2'), due_date: tomorrow };
   const snap: Snapshot = { folders: [], todos: [due, later, plain], paragraphs: [], shared: [] };
   const base = { snap, filter: null, prefs: DEFAULT_PREFS, todoMode: false, composing: false };
-  expect(buildBlocks({ ...base, query: '' }).blocks.map((b) => b.key)).toEqual(['a', 'c']);
+  expect(buildBlocks({ ...base, query: '' }).blocks.map((b) => b.key)).toEqual(['a', 'b', 'c']);
   expect(buildBlocks({ ...base, query: 'b' }).blocks.map((b) => b.key)).toEqual(['b']);
 });
 

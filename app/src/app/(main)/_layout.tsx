@@ -11,11 +11,14 @@ import { BottomNav, NAV_HEIGHT } from '../../ui/BottomNav';
 import { BlurTargetContext } from '../../ui/glass';
 import { BottomInsetContext, contentColumn, useWide } from '../../ui/layout';
 import { LoginGate } from '../../ui/LoginGate';
+import { coachStore } from '../../ui/onboarding/coach';
+import { CoachOverlay } from '../../ui/onboarding/CoachOverlay';
+import { Welcome } from '../../ui/onboarding/Welcome';
 import { ToastHost } from '../../ui/primitives';
 
 /** 목록·캘린더·더보기 공통 틀: 상단 테마색 그라데이션, 하단 내비게이션. */
 export default function MainLayout() {
-  const { theme, serverApi, account, loginDeferred } = useApp();
+  const { theme, serverApi, account, loginDeferred, deferLogin, prefs, setPrefs } = useApp();
   const insets = useSafeAreaInsets();
   const { compact } = useWide();
   // 유리 하단바·입력창이 흐리게 비출 대상(Android는 대상을 감싸 알려 줘야 한다)
@@ -45,8 +48,16 @@ export default function MainLayout() {
   // PC 큰 창(시안): 하단바는 창 아래에 붙은 줄이라 자리를 차지한다(덮는 높이 0).
   const web = Platform.OS === 'web';
   const navInset = keyboard || web ? 0 : NAV_HEIGHT + bottomGap;
-  // 서버가 닿고 아직 로그인하지 않았으면 처음에 로그인 화면(이번 실행에서 '나중에'를 누르면 넘어간다)
-  const gate = !!serverApi && (serverApi.kakao || serverApi.password) && !account && !loginDeferred;
+  // 첫 실행 화면(휴대폰, 처음 설치): 테마색 + 첫 할 일. '이미 계정이 있어요'를 누르면 로그인 화면으로(거기서 '나중에'면 다시 여기로)
+  const canLogin = !!serverApi && (serverApi.kakao || serverApi.password);
+  const [welcomeLogin, setWelcomeLogin] = useState(false);
+  const welcome = !web && !prefs.onboarded && !account && (!welcomeLogin || loginDeferred);
+  // 로그인해서 들어온 사람(다시 설치 등)은 첫 실행 화면을 건너뛴다
+  useEffect(() => {
+    if (account && !prefs.onboarded) setPrefs({ onboarded: true });
+  }, [account, prefs.onboarded, setPrefs]);
+  // 서버가 닿고 아직 로그인하지 않았으면 처음에 로그인 화면(이번 실행에서 '나중에'를 누르면 넘어간다). 첫 실행 화면이 먼저
+  const gate = canLogin && !account && !loginDeferred && !welcome;
   // PC 창 버튼(– □ ×) 색을 테마에 맞춘다(라이트에서 밝은 회색이면 안 보인다)
   useEffect(() => {
     desktop?.setTitleBarDark?.(theme.dark);
@@ -94,6 +105,18 @@ export default function MainLayout() {
         </View>
       ) : null}
       <ToastHost bottom={navSpace + 80} />
+      {welcome ? (
+        <Welcome
+          onStart={(todoId, from) => {
+            // 이번 실행은 로그인 화면 없이 홈 안내로(다음 실행부터 로그인 화면)
+            deferLogin();
+            coachStore.set({ todoId, from });
+          }}
+          onHidden={() => setPrefs({ onboarded: true })}
+          onLogin={canLogin ? () => setWelcomeLogin(true) : undefined}
+        />
+      ) : null}
+      <CoachOverlay />
     </View>
   );
 }

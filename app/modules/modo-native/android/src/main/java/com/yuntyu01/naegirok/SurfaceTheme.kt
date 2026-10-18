@@ -41,7 +41,11 @@ data class SurfaceTheme(
       val cardHex = (if (!linked) surface!!.opt("card") else prefs.opt("card")).let { if (it is String) it else null }
       val baseCard = if (dark) "#1E2024" else "#FFFFFF"
       val cardColor = if (cardHex != null) mix(baseCard, cardHex, if (dark) 0.32 else 0.16) else Color.parseColor(baseCard)
-      val accent = ensureContrast(Color.parseColor(accentHex), Color.parseColor(baseCard))
+      // 바탕과 같은 무채색(라이트의 화이트, 다크의 블랙)은 회색으로 흐리지 않고 반대쪽 무채색으로(앱 theme.ts와 같은 규칙)
+      val raw = Color.parseColor(accentHex)
+      val hsv = FloatArray(3).also { Color.colorToHSV(raw, it) }
+      val flat = hsv[1] < 0.2f && contrast(raw, Color.parseColor(baseCard)) < 2
+      val accent = if (flat) Color.parseColor(if (dark) "#F2F3F5" else "#1B1C20") else ensureContrast(raw, Color.parseColor(baseCard))
       return SurfaceTheme(
         dark = dark,
         accent = accent,

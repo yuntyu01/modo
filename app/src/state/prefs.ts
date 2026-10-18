@@ -34,6 +34,8 @@ export type Prefs = {
   mini: SurfaceTheme;
   lock: { enabled: boolean; visibility: 'public' | 'private' | 'secret' };
   hintSeen: boolean;
+  /** 첫 실행 화면(테마색 + 첫 할 일)을 마쳤는지. 휴대폰만 */
+  onboarded: boolean;
   server: string;
 };
 
@@ -86,6 +88,7 @@ export const DEFAULT_PREFS: Prefs = {
   mini: { linked: true, accent: ACCENTS[0], card: null, opacity: 0.8 },
   lock: { enabled: false, visibility: 'private' },
   hintSeen: false,
+  onboarded: false,
   server: DEFAULT_SERVER,
 };
 
@@ -94,6 +97,8 @@ const OLD_DEFAULTS = ['#72CDF4', '#96D3FD', '#85ADE2'].filter((c) => c !== BRAND
 
 export function mergePrefs(saved: Partial<Prefs> | null): Prefs {
   const p = { ...DEFAULT_PREFS, ...(saved ?? {}) };
+  // 첫 실행 화면이 생기기 전부터 쓰던 사람(설정이 이미 저장돼 있으면)은 마친 것으로
+  if (saved && saved.onboarded === undefined) p.onboarded = true;
   p.widget = { ...DEFAULT_PREFS.widget, ...(saved?.widget ?? {}) };
   // 예전 기본값(92%, 70%, 45%)을 그대로 두고 있던 경우는 새 기본값으로
   if ([0.92, 0.7, 0.45, 0.65].includes(saved?.widget?.opacity ?? -1)) p.widget.opacity = DEFAULT_PREFS.widget.opacity;

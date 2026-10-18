@@ -43,11 +43,14 @@ export function useTextTip(text: string, enabled: boolean): TextTip {
     };
   }, [at, hide]);
 
+  const clipped = () => {
+    const node = el.current;
+    return !!node && node.isConnected && (node.scrollHeight > node.clientHeight + 1 || node.scrollWidth > node.clientWidth + 1);
+  };
   const show = () => {
     timer.current = null;
     const node = el.current;
-    if (!node || !node.isConnected) return;
-    if (node.scrollHeight <= node.clientHeight + 1 && node.scrollWidth <= node.clientWidth + 1) return;
+    if (!node || !clipped()) return;
     const r = node.getBoundingClientRect();
     // 아래로 띄울 때는 글 묶음(할 일 카드면 제목 + 날짜 줄) 밑에: 날짜 줄을 가리지 않게
     const box = node.parentElement?.getBoundingClientRect() ?? r;
@@ -57,9 +60,10 @@ export function useTextTip(text: string, enabled: boolean): TextTip {
     setAt(below >= 90 || below >= r.top ? { left, top: box.bottom + 6, maxW } : { left, bottom: window.innerHeight - r.top + 6, maxW });
   };
 
-  if (!enabled) return { ref: () => {}, enter: () => {}, hide: () => {}, node: null };
+  if (!enabled) return { ref: () => {}, enter: () => {}, hide: () => {}, clipped: () => false, node: null };
   return {
     ref: (v: unknown) => (el.current = (v as HTMLElement | null) ?? null),
+    clipped,
     enter: () => {
       if (timer.current) clearTimeout(timer.current);
       timer.current = setTimeout(show, DELAY);

@@ -165,6 +165,11 @@ export function monthTitle(d: Date, lang: Lang) {
   return words(lang).month(d.getFullYear(), d.getMonth() + 1);
 }
 
+/** 달 이름만(달 고르기 칸): 10월 / Oct / 10月 */
+export function monthName(m: number, lang: Lang) {
+  return lang === 'en' ? MONTH_EN[m - 1] : lang === 'ko' ? `${m}월` : `${m}月`;
+}
+
 /** '10월 17일 토요일' / 'Saturday, Oct 17' (캘린더의 날짜 제목) */
 export function dayTitle(date: string, lang: Lang) {
   const d = parseLocalDate(date);

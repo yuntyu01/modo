@@ -172,13 +172,13 @@ public enum NotesStore {
     }
     // 위젯은 남은 할 일만 보여 준다(시안). 완료한 것은 앱에서 본다.
     // 완료: done_at이 있고, 반복이면 다음 예정일이 아직 안 왔을 때만(체크하면 그날까지 완료, 그날이 되면 다시 할 일 — 앱 repo.isDoneNow와 같다).
-    // 앞날에 시작하는 반복(아직 한 번도 안 한 것)은 그날까지 숨긴다.
+    // 앞날에 시작하는 반복도 보인다(그날까지 숨기던 규칙은 뺐다, 앱과 같다).
     let doneNow = "(done_at IS NOT NULL AND NOT (repeat_freq IS NOT NULL AND due_date IS NOT NULL AND due_date <= ?))"
-    let doneWhere = " AND NOT \(doneNow) AND NOT (repeat_freq IS NOT NULL AND due_date IS NOT NULL AND due_date > ? AND done_at IS NULL)"
+    let doneWhere = " AND NOT \(doneNow)"
     let today = Repeat.format(Date())
     var todoArgs: [Any?] = [today]
     todoArgs += args
-    todoArgs += [today, today]
+    todoArgs += [today]
     query(db, "SELECT id, text, CASE WHEN \(doneNow) THEN done_at END, due_date, remind_at, repeat_freq, repeat_days FROM todos WHERE deleted_at IS NULL\(live)\(folderWhere)\(doneWhere) ORDER BY position, id LIMIT \(limit)", todoArgs) { st in
       s.todos.append(Todo(
         id: text(st, 0) ?? "", text: text(st, 1) ?? "",

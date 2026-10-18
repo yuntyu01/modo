@@ -107,6 +107,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const ses = await repo.getKv<Session | null>('session', null);
         if (cancelled) return;
         const merged = mergePrefs(saved);
+        // 설정은 없어도 메모·할 일이 이미 있으면(예전 버전) 첫 실행 화면은 건너뛴다
+        if (!saved && (s.todos.length || s.paragraphs.length)) merged.onboarded = true;
         setPrefsState(merged);
         // 기본값이 바뀌어 고쳐진 값(위젯 투명도 등)은 위젯·빠른 추가도 읽도록 저장해 둔다.
         if (saved && (saved.widget?.opacity !== merged.widget.opacity || saved.accent !== merged.accent || saved.widget?.accent !== merged.widget.accent)) {

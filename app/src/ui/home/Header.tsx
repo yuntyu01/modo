@@ -163,7 +163,8 @@ export function FolderTabs({
       hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
       style={[styles.tab, desktop ? { marginRight: 33 } : { marginRight: 32 * theme.zoom }]}
     >
-      <Text selectable={false} style={theme.kfont((desktop ? 18 : 20) * theme.zoom, { color: on ? theme.text : theme.tab, fontWeight: on ? '700' : '400', ...(desktop ? { lineHeight: 22 } : null) })}>{label}</Text>
+      {/* 폴더 이름: 예전(PC 18 · 휴대폰 20)보다 약 10% 작게, 고른 폴더 굵기는 그대로(사용자 요청 2026-10-18) */}
+      <Text selectable={false} style={theme.kfont((desktop ? 16 : 18) * theme.zoom, { color: on ? theme.text : theme.tab, fontWeight: on ? '700' : '400', ...(desktop ? { lineHeight: 20 } : null) })}>{label}</Text>
       {shared ? (
         <View style={{ marginLeft: 4, opacity: 0.7 }}>
           <PeopleIcon color={on ? theme.text : theme.tab} size={15 * theme.zoom} />
@@ -188,7 +189,8 @@ export function FolderTabs({
       {tab('base', t('baseFolder'), selected === null, () => onSelect(null))}
       {folders.map((f) => tab(f.id, f.name, selected === f.id, () => onSelect(f.id), () => onLongPress(f), sharedIds.has(f.id)))}
       <Pressable accessibilityLabel={t('addFolder')} onPress={onAdd} hitSlop={12} style={[styles.tab, { marginLeft: -4.5 }]}>
-        <PlusIcon color={theme.tab} size={desktop ? 19 : 21 * theme.zoom} strokeWidth={1.8} />
+        {/* 폴더 글자 높이와 비슷하게 */}
+        <PlusIcon color={theme.tab} size={desktop ? 16 : 17.5 * theme.zoom} strokeWidth={1.7} />
       </Pressable>
     </ScrollView>
   );

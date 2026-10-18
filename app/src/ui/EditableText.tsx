@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Keyboard, Platform, Text, TextInput, type TextLayoutLine, type TextStyle } from 'react-native';
+import { Keyboard, Platform, StyleSheet, Text, TextInput, type TextLayoutLine, type TextStyle } from 'react-native';
 
 import { inputColors } from './theme';
 import { useApp } from '../state/AppContext';
@@ -51,7 +51,16 @@ export function EditableText(p: Props) {
   const editing = !!p.editing;
   // 보기 전용 글을 눌러 펼쳤는지(고칠 수 있는 글은 편집으로 펼쳐진다)
   const [open, setOpen] = useState(false);
-  const { ref: tipRef, enter: tipEnter, hide: tipHide, node: tipNode } = useTextTip(p.text, Platform.OS === 'web' && !!p.lines && !open);
+  const { ref: tipRef, enter: tipEnter, hide: tipHide, clipped: tipClipped, node: tipNode } = useTextTip(p.text, Platform.OS === 'web' && !!p.lines && !open);
+  // 줄 수 제한으로 잘려 있는지. PC는 화면 요소로, 휴대폰은 같은 폭의 보이지 않는 글(줄 수 제한 없이)로 잰 전체 줄 수로
+  // (Android는 줄 수를 제한한 글의 전체 줄 수를 알려 주지 않아 잘렸는지 몰랐다)
+  const [fullLines, setFullLines] = useState(0);
+  const measureFull = Platform.OS !== 'web' && !!p.lines && !open && p.text.length > 10;
+  const clipped = () => {
+    if (!p.lines || open) return false;
+    if (Platform.OS === 'web') return tipClipped();
+    return fullLines > p.lines;
+  };
   // PC(웹): react-native-web의 Text는 onLongPress가 없어 정보 시트를 열 수 없었다.
   // 오른쪽 클릭, 또는 왼쪽 버튼을 0.5초 누르고 있으면 길게 누르기와 같은 동작을 한다(그 뒤 클릭은 편집으로 넘어가지 않는다).
   // 말풍선은 누르거나(편집·정보) 벗어나면 닫는다
@@ -67,6 +76,8 @@ export function EditableText(p: Props) {
       setDraft(p.text);
       setSel({ start: c, end: c });
       setWebH(null);
+      // 고치고 나면 다시 줄 수 제한으로
+      setOpen(false);
     }
   }
 
@@ -96,6 +107,18 @@ export function EditableText(p: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editing, p.id]);
 
+  // PC(웹): 글이 줄면 입력칸도 바로 줄인다. 내용 높이 이벤트는 늘 때만 와서, 줄을 지워도 편집을 끝내야 줄었다(미니창 메모).
+  // 높이를 잠깐 0으로 두고 실제 내용 높이(scrollHeight)를 잰다
+  const fitWeb = () => {
+    const el = input.current as unknown as HTMLTextAreaElement | null;
+    if (!el?.style) return;
+    const prev = el.style.height;
+    el.style.height = '0px';
+    const h = el.scrollHeight;
+    el.style.height = prev;
+    if (h > 0) setWebH(h);
+  };
+
   const change = (next: string) => {
     if (p.onSplit && next.includes('\n')) {
       // 줄바꿈 뒤로 넘어간 글자 수 = 이전 글과 새 글의 공통 끝부분(선택 이벤트 순서에 기대지 않는다)
@@ -113,6 +136,7 @@ export function EditableText(p: Props) {
     if (!p.onSplit && next.includes('\n')) next = next.replace(/\n+/g, ' ');
     draftRef.current = next;
     setDraft(next);
+    if (Platform.OS === 'web') fitWeb();
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(flush, 500);
   };
@@ -125,13 +149,31 @@ export function EditableText(p: Props) {
           style={[p.style, !p.text && p.placeholder ? { color: theme.muted } : null]}
           numberOfLines={open ? undefined : p.lines}
           onTextLayout={(e) => (lines.current = e.nativeEvent.lines)}
-          onPress={p.readOnly ? (p.lines ? () => setOpen((v) => !v) : undefined) : (e) => p.onStartEdit(caretFromTap(e, lines.current, p.text))}
+          // 잘린 긴 글: 처음 누르면 여러 줄로 펼치고, 펼친 뒤 누르면 그 자리에서 고치기(사용자 요청 2026-10-18). 보기 전용은 펼치기/접기
+          onPress={
+            p.readOnly
+              ? p.lines
+                ? () => setOpen((v) => !v)
+                : undefined
+              : (e) => (clipped() ? setOpen(true) : p.onStartEdit(caretFromTap(e, lines.current, p.text)))
+          }
           onLongPress={p.onLongPress}
           suppressHighlighting
           {...(webLongProps as object)}
         >
           {p.text || p.placeholder || ' '}
         </Text>
+        {measureFull ? (
+          <Text
+            style={[p.style, styles.measure]}
+            onTextLayout={(e) => setFullLines(e.nativeEvent.lines.length)}
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            pointerEvents="none"
+          >
+            {p.text}
+          </Text>
+        ) : null}
         {tipNode}
       </>
     );
@@ -184,6 +226,8 @@ export function EditableText(p: Props) {
       style={[
         p.style,
         { padding: 0, margin: 0, textAlignVertical: 'top' },
+        // Android는 빈 입력칸에 줄 높이(lineHeight)를 적용하지 않아 첫 글자를 쓰기 전후로 칸 높이가 달랐다: 한 줄 높이는 늘 확보
+        p.style.lineHeight ? { minHeight: p.style.lineHeight } : null,
         Platform.OS === 'web' ? ({ outlineStyle: 'none', resize: 'none', overflow: 'hidden' } as object) : null,
         Platform.OS === 'web' && webH ? { height: webH } : null,
       ]}
@@ -193,3 +237,8 @@ export function EditableText(p: Props) {
     />
   );
 }
+
+const styles = StyleSheet.create({
+  // 잘렸는지 재는 보이지 않는 글: 같은 자리·같은 폭, 화면에는 안 보이고 누를 수도 없다
+  measure: { position: 'absolute', left: 0, right: 0, top: 0, opacity: 0 },
+});

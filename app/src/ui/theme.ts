@@ -2,7 +2,7 @@ import { Platform, type TextStyle } from 'react-native';
 
 import { BRAND } from '../brand';
 import type { Prefs, SurfaceTheme } from '../state/prefs';
-import { ensureContrast, hexToRgb, hsvToRgb, luminance, mix, rgbToHex, rgbToHsv, withAlpha } from './color';
+import { contrast, ensureContrast, hexToRgb, hsvToRgb, luminance, mix, rgbToHex, rgbToHsv, withAlpha } from './color';
 
 export type Theme = {
   dark: boolean;
@@ -71,7 +71,11 @@ const NEUTRAL_S = 0.2;
 function gradientTop(accent: string, intensity: number, dark: boolean, bg: string) {
   const [h0, s] = rgbToHsv(hexToRgb(accent));
   // 무채색(화이트·블랙·그레이·차콜)은 회색 그라데이션. 살짝 푸른 회색(#A7B0BE, 채도 0.12)도 회색으로(남색이 나왔다: 사용자 제보 2026-10-18)
-  if (s < NEUTRAL_S) return mix(bg, dark ? '#3A3C40' : '#DCDEE2', intensity * (dark ? 0.75 : 0.7));
+  // 밝기를 따라 다르게: 화이트는 은빛, 그레이는 중간, 차콜은 은은하게, 블랙은 거의 없이(모두 같은 회색이라 화이트·차콜이 똑같아 보였다: 사용자 제보 2026-10-18)
+  if (s < NEUTRAL_S) {
+    const l = Math.sqrt(luminance(accent));
+    return dark ? mix(bg, mix('#2E3034', '#8C8F96', l), intensity * 0.75) : mix(bg, mix('#C3C6CC', '#E6E8EB', l), intensity * 0.7);
+  }
   // 테마색의 색상(hue)을 그대로(대표색이면 대표색 계열의 남색·하늘색)
   const h = h0;
   // 은은하게(사용자 요청 2026-10-17): 다크는 남색을 70%만, 라이트는 하늘빛을 더 옅게
@@ -103,8 +107,11 @@ export function makeTheme(p: Prefs, systemDark: boolean, surface?: SurfaceTheme)
   // 라이트 바탕은 화이트 시안의 거의 흰색(#F7F9FC)
   const bg = miniDark ? '#1E1F22' : dark ? '#000000' : '#F7F9FC';
   const point = miniDark && rawAccent.toUpperCase() === BRAND ? MINI_DARK_POINT : rawAccent;
-  // 다크에서 블랙, 라이트에서 화이트를 골라도 아이콘·선택 표시가 보이게 보정(대표색은 흰 바탕에서도 그대로 쓰이게 2:1까지만)
-  const accent = ensureContrast(point, dark ? '#1B1C20' : '#FFFFFF', 2);
+  // 다크에서 블랙, 라이트에서 화이트를 골라도 아이콘·선택 표시가 보이게 보정(대표색은 흰 바탕에서도 그대로 쓰이게 2:1까지만).
+  // 바탕과 같은 무채색(라이트의 화이트, 다크의 블랙)은 회색으로 흐리지 않고 반대쪽 무채색으로: 회색 스위치·버튼이 꺼진 것처럼 보였다(사용자 요청 2026-10-18)
+  const surfaceBg = dark ? '#1B1C20' : '#FFFFFF';
+  const flat = rgbToHsv(hexToRgb(point))[1] < NEUTRAL_S && contrast(point, surfaceBg) < 2;
+  const accent = flat ? (dark ? '#F2F3F5' : '#1B1C20') : ensureContrast(point, surfaceBg, 2);
   // 다크 카드·입력창·하단바·알약 색은 시안에서 잰 값
   const baseCard = miniDark ? '#2A2C30' : dark ? '#1B1C20' : '#FFFFFF';
   // 카드색은 기본 카드 위에 살짝 물들이는 정도로(과한 강조 배경 피하기)
@@ -126,8 +133,9 @@ export function makeTheme(p: Prefs, systemDark: boolean, surface?: SurfaceTheme)
     onAccent: luminance(accent) > 0.45 ? '#0B0C0E' : '#FFFFFF',
     gradientTop: top,
     gradientMid: mix(top, bg, dark ? 0.55 : 0.45),
-    // 다크: 화면 2/3쯤에서 바탕색, 라이트(화이트 시안): 화면 40%쯤에서 바탕색, 미니창: 창 끝까지 천천히
-    gradientStops: isMini ? [0, 0.45, 1] : dark ? [0, 0.32, 0.68] : [0, 0.18, 0.42],
+    // 다크: 화면 2/3쯤에서 바탕색, 라이트(화이트 시안): 화면 40%쯤에서 바탕색. 미니창도 같다
+    // (예전엔 미니창만 창 끝까지 천천히 녹아 바탕 전체에 푸른 기가 남았다: 사용자 제보 2026-10-18)
+    gradientStops: dark ? [0, 0.32, 0.68] : [0, 0.18, 0.42],
     card,
     // 다크: 바탕이 살짝 비치게(80%), 테마색 쪽으로 아주 조금 물들인다. 라이트(화이트 시안): 불투명한 흰 블록
     todoCard: miniDark ? card : dark ? withAlpha(glassTint(card, rawAccent), 0.8) : card,

@@ -15,11 +15,14 @@ import { MonthGrid } from '../../ui/MonthGrid';
 import { TodoCard, type Editing } from '../../ui/home/Cards';
 import { homeFolder, liveFolderIds, splitDone } from '../../ui/home/model';
 import { LogoBar } from '../../ui/home/Header';
-import { PlusIcon } from '../../ui/Icons';
-import { dayTitle, localDate } from '../../ui/format';
+import { ChevronIcon, PlusIcon } from '../../ui/Icons';
+import { dayTitle, localDate, monthName, monthTitle } from '../../ui/format';
+import { Sheet } from '../../ui/primitives';
 
 /**
- * 캘린더(시안): 로고 → '캘린더'와 오른쪽 '오늘' → 달력 카드 → 고른 날짜 제목(오른쪽 작은 +) 과 그날 할 일 → 날짜 없는 할 일(오른쪽 '날짜 지정').
+ * 캘린더: 작은 로고 → 제목처럼 쓰는 '2026년 10월'(누르면 달 고르기, 다른 달을 보고 있으면 오른쪽 '오늘') → 달력 카드(좌우로 밀어 한 달씩)
+ * → 고른 날짜 제목(오른쪽 작은 +) 과 그날 할 일 → 날짜 없는 할 일(오른쪽 '날짜 지정').
+ * '캘린더' 제목과 ‹ ›는 두지 않는다(달력 모양과 하단바 선택으로 어떤 화면인지 보인다, 그만큼 할 일을 더 보이게: 사용자 요청 2026-10-18).
  * 할 일 추가는 날짜 옆 작은 +를 눌러 그 자리에 입력칸을 연다.
  * 모든 폴더의 할 일을 모아 보여 주고, 카드에는 원래 폴더 이름을 강조색으로 단다.
  */
@@ -44,6 +47,10 @@ export default function Calendar() {
     setMonth(new Date());
     setSelected(today);
   };
+  const [picker, setPicker] = useState(false);
+  const [pickYear, setPickYear] = useState(month.getFullYear());
+  const now = new Date();
+  const awayFromToday = selected !== today || month.getFullYear() !== now.getFullYear() || month.getMonth() !== now.getMonth();
   // '할 일 추가' 칸에 입력하는 동안 그 칸이 키보드에 가리지 않게 스크롤한다.
   // 키보드가 열리면 화면이 줄어든 뒤(onLayout) 맞추고, 할 일을 추가해 칸이 아래로 밀려도 다시 맞춘다.
   const scroll = useRef<ScrollView>(null);
@@ -126,6 +133,7 @@ export default function Calendar() {
         setEditing={setEditing}
         readOnly={!writable || (todo.due_date !== selected && !undatedRow)}
         onLongPress={() => setSheet({ type: 'todo', id: todo.id })}
+        onInfo={() => setSheet({ type: 'todo', id: todo.id })}
         folderLabel={undatedRow ? undefined : folderLabel(todo.folder_id)}
         hideDue
         onRepeatPress={writable ? () => setSheet({ type: 'repeat', id: todo.id }) : undefined}
@@ -148,15 +156,32 @@ export default function Calendar() {
 
   return (
     <View style={{ flex: 1 }}>
-      {/* 다른 화면처럼 맨 위에 로고, 그 아래 '캘린더'와 오른쪽 '오늘' */}
+      {/* 맨 위 작은 로고, 그 아래 제목처럼 '2026년 10월'(누르면 달 고르기) · 다른 달·날을 보고 있으면 오른쪽 '오늘' */}
       <LogoBar />
-      <View style={[styles.titleRow, { paddingTop: compact ? 4 : desktop ? 14 : 16 }]}>
-        <Text accessibilityRole="header" style={theme.kfont(compact ? 24 : desktop ? 26 : 29, { color: theme.text, fontWeight: '800', flex: 1 })}>
-          {t('calendar')}
-        </Text>
-        <Pressable onPress={goToday} accessibilityRole="button" hitSlop={10} style={styles.todayBtn}>
-          <Text style={theme.kfont(15, { color: theme.subtle })}>{t('today')}</Text>
+      <View style={[styles.titleRow, { paddingTop: compact ? 2 : desktop ? 8 : 10 }]}>
+        <Pressable
+          onPress={() => {
+            setPickYear(month.getFullYear());
+            setPicker(true);
+          }}
+          accessibilityRole="button"
+          accessibilityLabel={`${monthTitle(month, lang)}, ${t('pickMonth')}`}
+          hitSlop={8}
+          style={styles.monthBtn}
+        >
+          <Text accessibilityRole="header" style={theme.kfont(compact ? 22 : desktop ? 24 : 26, { color: theme.text, fontWeight: '800' })}>
+            {monthTitle(month, lang)}
+          </Text>
+          <View style={{ marginLeft: 6, marginTop: 2 }}>
+            <ChevronIcon color={theme.subtle} dir="down" size={18} strokeWidth={2.2} />
+          </View>
         </Pressable>
+        <View style={{ flex: 1 }} />
+        {awayFromToday ? (
+          <Pressable onPress={goToday} accessibilityRole="button" hitSlop={10} style={styles.todayBtn}>
+            <Text style={theme.kfont(15, { color: theme.subtle })}>{t('today')}</Text>
+          </Pressable>
+        ) : null}
       </View>
       <ScrollView
         ref={scroll}
@@ -170,7 +195,7 @@ export default function Calendar() {
         }}
       >
         <View style={[styles.cal, { backgroundColor: theme.todoCard }]}>
-          <MonthGrid month={month} setMonth={setMonth} selected={selected} onSelect={setSelected} marks={marks} doneMarks={doneDays} />
+          <MonthGrid month={month} setMonth={setMonth} selected={selected} onSelect={setSelected} marks={marks} doneMarks={doneDays} header={false} />
         </View>
         {/* 고른 날짜: 제목 · (오늘이면) '오늘' · 오른쪽 작은 +(그 날짜에 할 일 추가) */}
         <View style={styles.dayRow}>
@@ -207,17 +232,62 @@ export default function Calendar() {
       </ScrollView>
       {navInset ? <BottomFade height={navInset + 28} /> : null}
       <ItemSheets state={sheet} setState={setSheet} />
+      {/* 달 고르기: 연도(‹ ›) + 12달 */}
+      <Sheet visible={picker} onClose={() => setPicker(false)}>
+        <View style={styles.pickHead}>
+          <Pressable onPress={() => setPickYear((y) => y - 1)} accessibilityLabel={t('prevYear')} hitSlop={12} style={styles.pickArrow}>
+            <ChevronIcon color={theme.subtle} dir="left" size={22} />
+          </Pressable>
+          <Text style={theme.kfont(19, { color: theme.text, fontWeight: '700' })}>{pickYear}</Text>
+          <Pressable onPress={() => setPickYear((y) => y + 1)} accessibilityLabel={t('nextYear')} hitSlop={12} style={styles.pickArrow}>
+            <ChevronIcon color={theme.subtle} size={22} />
+          </Pressable>
+        </View>
+        <View style={styles.pickGrid}>
+          {Array.from({ length: 12 }, (_, i) => {
+            const on = pickYear === month.getFullYear() && i === month.getMonth();
+            const current = pickYear === now.getFullYear() && i === now.getMonth();
+            return (
+              <Pressable
+                key={i}
+                onPress={() => {
+                  setMonth(new Date(pickYear, i, 1));
+                  setPicker(false);
+                }}
+                accessibilityRole="button"
+                accessibilityState={{ selected: on }}
+                style={[styles.pickCell, on && { backgroundColor: theme.accent }]}
+              >
+                <Text
+                  style={theme.kfont(16, {
+                    color: on ? theme.onAccent : current ? theme.accent : theme.text,
+                    fontWeight: on || current ? '700' : '400',
+                  })}
+                >
+                  {monthName(i + 1, lang)}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </Sheet>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 22, paddingBottom: 14 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 22, paddingBottom: 12 },
+  monthBtn: { flexDirection: 'row', alignItems: 'center' },
+  pickHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingTop: 22, paddingBottom: 10 },
+  pickArrow: { paddingHorizontal: 18, paddingVertical: 6 },
+  pickGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 14, paddingBottom: 12 },
+  pickCell: { width: '25%', height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
   todayBtn: { paddingHorizontal: 4, paddingVertical: 4 },
   dayRow: { flexDirection: 'row', alignItems: 'center', marginTop: 20, marginBottom: 10, marginLeft: 1 },
   dayPlus: { padding: 4, marginRight: -2 },
   content: { paddingLeft: 19, paddingRight: 18, paddingBottom: 24 },
-  cal: { borderRadius: 16, paddingTop: 14, paddingBottom: 14 },
+  // 달력 머리(연·월 · ‹ ›)는 위 제목으로 옮겨 카드 위쪽 여백만
+  cal: { borderRadius: 16, paddingTop: 6, paddingBottom: 14 },
   section: { marginTop: 19.5, marginBottom: 8, marginLeft: 1 },
   section2: { marginTop: 15.5 },
 });

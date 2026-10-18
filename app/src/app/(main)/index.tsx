@@ -15,6 +15,7 @@ import { BlurTargetView } from 'expo-blur';
 import { BlurTargetContext, BottomFade } from '../../ui/glass';
 import { useBottomInset, useWide } from '../../ui/layout';
 import { Dropdown } from '../../ui/Dropdown';
+import { coachComposerRef } from '../../ui/onboarding/coach';
 
 /**
  * 폴더 화면: 로고(modo) → 폴더 선택 → 그 폴더의 메모 하나 → 그 폴더의 할 일 → 입력창.
@@ -130,6 +131,14 @@ export default function Home() {
     return fn;
   };
 
+  // 오른쪽으로 밀기 → 정보 시트(카드마다 같은 함수)
+  const infoCache = useRef(new Map<string, () => void>());
+  const infoFor = (id: string) => {
+    let fn = infoCache.current.get(id);
+    if (!fn) infoCache.current.set(id, (fn = () => setSheet({ type: 'todo', id })));
+    return fn;
+  };
+
   const renderBlock = (b: Block, o: { onLongPress: (info: () => void) => void; active: boolean }) => {
     if (b.kind === 'preview') return <PreviewCard />;
     return (
@@ -140,6 +149,7 @@ export default function Home() {
         readOnly={!canWrite(b.todo.folder_id)}
         onLongPress={longPressFor(b.todo.id, o.onLongPress)}
         onRepeatPress={repeatPressFor(b.todo.id)}
+        onInfo={infoFor(b.todo.id)}
         active={o.active}
       />
     );
@@ -236,24 +246,27 @@ export default function Home() {
         ]}
       >
         <BlurTargetContext.Provider value={listRef}>
-          <Composer
-            todoMode={todoMode}
-            setTodoMode={setTodoMode}
-            draftFolder={filter}
-            onComposingChange={setComposing}
-            focusSignal={focusSignal}
-            disabledReason={writable ? undefined : t('readOnly')}
-            onFocusChange={(f) => {
-              if (f) setEditing(null);
-            }}
-            onSubmit={async (asTodo, text) => {
-              // 지금 보고 있는 폴더(초안이 묶인 폴더)에만 저장한다. 쓸 수 없는 폴더면 입력창이 잠겨 있다.
-              if (!writable) return false;
-              if (asTodo) await repo.addTodo(text, filter, prefs.newTodoAt);
-              else await repo.appendParagraphs(text, filter);
-              return true;
-            }}
-          />
+          {/* 첫 실행 안내가 짚는 입력창 */}
+          <View ref={coachComposerRef} collapsable={false} pointerEvents="box-none">
+            <Composer
+              todoMode={todoMode}
+              setTodoMode={setTodoMode}
+              draftFolder={filter}
+              onComposingChange={setComposing}
+              focusSignal={focusSignal}
+              disabledReason={writable ? undefined : t('readOnly')}
+              onFocusChange={(f) => {
+                if (f) setEditing(null);
+              }}
+              onSubmit={async (asTodo, text) => {
+                // 지금 보고 있는 폴더(초안이 묶인 폴더)에만 저장한다. 쓸 수 없는 폴더면 입력창이 잠겨 있다.
+                if (!writable) return false;
+                if (asTodo) await repo.addTodo(text, filter, prefs.newTodoAt);
+                else await repo.appendParagraphs(text, filter);
+                return true;
+              }}
+            />
+          </View>
         </BlurTargetContext.Provider>
       </View>
 

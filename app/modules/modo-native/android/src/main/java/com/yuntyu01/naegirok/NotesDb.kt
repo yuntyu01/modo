@@ -33,6 +33,10 @@ object NotesDb {
       db.rawQuery("PRAGMA busy_timeout = 3000", null).use { it.moveToFirst() }
       ensureSchema(db)
       block(db)
+    } catch (e: android.database.sqlite.SQLiteException) {
+      // 앱이 아직 표를 만들기 전 등 읽을 수 없는 DB: 위젯·빠른 추가가 멈추지 않게 DB가 없는 것으로 본다(빈 위젯)
+      android.util.Log.w("NotesDb", "unreadable db", e)
+      null
     } finally {
       db.close()
     }
@@ -108,9 +112,7 @@ object NotesDb {
       where.append(" AND NOT $DONE_NOW")
       args.add(today)
     }
-    // 앞날에 시작하는 반복(아직 한 번도 안 한 것)은 그날까지 숨긴다(앱 폴더 화면과 같은 규칙)
-    where.append(" AND NOT (repeat_freq IS NOT NULL AND due_date IS NOT NULL AND due_date > ? AND done_at IS NULL)")
-    args.add(today)
+    // 앞날에 시작하는 반복도 보인다(아래 줄에 '매월 20일 · 10월 20일'). 그날까지 숨기던 규칙은 뺐다(앱과 같다, 사용자 요청 2026-10-18)
     return db.rawQuery(
       "SELECT id, text, CASE WHEN $DONE_NOW THEN done_at END AS done_now, due_date, folder_id, remind_at, repeat_freq, repeat_days " +
         "FROM todos WHERE $where ORDER BY done_now IS NOT NULL, done_now DESC, position, id LIMIT $limit",

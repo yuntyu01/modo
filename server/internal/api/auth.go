@@ -68,7 +68,7 @@ func (s *Server) register(w http.ResponseWriter, r *http.Request) {
 		errJSON(w, http.StatusTooManyRequests, "rate_limited", "잠시 후 다시 시도해 주세요")
 		return
 	}
-	hash, err := bcrypt.GenerateFromPassword([]byte(c.Password), bcrypt.DefaultCost)
+	hash, err := bcrypt.GenerateFromPassword(bcryptInput(c.Password), bcrypt.DefaultCost)
 	if err != nil {
 		serverError(w, err)
 		return
@@ -113,7 +113,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		WHERE u.email = $1`, c.Email).Scan(&u.ID, &u.Email, &u.Name, &hash)
 	if errors.Is(err, pgx.ErrNoRows) {
 		// 가입 여부가 응답 시간으로 드러나지 않게 같은 비용을 쓴다.
-		bcrypt.CompareHashAndPassword(dummyHash, []byte(c.Password))
+		bcrypt.CompareHashAndPassword(dummyHash, bcryptInput(c.Password))
 		errJSON(w, http.StatusUnauthorized, "bad_credentials", "이메일 또는 비밀번호가 맞지 않습니다")
 		return
 	}
@@ -121,7 +121,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		serverError(w, err)
 		return
 	}
-	if bcrypt.CompareHashAndPassword([]byte(hash), []byte(c.Password)) != nil {
+	if bcrypt.CompareHashAndPassword([]byte(hash), bcryptInput(c.Password)) != nil {
 		errJSON(w, http.StatusUnauthorized, "bad_credentials", "이메일 또는 비밀번호가 맞지 않습니다")
 		return
 	}
@@ -129,6 +129,16 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 }
 
 var dummyHash, _ = bcrypt.GenerateFromPassword([]byte("dummy-password"), bcrypt.DefaultCost)
+
+// bcrypt는 72바이트까지만 받는다(넘으면 가입이 오류로 끝난다). 그보다 긴 비밀번호(한글이면 25자쯤부터)는
+// SHA-256을 base64(44바이트)로 줄여 넣는다. 72바이트 이하는 그대로라 이미 있는 계정의 해시와 같다.
+func bcryptInput(password string) []byte {
+	if len(password) <= 72 {
+		return []byte(password)
+	}
+	sum := sha256.Sum256([]byte(password))
+	return []byte(base64.StdEncoding.EncodeToString(sum[:]))
+}
 
 func (s *Server) issueSession(w http.ResponseWriter, r *http.Request, u authUser, device string, status int) {
 	if s.cfg.Erasures.Blocked(u.ID.String()) {

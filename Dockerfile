@@ -12,7 +12,8 @@ RUN mkdir -p /var/lib/modo/logs /var/lib/modo/erasures /var/lib/modo/backups && 
 COPY --from=build /out/modo-server /out/modo-ops /usr/local/bin/
 ENV APP_ENV=production PORT=8080 PUBLIC_URL=https://modo.kodeploy.com \
     LOG_DIR=/var/lib/modo/logs ERASURE_JOURNAL=/var/lib/modo/erasures/journal.json \
-    BACKUP_DIR=/var/lib/modo/backups MODO_BACKUPS_ENABLED=1
+    BACKUP_DIR=/var/lib/modo/backups MODO_BACKUPS_ENABLED=1 \
+    TRUST_PROXY=1
 USER 1000:1000
 EXPOSE 8080
 ENTRYPOINT ["modo-server"]

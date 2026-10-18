@@ -2,6 +2,8 @@
 
 The Windows app uses the existing Electron host and the shared Expo web renderer/core. The renderer is bundled locally; it is not a remote web wrapper. Windows x64 is the initial build target. UI languages are Korean, English, Japanese and Simplified Chinese.
 
+The requested English Store listing title is **modo - Simple, modern Memo & ToDo**, with an ASCII hyphen and no trailing period. This is a listing draft until the name is reserved and accepted in Partner Center. The short executable/package display name remains `modo`; changing a listing title must not change the package identity or existing local data paths.
+
 ## Reproduce
 
 Use Node 24 on Windows:

@@ -1,6 +1,8 @@
 # modo
 
-**메모와 할 일, 한곳에.** (영문: modo - Simple, modern Memo & ToDo.) 이름은 Memo + Do, 메모하고 실행하기. 로고는 받은 시안(파란 m + 체크 심볼과 둥근 글자 modo): 심볼은 시안에 맞춰 다시 그린 벡터 선 경로(`app/src/ui/Logo.tsx`, 시안과 겹침 96.8%), 글자는 시안에서 오린 이미지(`app/assets/brand/modo-wordmark.png`).
+**메모와 할 일, 한곳에.** 영문 앱 이름은 **modo - Simple, modern Memo & ToDo** (끝에 마침표 없음). 이름은 Memo + Do, 메모하고 실행하기. 로고는 받은 시안(파란 m + 체크 심볼과 둥근 글자 modo): 심볼은 시안에 맞춰 다시 그린 벡터 선 경로(`app/src/ui/Logo.tsx`, 시안과 겹침 96.8%), 글자는 시안에서 오린 이미지(`app/assets/brand/modo-wordmark.png`).
+
+영문 전체 이름은 공백·기호를 포함해 33자다. Google Play의 앱 제목은 최대 30자이므로 전체 이름을 그대로 등록할 수 없다([공식 제목 규격](https://support.google.com/googleplay/android-developer/answer/9859152?hl=en)). 코드의 영문 이름과 스토어에 실제 게시된 제목은 구분한다. 설치 패키지 식별자와 로컬 데이터 경로용 짧은 이름은 `modo`를 사용한다.
 
 할 일과 메모를 한 화면에서 쓰는 앱. Android·iOS(React Native/Expo), Windows 데스크톱 미니창(Electron), 동기화·공유 서버(Go + PostgreSQL).
 모든 기능 무료(개수 제한·Pro·결제·광고 없음).

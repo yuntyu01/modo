@@ -51,7 +51,7 @@ export default function MainLayout() {
   const web = Platform.OS === 'web';
   const navInset = keyboard || web ? 0 : NAV_HEIGHT + bottomGap;
   // 첫 실행 화면(휴대폰, 처음 설치): 테마색 + 첫 할 일. '이미 계정이 있어요'를 누르면 로그인 화면으로(거기서 '나중에'면 다시 여기로)
-  const canLogin = !!serverApi && (serverApi.kakao || serverApi.google || serverApi.password);
+  const canLogin = !!serverApi && (serverApi.kakao || serverApi.google);
   const [welcomeLogin, setWelcomeLogin] = useState(false);
   const welcome = !web && !prefs.onboarded && !account && (!welcomeLogin || loginDeferred);
   // 로그인해서 들어온 사람(다시 설치 등)은 첫 실행 화면을 건너뛴다

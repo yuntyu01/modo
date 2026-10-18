@@ -1,6 +1,5 @@
-import { router } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AuthCancelled } from '../core/sync';
@@ -8,13 +7,12 @@ import { errorText } from '../i18n';
 import { makePkce, makeState, openAuth } from '../native/auth';
 import { desktop } from '../native/bridge';
 import { useApp } from '../state/AppContext';
-import { KakaoIcon } from './Icons';
+import { GoogleLoginButton, KakaoLoginButton } from './LoginButtons';
 import { Logo } from './Logo';
-import { GoogleLoginButton } from './GoogleLoginButton';
 
 /**
- * 처음 실행 로그인(서버가 닿을 때만): 카카오로 바로 로그인하면 휴대폰·PC가 늘 동기화된다.
- * 서버가 이메일 로그인도 켜 두었으면 '이메일로 로그인'(계정 화면), '나중에'는 이번 실행 동안만 넘긴다(다음에 켜면 다시).
+ * 처음 실행 로그인(서버가 닿을 때만): Google·카카오로 로그인하면 휴대폰·PC가 늘 동기화된다(이메일 로그인은 없앴다).
+ * '나중에'는 이번 실행 동안만 넘긴다(다음에 켜면 다시).
  * 서버가 닿지 않으면 이 화면은 나오지 않고 이 기기에서만 쓴다.
  */
 export function LoginGate() {
@@ -42,25 +40,8 @@ export function LoginGate() {
         <Text style={theme.kfont(16, { color: theme.muted, marginTop: 22, textAlign: 'center', lineHeight: 24 })}>{t('loginTagline')}</Text>
       </View>
       <View style={styles.actions}>
-        {serverApi?.google ? <GoogleLoginButton label={t('googleLogin')} busy={busy} onPress={() => external('google')} /> : null}
-        {serverApi?.kakao ? (
-          <Pressable accessibilityRole="button" disabled={busy} onPress={() => external('kakao')} style={[styles.button, styles.kakao, { opacity: busy ? 0.6 : 1 }]}>
-            {busy ? <ActivityIndicator color="#000000" /> : <KakaoIcon color="#000000" size={20} />}
-            <Text style={theme.font(16, { color: 'rgba(0,0,0,0.85)', fontWeight: '600' })}>{t('kakaoLogin')}</Text>
-          </Pressable>
-        ) : null}
-        {serverApi?.password ? (
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => {
-              deferLogin();
-              router.push('/settings/account');
-            }}
-            style={[styles.button, { backgroundColor: theme.card }]}
-          >
-            <Text style={theme.font(16, { color: theme.text, fontWeight: '600' })}>{t('emailLogin')}</Text>
-          </Pressable>
-        ) : null}
+        {serverApi?.google ? <GoogleLoginButton busy={busy} onPress={() => external('google')} /> : null}
+        {serverApi?.kakao ? <KakaoLoginButton busy={busy} onPress={() => external('kakao')} /> : null}
         {error ? <Text style={theme.font(14, { color: theme.danger, textAlign: 'center', marginTop: 4 })}>{error}</Text> : null}
         <Pressable accessibilityRole="button" onPress={deferLogin} hitSlop={10} style={styles.later}>
           <Text style={theme.font(14.5, { color: theme.subtle })}>{t('loginLater')}</Text>
@@ -74,8 +55,5 @@ const styles = StyleSheet.create({
   root: { flex: 1, paddingHorizontal: 24 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   actions: { width: '100%', maxWidth: 420, alignSelf: 'center', gap: 10 },
-  button: { borderRadius: 18, alignItems: 'center', justifyContent: 'center', height: 54, flexDirection: 'row', gap: 8 },
-  // 카카오 로그인 버튼 색(카카오 디자인 가이드)
-  kakao: { backgroundColor: '#FEE500' },
   later: { alignSelf: 'center', paddingVertical: 12 },
 });

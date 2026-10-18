@@ -55,7 +55,19 @@ func (c *credentials) normalize() (string, string) {
 	return "", ""
 }
 
+// 이메일 로그인을 끈 서버: 예전 앱에도 Google·카카오로 들어오라고 알린다
+func (s *Server) passwordLoginOff(w http.ResponseWriter) bool {
+	if !s.cfg.PasswordLoginOff {
+		return false
+	}
+	errJSON(w, http.StatusGone, "password_login_off", "이메일 로그인은 더 이상 쓰지 않아요. Google이나 카카오로 로그인해 주세요")
+	return true
+}
+
 func (s *Server) register(w http.ResponseWriter, r *http.Request) {
+	if s.passwordLoginOff(w) {
+		return
+	}
 	var c credentials
 	if !decode(w, r, &c) {
 		return
@@ -94,6 +106,9 @@ func (s *Server) register(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) login(w http.ResponseWriter, r *http.Request) {
+	if s.passwordLoginOff(w) {
+		return
+	}
 	var c credentials
 	if !decode(w, r, &c) {
 		return

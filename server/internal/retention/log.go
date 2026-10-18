@@ -35,7 +35,8 @@ func (l *Logs) pruneLocked() error {
 	if err != nil {
 		return err
 	}
-	cutoff := l.now().UTC().Add(-30 * 24 * time.Hour)
+	// Leave a full day of headroom for daily filenames and the hourly sweep.
+	cutoff := l.now().UTC().Add(-29 * 24 * time.Hour)
 	for _, f := range files {
 		if f.IsDir() || !strings.HasSuffix(f.Name(), ".log") {
 			continue

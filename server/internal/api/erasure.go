@@ -229,7 +229,8 @@ func (j *ErasureJournal) Prune(now time.Time) error {
 	defer j.mu.Unlock()
 	removed := map[string]ErasureEntry{}
 	for id, e := range j.entries {
-		if !e.CompletedAt.IsZero() && e.CompletedAt.Before(now.Add(-30*24*time.Hour)) {
+		// The hourly sweep still finishes within 30 days. Backups expire sooner.
+		if !e.CompletedAt.IsZero() && !e.CompletedAt.After(now.Add(-(29*24+23)*time.Hour)) {
 			removed[id] = e
 			delete(j.entries, id)
 		}

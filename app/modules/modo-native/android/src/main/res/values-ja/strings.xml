@@ -7,7 +7,7 @@
   <string name="mark_done">%1$s を完了</string>
   <string name="mark_undone">%1$s の完了を取り消す</string>
   <string name="mark_done_short">完了</string>
-  <string name="quick_add">modo クイック追加</string>
+  <string name="quick_add">クイック追加</string>
   <string name="quick_add_to">クイック追加 · %1$s</string>
   <string name="tile_label">modo クイック追加</string>
   <string name="new_todo">新しいToDo</string>

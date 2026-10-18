@@ -7,7 +7,7 @@ import { resolveLang } from '../i18n';
 import { native } from '../native/bridge';
 import { useApp } from '../state/AppContext';
 import { ruleOf } from '../core/repeat';
-import { describeRepeat, formatDateTime, localDate, parseLocalDate } from './format';
+import { describeRepeat, formatDate, formatDateTime, localDate, parseLocalDate } from './format';
 import { BellIcon, CalendarIcon, ChevronIcon, EditIcon, FolderIcon, PeopleIcon, RepeatIcon, ShareIcon, TrashIcon } from './Icons';
 import { MonthGrid } from './MonthGrid';
 import { ConfirmDialog, InfoRow, PromptDialog, Sheet, SheetButton, SheetTitle } from './primitives';
@@ -60,7 +60,7 @@ export function ItemSheets({ state, setState }: { state: SheetState; setState: (
               <InfoRow label={t('createdAt')} value={formatDateTime(todo.created_at, lang)} />
               <InfoRow label={t('updatedAt')} value={formatDateTime(todo.updated_at, lang)} />
               <InfoRow label={t('folder')} value={folderName(todo.folder_id)} />
-              {todo.due_date ? <InfoRow label={t('dueDate')} value={todo.due_date} /> : null}
+              {todo.due_date ? <InfoRow label={t('dueDate')} value={formatDate(todo.due_date, lang)} /> : null}
               {ruleOf(todo) ? <InfoRow label={t('repeat')} value={describeRepeat(ruleOf(todo)!, lang, todo.due_date)} /> : null}
               {todo.remind_at ? <InfoRow label={t('remindAt')} value={formatDateTime(todo.remind_at, lang)} /> : null}
             </View>
@@ -266,9 +266,9 @@ function ReminderPick({ initial, due, onPick }: { initial: number | null; due: s
       <SheetTitle title={t('setReminder')} />
       <MonthGrid month={month} setMonth={setMonth} selected={date} onSelect={setDate} />
       <View style={styles.time}>
-        <Stepper value={hour} onMinus={() => setHour(step(hour, -1, 24))} onPlus={() => setHour(step(hour, 1, 24))} />
+        <Stepper unit="hour" value={hour} onMinus={() => setHour(step(hour, -1, 24))} onPlus={() => setHour(step(hour, 1, 24))} />
         <Text style={theme.font(26, { color: theme.text })}>:</Text>
-        <Stepper value={minute} onMinus={() => setMinute(step(minute, -5, 60))} onPlus={() => setMinute(step(minute, 5, 60))} />
+        <Stepper unit="minute" value={minute} onMinus={() => setMinute(step(minute, -5, 60))} onPlus={() => setMinute(step(minute, 5, 60))} />
       </View>
       {native.available && perm === 'denied' ? (
         <Text style={theme.font(13, { color: theme.danger, textAlign: 'center', marginBottom: 8 })}>
@@ -291,17 +291,23 @@ function ReminderPick({ initial, due, onPick }: { initial: number | null; due: s
   );
 }
 
-function Stepper({ value, onMinus, onPlus }: { value: number; onMinus: () => void; onPlus: () => void }) {
-  const { theme } = useApp();
+function Stepper({ value, onMinus, onPlus, unit }: { value: number; onMinus: () => void; onPlus: () => void; unit: 'hour' | 'minute' }) {
+  const { theme, t } = useApp();
   return (
     <View style={styles.stepper}>
-      <Pressable onPress={onPlus} hitSlop={10} accessibilityLabel="+" style={{ transform: [{ rotate: '180deg' }] }}>
+      <Pressable
+        onPress={onPlus}
+        hitSlop={10}
+        accessibilityRole="button"
+        accessibilityLabel={t(unit === 'hour' ? 'hourUp' : 'minuteUp')}
+        style={{ transform: [{ rotate: '180deg' }] }}
+      >
         <ChevronIcon color={theme.muted} dir="down" size={22} />
       </Pressable>
       <Text style={theme.font(30, { color: theme.text, marginVertical: 2, fontVariant: ['tabular-nums'] })}>
         {String(value).padStart(2, '0')}
       </Text>
-      <Pressable onPress={onMinus} hitSlop={10} accessibilityLabel="-">
+      <Pressable onPress={onMinus} hitSlop={10} accessibilityRole="button" accessibilityLabel={t(unit === 'hour' ? 'hourDown' : 'minuteDown')}>
         <ChevronIcon color={theme.muted} dir="down" size={22} />
       </Pressable>
     </View>

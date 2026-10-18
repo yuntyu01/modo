@@ -23,6 +23,10 @@ import expo.modules.kotlin.modules.ModuleDefinition
 
 /** JS(src/native/bridge.ts) 계약. 실제 일은 위젯·알림 클래스가 하고 여기선 연결만 한다. */
 class ModoNativeModule : Module() {
+  private companion object {
+    const val PERMS = "naegirok_permissions"
+  }
+
   private val ctx: Context
     get() = appContext.reactContext ?: throw CodedException("ERR_NO_CONTEXT", "React context is not available", null)
 
@@ -102,8 +106,17 @@ class ModoNativeModule : Module() {
       }
     }
 
+    // Android 13+는 묻기 전에도 알림이 꺼져 있다. 앱이 아직 묻지 않았으면 'undetermined'로(꺼져 있다는 경고 대신 저장할 때 묻는다)
     AsyncFunction("notificationPermission") {
-      if (NotificationManagerCompat.from(ctx).areNotificationsEnabled()) "granted" else "denied"
+      when {
+        NotificationManagerCompat.from(ctx).areNotificationsEnabled() -> "granted"
+        Build.VERSION.SDK_INT >= 33 && !ctx.getSharedPreferences(PERMS, Context.MODE_PRIVATE).getBoolean("notifAsked", false) -> "undetermined"
+        else -> "denied"
+      }
+    }
+
+    AsyncFunction("markNotificationAsked") {
+      ctx.getSharedPreferences(PERMS, Context.MODE_PRIVATE).edit().putBoolean("notifAsked", true).apply()
     }
 
     AsyncFunction("canScheduleExactAlarms") { Reminders.canExact(ctx) }

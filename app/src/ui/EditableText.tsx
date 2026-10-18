@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Keyboard, Platform, StyleSheet, Text, TextInput, type TextLayoutLine, type TextStyle } from 'react-native';
+import { Keyboard, Platform, StyleSheet, Text, TextInput, View, type TextLayoutLine, type TextStyle } from 'react-native';
 
 import { inputColors } from './theme';
 import { useApp } from '../state/AppContext';
@@ -164,15 +164,13 @@ export function EditableText(p: Props) {
           {p.text || p.placeholder || ' '}
         </Text>
         {measureFull ? (
-          <Text
-            style={[p.style, styles.measure]}
-            onTextLayout={(e) => setFullLines(e.nativeEvent.lines.length)}
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
-            pointerEvents="none"
-          >
-            {p.text}
-          </Text>
+          // 보이지 않는 글이 위에 겹쳐 있어 터치를 가로채지 않게 View로 감싼다(Android Text는 pointerEvents를 따르지 않아
+          // 10자 넘는 제목은 눌러도 고치기·길게 누르기가 안 됐다)
+          <View pointerEvents="none" style={styles.measure} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+            <Text style={p.style} onTextLayout={(e) => setFullLines(e.nativeEvent.lines.length)}>
+              {p.text}
+            </Text>
+          </View>
         ) : null}
         {tipNode}
       </>

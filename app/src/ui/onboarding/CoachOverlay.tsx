@@ -6,6 +6,9 @@ import { coachComposerRef, coachStore, coachTodoRef, measure, useCoach, type Rec
 
 /** 강조 테두리와 대상 사이 여백 */
 const PAD = 6;
+const RADIUS = 18;
+/** 어둡게 덮는 테두리 두께(화면보다 크게). 안쪽 모서리 반지름 = 바깥 반지름 - 두께라 구멍이 강조 테두리처럼 둥글다 */
+const COVER = 3000;
 
 /**
  * 첫 실행 화면 다음 홈 안내: 주변을 어둡게 하고 강조 테두리가 ① 첫 실행 화면에서 적던 칸 → 홈의 그 할 일 → ② 입력창으로 옮겨 가며
@@ -75,8 +78,6 @@ export function CoachOverlay() {
 
   if (!coach) return null;
   const dim = 'rgba(0,0,0,0.62)';
-  const right = Animated.add(x, w);
-  const bottom = Animated.add(y, h);
   // 말풍선: 대상이 화면 아래쪽이면 위에, 위쪽이면 아래에
   const below = !!target && target.y + target.h / 2 < screenH / 2;
   const bubblePos = target ? (below ? { top: target.y + target.h + PAD + 14 } : { bottom: screenH - target.y + PAD + 14 }) : { top: 0 };
@@ -89,10 +90,20 @@ export function CoachOverlay() {
         accessibilityRole="button"
         accessibilityLabel={`${step === 0 ? t('coachTodo') : t('coachComposer')} ${step === 0 ? t('coachNext') : t('coachDone')}`}
       >
-        <Animated.View style={[styles.dim, { backgroundColor: dim, left: 0, right: 0, top: 0, height: y }]} />
-        <Animated.View style={[styles.dim, { backgroundColor: dim, left: 0, right: 0, top: bottom, bottom: 0 }]} />
-        <Animated.View style={[styles.dim, { backgroundColor: dim, left: 0, width: x, top: y, height: h }]} />
-        <Animated.View style={[styles.dim, { backgroundColor: dim, left: right, right: 0, top: y, height: h }]} />
+        {/* 사각형 넷으로 덮으면 둥근 강조 테두리 바깥 모서리가 밝게 남았다 */}
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.cover,
+            {
+              borderColor: dim,
+              left: Animated.subtract(x, COVER),
+              top: Animated.subtract(y, COVER),
+              width: Animated.add(w, COVER * 2),
+              height: Animated.add(h, COVER * 2),
+            },
+          ]}
+        />
         <Animated.View style={[styles.ring, { borderColor: theme.accent, left: x, top: y, width: w, height: h }]} />
         {target ? (
           <Animated.View style={[styles.bubble, bubblePos, { backgroundColor: theme.dark ? '#24262B' : '#FFFFFF', opacity: bubble }]}>
@@ -113,8 +124,8 @@ export function CoachOverlay() {
 }
 
 const styles = StyleSheet.create({
-  dim: { position: 'absolute' },
-  ring: { position: 'absolute', borderWidth: 2, borderRadius: 18 },
+  cover: { position: 'absolute', borderWidth: COVER, borderRadius: RADIUS + COVER },
+  ring: { position: 'absolute', borderWidth: 2, borderRadius: RADIUS },
   bubble: { position: 'absolute', left: 20, right: 20, borderRadius: 16, paddingHorizontal: 18, paddingTop: 15, paddingBottom: 13 },
   bubbleFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 },
   dots: { flexDirection: 'row', gap: 6 },

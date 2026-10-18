@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  폭이 모자라 가려진 폴더를 오른쪽 끝에 잘린 채로 보여 주는 탭("제주…"). 위젯은 옆으로 밀어 넘길 수 없어서(누르기만 받는다)
+  더 있다는 걸 이렇게 알리고, 누르면 그 폴더로 가며 가운데로 와 양옆이 보인다. 폭은 남는 자리 전부(좁으면 "…"만)
+-->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+  android:id="@+id/tab"
+  android:layout_width="0dp"
+  android:layout_weight="1"
+  android:layout_height="match_parent"
+  android:ellipsize="end"
+  android:fontFamily="sans-serif"
+  android:gravity="center_vertical|start"
+  android:maxLines="1"
+  android:textColor="#A1A1A6"
+  android:textSize="15sp" />

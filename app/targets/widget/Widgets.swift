@@ -388,6 +388,8 @@ struct HomeWidgetView: View {
   /// 머리 한 줄: 맨 왼쪽 로고(글자 없이) + 폴더 탭. 탭 사이 tabGap, 로고와 탭 사이 markGap
   static let header: CGFloat = 30
   static let tabGap: CGFloat = 18
+  /// 가려진 옆 폴더를 잘린 채로 보여 주는 끝 탭 폭(Android HomeWidget.PEEK와 같게)
+  static let peek: CGFloat = 40
   static let markGap: CGFloat = 14
   static let tabSize: CGFloat = 15
   static let footer: CGFloat = 28
@@ -492,24 +494,36 @@ struct HomeWidgetView: View {
     }
   }
 
-  /// 폴더 탭(앱과 같이: 글자만, 지금 폴더는 굵은 흰 글자). 누르면 그 폴더의 첫 쪽. 폭이 모자라면 지금 폴더가 보이게 그 근처만(Android와 같은 규칙)
+  /// 폴더 탭(앱과 같이: 글자만, 지금 폴더는 굵은 흰 글자). 누르면 그 폴더의 첫 쪽. 폭이 모자라면 지금 폴더를 가운데 두고 양옆을 채운 뒤
+  /// 가려진 쪽 끝에 옆 폴더를 잘린 채로 보여 준다(Android와 같은 규칙). 위젯은 옆으로 밀 수 없어서 그걸 누르면 그 폴더가 가운데로 온다
   func tabRow(_ room: CGFloat) -> some View {
     let all: [(id: String, name: String)] = [(FolderEntity.baseId, l.baseFolder)] + entry.folders.map { ($0.id, $0.name) }
     let cur = all.firstIndex(where: { $0.id == folderParam }) ?? 0
     let widths = all.enumerated().map { i, f in
       ceil((f.name as NSString).size(withAttributes: [.font: UIFont.systemFont(ofSize: Self.tabSize, weight: i == cur ? .bold : .regular)]).width) + Self.tabGap
     }
-    var first = cur
-    var last = cur
-    var used = widths[cur]
-    while true {
-      let right = last + 1 < all.count && used + widths[last + 1] <= room
-      if right { last += 1; used += widths[last] }
-      let left = first > 0 && used + widths[first - 1] <= room
-      if left { first -= 1; used += widths[first] }
-      if !right && !left { break }
+    func window(_ room: CGFloat) -> (Int, Int) {
+      var first = cur
+      var last = cur
+      var used = widths[cur]
+      while true {
+        let right = last + 1 < all.count && used + widths[last + 1] <= room
+        if right { last += 1; used += widths[last] }
+        let left = first > 0 && used + widths[first - 1] <= room
+        if left { first -= 1; used += widths[first] }
+        if !right && !left { break }
+      }
+      return (first, last)
+    }
+    var (first, last) = window(room)
+    if first > 0 || last < all.count - 1 {
+      // 잘린 탭 자리를 빼고 다시(가려진 쪽이 한쪽뿐이면 그 한 칸만)
+      let both = window(room - (Self.peek + Self.tabGap) * 2)
+      let sides = (both.0 > 0 ? 1 : 0) + (both.1 < all.count - 1 ? 1 : 0)
+      (first, last) = sides < 2 ? window(room - (Self.peek + Self.tabGap)) : both
     }
     return HStack(spacing: 0) {
+      if first > 0 { peekTab(all[first - 1], leading: true) }
       ForEach(first...last, id: \.self) { i in
         let sel = i == cur
         Button(intent: WidgetFolderIntent(tabKey: entry.tabKey, folder: all[i].id, viewKey: "\(all[i].id)|\(entry.family)")) {
@@ -521,8 +535,23 @@ struct HomeWidgetView: View {
         .buttonStyle(.plain)
         .accessibilityLabel(sel ? l.currentFolderTab(all[i].name) : l.folderTab(all[i].name))
       }
+      if last < all.count - 1 { peekTab(all[last + 1], leading: false) }
       Spacer(minLength: 0)
     }
+  }
+
+  /// 가려진 옆 폴더를 잘린 채로("제주…", 왼쪽은 "…본"). 누르면 그 폴더로 가며 가운데로 온다
+  func peekTab(_ f: (id: String, name: String), leading: Bool) -> some View {
+    Button(intent: WidgetFolderIntent(tabKey: entry.tabKey, folder: f.id, viewKey: "\(f.id)|\(entry.family)")) {
+      Text(f.name).font(.system(size: Self.tabSize)).foregroundStyle(Self.muted).lineLimit(1)
+        .truncationMode(leading ? .head : .tail)
+        .frame(width: Self.peek, alignment: leading ? .trailing : .leading)
+        .padding(.trailing, leading ? Self.tabGap : 0)
+        .frame(maxHeight: .infinity)
+        .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel(l.folderTab(f.name))
   }
 
   func memoButton(_ body: String, lines: Int, hint: String) -> some View {

@@ -16,7 +16,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { inputColors } from './theme';
-import { useApp } from '../state/AppContext';
+import { useApp, useToast } from '../state/AppContext';
 import { ChevronIcon } from './Icons';
 import { useSlidingPill } from './motion';
 
@@ -227,7 +227,8 @@ export function ConfirmDialog({
 
 /** 화면 아래 잠깐 뜨는 알림(실행 취소 버튼 포함) */
 export function ToastHost({ bottom }: { bottom: number }) {
-  const { toast, showToast, theme } = useApp();
+  const { showToast, theme } = useApp();
+  const toast = useToast();
   const [opacity] = useState(() => new Animated.Value(0));
   useEffect(() => {
     if (!toast) return;
@@ -276,19 +277,39 @@ export function Switch({ value, onChange, label, size = 'md' }: { value: boolean
 }
 
 /** 0~1 슬라이더(웹·네이티브 공통, PanResponder) */
-export function Slider({ value, onChange, label, style }: { value: number; onChange: (v: number) => void; label: string; style?: ViewStyle }) {
+/** onChange는 끄는 동안 계속, onEnd는 손을 뗄 때 한 번(저장처럼 무거운 일은 onEnd에서) */
+export function Slider({
+  value,
+  onChange,
+  onEnd,
+  label,
+  style,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  onEnd?: (v: number) => void;
+  label: string;
+  style?: ViewStyle;
+}) {
   const { theme } = useApp();
   const width = useRef(1);
   const startX = useRef(0);
+  const last = useRef(value);
   // 끄는 동안 부르는 onChange는 늘 최신 것으로(처음 그릴 때의 onChange가 붙잡은 옛 설정값으로 되돌리지 않게)
   const onChangeRef = useRef(onChange);
+  const onEndRef = useRef(onEnd);
   useEffect(() => {
     onChangeRef.current = onChange;
+    onEndRef.current = onEnd;
   });
   // 만드는 함수 안의 ref는 끌 때(이벤트) 읽는다. 그리는 중에 읽지 않는다(컴파일러 규칙의 오탐)
   // eslint-disable-next-line react-hooks/refs
   const [pan] = useState(() => {
-    const set = (x: number) => onChangeRef.current(Math.max(0, Math.min(1, x / width.current)));
+    const set = (x: number) => {
+      last.current = Math.max(0, Math.min(1, x / width.current));
+      onChangeRef.current(last.current);
+    };
+    const end = () => onEndRef.current?.(last.current);
     return PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
@@ -297,6 +318,8 @@ export function Slider({ value, onChange, label, style }: { value: number; onCha
         set(startX.current);
       },
       onPanResponderMove: (_e, g) => set(startX.current + g.dx),
+      onPanResponderRelease: end,
+      onPanResponderTerminate: end,
     });
   });
   return (
@@ -305,7 +328,11 @@ export function Slider({ value, onChange, label, style }: { value: number; onCha
       accessibilityLabel={label}
       accessibilityValue={{ min: 0, max: 100, now: Math.round(value * 100) }}
       accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
-      onAccessibilityAction={(e) => onChange(Math.max(0, Math.min(1, value + (e.nativeEvent.actionName === 'increment' ? 0.1 : -0.1))))}
+      onAccessibilityAction={(e) => {
+        const v = Math.max(0, Math.min(1, value + (e.nativeEvent.actionName === 'increment' ? 0.1 : -0.1)));
+        onChange(v);
+        onEnd?.(v);
+      }}
       onLayout={(e) => (width.current = e.nativeEvent.layout.width || 1)}
       style={[styles.slider, style]}
       {...pan.panHandlers}

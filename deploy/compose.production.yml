@@ -35,7 +35,8 @@ services:
       ERASURE_JOURNAL: /var/lib/modo/erasures/journal.json
       BACKUP_DIR: /var/lib/modo/backups
       MODO_BACKUPS_ENABLED: "0"
-      TRUST_PROXY: "0"
+      # HTTPS 프록시 뒤라 접속 주소가 모두 프록시로 보인다. 0이면 로그인 요청 수 제한을 전체 사용자가 함께 쓴다.
+      TRUST_PROXY: "1"
     volumes:
       - modo-logs:/var/lib/modo/logs
       - modo-erasures:/var/lib/modo/erasures

@@ -157,7 +157,9 @@ export default function Customize() {
     { value: 'xl', label: t('sizeXL') },
   ];
   // 위젯·미니창 투명도는 둘을 함께 바꾼다(따로 바꾸려면 '더 많은 꾸미기')
-  const opacity = prefs.widget.opacity;
+  // 끄는 동안은 화면의 값만 바꾸고, 손을 뗄 때 저장한다(끌 때마다 저장하면 매번 DB에 쓰고 앱 전체를 다시 그린다)
+  const [dragOpacity, setDragOpacity] = useState<number | null>(null);
+  const opacity = dragOpacity ?? prefs.widget.opacity;
   return (
     <SubScreen title={t('customize')} titleSize={20} titleGap={10} headerShift={-2.5} contentTop={0} padLeft={19}>
       <Preview />
@@ -195,9 +197,11 @@ export default function Customize() {
           label={t('widgetMiniOpacity')}
           value={(opacity - 0.2) / 0.8}
           style={{ marginTop: 2.5, marginBottom: -2.5 }}
-          onChange={(x) => {
+          onChange={(x) => setDragOpacity(Math.round((0.2 + x * 0.8) * 100) / 100)}
+          onEnd={(x) => {
             const v = Math.round((0.2 + x * 0.8) * 100) / 100;
             setPrefs({ widget: { ...prefs.widget, opacity: v }, mini: { ...prefs.mini, opacity: v } });
+            setDragOpacity(null);
           }}
         />
         <Text style={theme.kfont(13, { color: theme.subtle, marginTop: 2 })}>{t('opacityNote')}</Text>

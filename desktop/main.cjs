@@ -510,15 +510,19 @@ function broadcastChanged(sender, tables) {
 // 연결은 하나라서, 한 창이 트랜잭션을 연 동안 다른 창의 쿼리는 커밋/롤백까지 기다리게 한다.
 let txOwner = null;
 let txWaiters = [];
-function waitTurn(id) {
-  if (txOwner === null || txOwner === id) return Promise.resolve();
-  return new Promise((resolve) => txWaiters.push({ id, resolve })).then(() => waitTurn(id));
+// 차례 확인과 fn 실행 사이에 await가 없어야 한다: 풀릴 때 깨어난 여럿이 모두 '비었음'을 본 뒤 실행하면
+// 두 번째 BEGIN이 실패하거나 남의 트랜잭션 안에 쿼리가 섞인다. fn은 동기라 BEGIN이면 txOwner까지 바로 잡는다.
+async function withTurn(id, fn) {
+  while (txOwner !== null && txOwner !== id) {
+    await new Promise((resolve) => txWaiters.push(resolve));
+  }
+  return fn();
 }
 function releaseTx() {
   txOwner = null;
   const w = txWaiters;
   txWaiters = [];
-  w.forEach((x) => x.resolve());
+  w.forEach((resolve) => resolve());
 }
 
 // One system-browser login at a time; cancel pending loopback listener on app shutdown.
@@ -535,8 +539,7 @@ function openAuth(_parent, url, redirect) {
 function registerIpc() {
   const guarded = (fn) => async (e, ...args) => {
     countDb?.(args[0]);
-    await waitTurn(e.sender.id);
-    return fn(e, ...args);
+    return withTurn(e.sender.id, () => fn(e, ...args));
   };
   // 창이 할 일·메모를 고쳐 outbox에 넣었거나 테마색(prefs)을 바꿨으면, 커밋한 뒤 메인 동기화에 알린다
   const pending = new Map(); // 창 id → { outbox, prefs }
@@ -667,21 +670,20 @@ app.on('second-instance', (_e, argv) => {
 const MAIN_TX = 'main';
 function mainDb() {
   // 측정(bench.cjs)이 켜졌으면 메인 쪽 쿼리도 창의 쿼리와 같이 센다
-  const turn = (sql) => (countDb?.(sql), waitTurn(MAIN_TX));
+  const turn = (sql, fn) => (countDb?.(sql), withTurn(MAIN_TX, fn));
   return {
-    all: async (sql, params = []) => (await turn(sql), db.all(sql, params)),
+    all: (sql, params = []) => turn(sql, () => db.all(sql, params)),
     run: async (sql, params = []) => {
-      await turn(sql);
-      db.run(sql, params);
+      await turn(sql, () => db.run(sql, params));
     },
     exec: async (sql) => {
-      await turn(sql);
-      db.exec(sql);
+      await turn(sql, () => db.exec(sql));
     },
     transaction: async (fn) => {
-      await turn('BEGIN');
-      db.exec('BEGIN IMMEDIATE');
-      txOwner = MAIN_TX;
+      await turn('BEGIN', () => {
+        db.exec('BEGIN IMMEDIATE');
+        txOwner = MAIN_TX;
+      });
       try {
         const r = await fn();
         db.exec('COMMIT');

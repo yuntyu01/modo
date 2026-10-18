@@ -716,6 +716,10 @@ func (s *Server) pull(w http.ResponseWriter, r *http.Request) {
 		shared = append(shared, sf)
 	}
 	rows.Close()
+	if err := rows.Err(); err != nil {
+		serverError(w, err)
+		return
+	}
 	sharedIDs := make([]uuid.UUID, len(shared))
 	for i, sf := range shared {
 		sharedIDs[i] = sf.FolderID
@@ -733,6 +737,10 @@ func (s *Server) pull(w http.ResponseWriter, r *http.Request) {
 		visible = append(visible, id)
 	}
 	rows.Close()
+	if err := rows.Err(); err != nil {
+		serverError(w, err)
+		return
+	}
 
 	// 두 갈래를 각각 (owner_id, seq) / (folder_id, seq) 인덱스로 읽는다.
 	items := func(table, cols string) string {
@@ -768,6 +776,10 @@ func (s *Server) pull(w http.ResponseWriter, r *http.Request) {
 			n++
 		}
 		rows.Close()
+		if err := rows.Err(); err != nil {
+			serverError(w, err)
+			return
+		}
 		if n > limit {
 			more = true
 		}
@@ -807,6 +819,11 @@ func (s *Server) pull(w http.ResponseWriter, r *http.Request) {
 			ids = append(ids, id)
 		}
 		rows.Close()
+		// 도중에 끊긴 목록을 주면 클라이언트가 빠진 공유 항목을 지운다
+		if err := rows.Err(); err != nil {
+			serverError(w, err)
+			return
+		}
 		digest := foreignDigest(ids)
 		resp["foreign_digest"] = digest
 		if fd := r.URL.Query().Get("fd"); fd != "" && fd == digest {
@@ -815,6 +832,8 @@ func (s *Server) pull(w http.ResponseWriter, r *http.Request) {
 			resp["foreign_ids"] = ids
 		}
 	}
+	// 응답을 쓰기 전에 트랜잭션을 끝내 전역 잠금을 푼다: 느린 클라이언트가 응답을 받는 동안 모든 사용자의 push·pull이 멈추지 않게.
+	tx.Rollback(ctx)
 	writeJSON(w, http.StatusOK, resp)
 }
 

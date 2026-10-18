@@ -31,7 +31,6 @@ type App = {
   account: Account | null;
   refreshAccount: () => Promise<void>;
   deleteAccount: () => Promise<void>;
-  toast: Toast | null;
   showToast: (t: Toast | null) => void;
   /** 편집기들이 등록하는 '지금 저장' 함수(백그라운드 전환·종료 직전에 호출) */
   registerFlush: (fn: () => Promise<void> | void) => () => void;
@@ -64,6 +63,9 @@ type Drafts = {
   setDraftOf: (folder: FolderFilter, todoMode: boolean, text: string) => void;
 };
 const DraftCtx = createContext<Drafts | null>(null);
+
+/** 지금 뜬 토스트도 따로 둔다: 앱 상태에 두면 토스트가 뜨고 닫힐 때마다(할 일을 밀어 지울 때마다) 모든 카드가 다시 그려진다. */
+const ToastCtx = createContext<Toast | null>(null);
 
 const EMPTY: Snapshot = { folders: [], todos: [], paragraphs: [], shared: [] };
 
@@ -432,7 +434,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setPrefs({ lock: { enabled: false, visibility: 'private' } });
         await native.refresh();
       },
-      toast,
       showToast: setToast,
       registerFlush,
       flushAll,
@@ -448,7 +449,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         desktopSyncBridge()?.call('deferLogin');
       },
     };
-  }, [boot, error, snap, prefs, setPrefs, theme, t, filter, setFilter, account, toast, registerFlush, flushAll, serverApi, loginDeferred]);
+  }, [boot, error, snap, prefs, setPrefs, theme, t, filter, setFilter, account, registerFlush, flushAll, serverApi, loginDeferred]);
   const draftValue = useMemo<Drafts>(
     () => ({ draftOf: (folder, todoMode) => drafts[draftKey(folder, todoMode)] ?? '', setDraftOf }),
     [drafts, setDraftOf],
@@ -462,8 +463,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     <Ctx.Provider value={value}>
       <StatusCtx.Provider value={status}>
         <DraftCtx.Provider value={draftValue}>
-          {children}
-          <ReadyMark />
+          <ToastCtx.Provider value={toast}>
+            {children}
+            <ReadyMark />
+          </ToastCtx.Provider>
         </DraftCtx.Provider>
       </StatusCtx.Provider>
     </Ctx.Provider>
@@ -498,6 +501,11 @@ export function useApp() {
 /** 동기화 상태(설정의 내 계정처럼 상태를 보여 주는 곳만) */
 export function useSyncStatus() {
   return useContext(StatusCtx);
+}
+
+/** 지금 뜬 토스트(아래에 띄우는 ToastHost만) */
+export function useToast() {
+  return useContext(ToastCtx);
 }
 
 /** 초안 읽기·쓰기(입력창, 미리보기 카드, 메모의 입력 위치 표시만 쓴다) */

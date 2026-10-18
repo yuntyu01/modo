@@ -399,7 +399,10 @@ export default function Mini() {
                 // 끝에 이어진 빈 줄은 그리지 않는다(model.ts trimTrailingBlank)
                 trimTrailingBlank(paragraphs, editing?.id)
                   .slice(0, Math.max(memoCount, paragraphs.findIndex((p) => p.id === editing?.id) + 1))
-                  .map((p) => (
+                  .map((p, i) => {
+                  // 앞에서부터 자른 목록이라 i가 paragraphs의 자리와 같다
+                  const prev = paragraphs[i - 1];
+                  return (
                   <EditableText
                     key={p.id}
                     id={p.id}
@@ -415,8 +418,19 @@ export default function Mini() {
                       const ids = await repo.splitParagraph(p.id, before, after);
                       if (ids.length) setEditing({ id: ids[ids.length - 1], caret });
                     }}
+                    onMergeBack={
+                      prev && canWrite(prev.folder_id)
+                        ? async (text) => {
+                            const caret = prev.text.length;
+                            await repo.setParagraphText(p.id, text);
+                            await repo.mergeParagraphInto(prev.id, p.id);
+                            setEditing({ id: prev.id, caret });
+                          }
+                        : undefined
+                    }
                   />
-                ))
+                  );
+                })
               ) : (
                 <Pressable onPress={startMemo} disabled={!writable} style={{ cursor: 'text' } as object}>
                   <Text

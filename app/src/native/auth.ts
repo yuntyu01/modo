@@ -4,7 +4,8 @@ import { Platform } from 'react-native';
 
 import { CodedError } from '../core/errors';
 import type { AuthBrowser, Pkce } from '../core/sync';
-import { desktop } from './bridge';
+import { kakaoTalkAuth } from '../core/kakaoTalk';
+import { desktop, native } from './bridge';
 
 const base64url = (b64: string) => b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
@@ -34,6 +35,10 @@ export const openAuth: AuthBrowser = async (url, redirect) => {
   if (Platform.OS === 'web') {
     if (!desktop?.openAuth) throw new CodedError('auth_unavailable', '이 환경에서는 로그인을 열 수 없어요');
     return desktop.openAuth(url, redirect);
+  }
+  if (Platform.OS === 'android') {
+    const back = await kakaoTalkAuth(url, redirect, native.loginWithKakaoTalk, fetch);
+    if (back !== undefined) return back;
   }
   const r = await WebBrowser.openAuthSessionAsync(url, redirect);
   return r.type === 'success' ? r.url : null;

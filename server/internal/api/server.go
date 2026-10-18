@@ -64,6 +64,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/auth/logout", s.auth(s.logout))
 	mux.HandleFunc("GET /api/auth/providers", s.providers)
 	mux.HandleFunc("GET /api/auth/kakao/start", s.kakaoStart)
+	mux.HandleFunc("POST /api/auth/kakao/native", s.kakaoNative)
 	mux.HandleFunc("GET /api/auth/kakao/callback", s.kakaoCallback)
 	mux.HandleFunc("GET /api/auth/kakao/unlink", s.kakaoUnlinkWebhook)
 	mux.HandleFunc("POST /api/auth/kakao/unlink", s.kakaoUnlinkWebhook)

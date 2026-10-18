@@ -242,8 +242,12 @@ func (s *Server) kakaoUser(ctx context.Context, code string) (kakaoProfile, erro
 	if tok.AccessToken == "" {
 		return kakaoProfile{}, errors.New("token: empty")
 	}
-	req, _ = http.NewRequestWithContext(ctx, http.MethodGet, s.cfg.KakaoAPIURL+"/v2/user/me", nil)
-	req.Header.Set("Authorization", "Bearer "+tok.AccessToken)
+	return s.kakaoUserWithToken(ctx, tok.AccessToken)
+}
+
+func (s *Server) kakaoUserWithToken(ctx context.Context, accessToken string) (kakaoProfile, error) {
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, s.cfg.KakaoAPIURL+"/v2/user/me", nil)
+	req.Header.Set("Authorization", "Bearer "+accessToken)
 	var me struct {
 		ID      int64 `json:"id"`
 		Account struct {

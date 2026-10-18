@@ -1,4 +1,4 @@
-// Platform icon encoding from the supplied artwork; never redraw the logo.
+// Platform icon encoding from the current icon source (restored original symbol).
 // Run: node app/scripts/generate-icons.cjs (from any directory).
 const fs = require('node:fs/promises');
 const path = require('node:path');

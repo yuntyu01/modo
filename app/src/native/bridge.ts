@@ -58,6 +58,8 @@ export type DesktopApi = {
   isPinned(): Promise<boolean>;
   hide(): Promise<void>;
   setContentHeight(h: number): Promise<void>;
+  /** 미니창에서 시트를 여는 동안 창을 h까지 키운다(0 = 닫음, 내용 높이로). 예전 데스크톱 앱에는 없다 */
+  setSheetHeight?(h: number): Promise<void>;
   setOpacity(o: number): Promise<void>;
   getLoginItem(): Promise<boolean>;
   setLoginItem(on: boolean): Promise<void>;

@@ -5,6 +5,7 @@ import { inputColors } from './theme';
 import { useApp } from '../state/AppContext';
 import { caretFromTap } from './caret';
 import { useTextTip } from './textTip';
+import { useWebLongPress } from './webLongPress';
 import { handleWebEnter } from './webEnter';
 
 type Props = {
@@ -52,43 +53,10 @@ export function EditableText(p: Props) {
   const [open, setOpen] = useState(false);
   const { ref: tipRef, enter: tipEnter, hide: tipHide, node: tipNode } = useTextTip(p.text, Platform.OS === 'web' && !!p.lines && !open);
   // PC(웹): react-native-web의 Text는 onLongPress가 없어 정보 시트를 열 수 없었다.
-  // 오른쪽 클릭, 또는 왼쪽 버튼을 0.5초 누르고 있으면 길게 누르기와 같은 동작을 한다.
-  const webLong = useRef<{ timer: ReturnType<typeof setTimeout> | null; fired: boolean }>({ timer: null, fired: false });
-  const clearLong = () => {
-    if (webLong.current.timer) clearTimeout(webLong.current.timer);
-    webLong.current.timer = null;
-  };
+  // 오른쪽 클릭, 또는 왼쪽 버튼을 0.5초 누르고 있으면 길게 누르기와 같은 동작을 한다(그 뒤 클릭은 편집으로 넘어가지 않는다).
   // 말풍선은 누르거나(편집·정보) 벗어나면 닫는다
-  const webLongProps =
-    Platform.OS === 'web' && p.onLongPress
-      ? {
-          onContextMenu: (e: { preventDefault: () => void }) => {
-            e.preventDefault();
-            clearLong();
-            tipHide();
-            p.onLongPress?.();
-          },
-          onMouseDown: (e: { button: number }) => {
-            tipHide();
-            if (e.button !== 0) return;
-            webLong.current.fired = false;
-            clearLong();
-            webLong.current.timer = setTimeout(() => {
-              webLong.current.timer = null;
-              webLong.current.fired = true;
-              p.onLongPress?.();
-            }, 500);
-          },
-          onMouseUp: clearLong,
-          onMouseEnter: tipEnter,
-          onMouseLeave: () => {
-            clearLong();
-            tipHide();
-          },
-        }
-      : Platform.OS === 'web'
-        ? { onMouseDown: tipHide, onMouseEnter: tipEnter, onMouseLeave: tipHide }
-        : null;
+  const webLong = useWebLongPress(p.onLongPress, { onDown: tipHide, onLeave: tipHide });
+  const webLongProps = Platform.OS === 'web' ? { ...(webLong ?? { onMouseDown: tipHide, onMouseLeave: tipHide }), onMouseEnter: tipEnter } : null;
   // 편집 시작: 원본 글과 처음 커서로 초안을 맞춘다(그리는 중에 바로 맞춰 한 번 더 그리지 않게)
   const editKey = p.editing ? p.id : null;
   const [syncedKey, setSyncedKey] = useState<string | null>(null);
@@ -157,17 +125,7 @@ export function EditableText(p: Props) {
           style={[p.style, !p.text && p.placeholder ? { color: theme.muted } : null]}
           numberOfLines={open ? undefined : p.lines}
           onTextLayout={(e) => (lines.current = e.nativeEvent.lines)}
-          onPress={
-            p.readOnly
-              ? p.lines
-                ? () => setOpen((v) => !v)
-                : undefined
-              : (e) => {
-                  // PC: 길게 눌러 정보를 열었으면 그 뒤 따라오는 클릭으로 편집을 시작하지 않는다
-                  if (webLong.current.fired) return void (webLong.current.fired = false);
-                  p.onStartEdit(caretFromTap(e, lines.current, p.text));
-                }
-          }
+          onPress={p.readOnly ? (p.lines ? () => setOpen((v) => !v) : undefined) : (e) => p.onStartEdit(caretFromTap(e, lines.current, p.text))}
           onLongPress={p.onLongPress}
           suppressHighlighting
           {...(webLongProps as object)}

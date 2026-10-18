@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld('desktop', {
   isPinned: () => ipcRenderer.invoke('win:isPinned'),
   hide: () => ipcRenderer.invoke('win:hide'),
   setContentHeight: (h) => ipcRenderer.invoke('win:setContentHeight', h),
+  setSheetHeight: (h) => ipcRenderer.invoke('win:setSheetHeight', h),
   setOpacity: (o) => ipcRenderer.invoke('win:setOpacity', o),
   getLoginItem: () => ipcRenderer.invoke('win:getLoginItem'),
   setLoginItem: (on) => ipcRenderer.invoke('win:setLoginItem', on),

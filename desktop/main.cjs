@@ -168,6 +168,9 @@ let autoResizing = false;
 let userResizing = false;
 /** 화면이 알려 준 내용 높이(머리부터 맨 아래 '+'까지) */
 let contentH = 0;
+/** 미니창에서 시트를 여는 동안 필요한 높이(0 = 시트 없음)와, 그 때문에 위로 올리기 전 자리 */
+let sheetH = 0;
+let sheetY = null;
 /** 끌어서 늘린 높이가 내용 높이에서 이만큼 안쪽이면 '최대'로 본다 */
 const SNAP = 48;
 let anim = null;
@@ -183,7 +186,9 @@ function fitHeight() {
   const display = screen.getDisplayMatching(mini.getBounds());
   const cap = display.workArea.height - 24;
   const max = state.maxHeight ? Math.min(state.maxHeight, cap) : cap;
-  return Math.max(MIN_HEIGHT, Math.min(Math.ceil(contentH || MIN_HEIGHT), max));
+  const fit = Math.max(MIN_HEIGHT, Math.min(Math.ceil(contentH || MIN_HEIGHT), max));
+  // 시트가 열려 있으면 시트가 들어가는 높이까지(사용자가 줄여 둔 높이보다도). 닫으면 원래대로
+  return sheetH ? Math.max(fit, Math.min(sheetH, cap)) : fit;
 }
 
 /**
@@ -191,11 +196,12 @@ function fitHeight() {
  * 폭은 지금 창에서 읽지 않고 기억한 값으로 넣는다. Windows 125·150% 배율에서 투명 창은 읽은 크기를 다시 넣을 때마다
  * 몇 px씩 커져서, 폴더를 바꿀 때마다(높이가 바뀔 때마다) 창이 오른쪽으로 계속 넓어졌다.
  */
-function animateHeight(target) {
+function animateHeight(target, toY) {
   if (!mini || mini.isDestroyed()) return;
   stopAnim();
-  const from = mini.getBounds().height;
-  if (Math.abs(from - target) < 2 && Math.abs(mini.getBounds().width - state.width) <= 1) return;
+  const { height: from, y: fromY } = mini.getBounds();
+  // toY: 높이와 함께 위아래 자리도 옮긴다(시트를 열 때 화면 아래를 넘지 않게). 없으면 자리는 그대로
+  if (Math.abs(from - target) < 2 && (toY == null || Math.abs(fromY - toY) < 1) && Math.abs(mini.getBounds().width - state.width) <= 1) return;
   autoResizing = true;
   const start = Date.now();
   const step = () => {
@@ -203,7 +209,8 @@ function animateHeight(target) {
     const t = Math.min(1, (Date.now() - start) / 180);
     const e = 1 - Math.pow(1 - t, 3);
     const b = mini.getBounds();
-    mini.setBounds({ x: b.x, y: b.y, width: state.width, height: Math.round(from + (target - from) * e) });
+    const y = toY == null ? b.y : Math.round(fromY + (toY - fromY) * e);
+    mini.setBounds({ x: b.x, y, width: state.width, height: Math.round(from + (target - from) * e) });
     if (t >= 1) {
       clearInterval(anim);
       anim = null;
@@ -221,6 +228,28 @@ function setContentHeight(h) {
   animateHeight(fitHeight());
 }
 
+/**
+ * 미니창에서 시트(항목 정보·날짜·알림·반복·폴더 고르기)를 여는 동안: 창이 짧아 시트가 눌려 보이지 않게 h까지 잠깐 키운다.
+ * 화면 아래를 넘으면 그만큼 위로 올렸다가, 닫으면(h = 0) 내용 높이와 원래 자리로 돌아간다.
+ */
+function setSheetHeight(h) {
+  if (!mini || mini.isDestroyed() || userResizing) return;
+  const area = screen.getDisplayMatching(mini.getBounds()).workArea;
+  sheetH = h > 0 ? Math.min(Math.ceil(h), area.height - 24) : 0;
+  const b = mini.getBounds();
+  const target = fitHeight();
+  if (sheetH) {
+    // 리눅스는 setBounds가 늦게 반영돼 자리를 따로 옮기면 뒤따르는 높이 움직임이 덮어쓴다. 높이와 함께 옮긴다
+    const over = b.y + target - (area.y + area.height);
+    if (over <= 0) return animateHeight(target);
+    if (sheetY == null) sheetY = b.y;
+    return animateHeight(target, Math.max(area.y, b.y - over));
+  }
+  const y = sheetY;
+  sheetY = null;
+  animateHeight(target, y ?? undefined);
+}
+
 // 검증용: MODO_SNAPSHOT=<폴더> 이면 미니창(과 설정 창)을 PNG로 저장한다. 평소엔 꺼져 있다.
 function snapshotLater() {
   const dir = process.env.MODO_SNAPSHOT;
@@ -236,18 +265,22 @@ function snapshotLater() {
       await new Promise((r) => setTimeout(r, 300));
     }
     // 검증용: MODO_SNAPSHOT_CLICK='라벨1|라벨2' 이면 그 이름(접근성 이름 또는 글자)의 버튼을 차례로 누른 뒤 찍는다
-    for (const label of (process.env.MODO_SNAPSHOT_CLICK || '').split('|').filter(Boolean)) {
-      await win.webContents.executeJavaScript(`(() => {
-        const want = ${JSON.stringify(label)};
-        const els = [...document.querySelectorAll('[aria-label], [role="button"], [tabindex]')];
-        const el = els.find((e) => e.getAttribute('aria-label') === want) || els.find((e) => e.textContent.trim() === want);
-        if (el) el.click();
-        return !!el;
-      })()`).then((ok) => console.log('snapshot click', label, ok));
-      await new Promise((r) => setTimeout(r, 1500));
-      // 누른 뒤 미니창이 보이는지·크기(미니 메모 열기, 작게 보기·원래 크기로 확인)
-      if (mini && !mini.isDestroyed()) console.log('snapshot mini', name, label, mini.isVisible() ? 'visible' : 'hidden', JSON.stringify(mini.getBounds()));
-    }
+    // (MODO_SNAPSHOT_THEN은 같은 방식으로 아래 누르기·끌기 뒤에 — 꾹 눌러 연 시트 안의 버튼 확인)
+    const clickAll = async (labels) => {
+      for (const label of (labels || '').split('|').filter(Boolean)) {
+        await win.webContents.executeJavaScript(`(() => {
+          const want = ${JSON.stringify(label)};
+          const els = [...document.querySelectorAll('[aria-label], [role="button"], [tabindex]')];
+          const el = els.find((e) => e.getAttribute('aria-label') === want) || els.find((e) => e.textContent.trim() === want);
+          if (el) el.click();
+          return !!el;
+        })()`).then((ok) => console.log('snapshot click', label, ok));
+        await new Promise((r) => setTimeout(r, 1500));
+        // 누른 뒤 미니창이 보이는지·크기(미니 메모 열기, 작게 보기·원래 크기로 확인)
+        if (mini && !mini.isDestroyed()) console.log('snapshot mini', name, label, mini.isVisible() ? 'visible' : 'hidden', JSON.stringify(mini.getBounds()));
+      }
+    };
+    await clickAll(process.env.MODO_SNAPSHOT_CLICK);
     // 검증용: MODO_SNAPSHOT_DRAG='x,y,dy' 이면 (x,y)를 0.7초 꾹 누른 뒤 dy만큼 끌어 놓고 찍는다(끌어서 순서 바꾸기 확인)
     // 검증용: MODO_SNAPSHOT_HOVER='x,y' 이면 큰 창(MODO_SNAPSHOT_HOVER_WIN=mini 이면 미니창)에서 그 자리에 마우스를 올린 채 찍는다(말풍선·스크롤 막대 확인)
     if (process.env.MODO_SNAPSHOT_HOVER && name === (process.env.MODO_SNAPSHOT_HOVER_WIN || 'settings')) {
@@ -284,6 +317,7 @@ function snapshotLater() {
       send('mouseUp', y + dy);
       await new Promise((r) => setTimeout(r, 1500));
     }
+    if (name === 'mini') await clickAll(process.env.MODO_SNAPSHOT_THEN);
     // 검증용: MODO_SNAPSHOT_EVAL='식' 이면 찍기 전에 그 창에서 계산한 값을 로그로 남긴다
     if (process.env.MODO_SNAPSHOT_EVAL) {
       const r = await win.webContents.executeJavaScript(`(() => { try { return String(${process.env.MODO_SNAPSHOT_EVAL}); } catch (e) { return 'error ' + e.message; } })()`);
@@ -579,6 +613,9 @@ function registerIpc() {
   ipcMain.handle('win:hide', (e) => BrowserWindow.fromWebContents(e.sender)?.hide());
   ipcMain.handle('win:setContentHeight', (e, h) => {
     if (BrowserWindow.fromWebContents(e.sender) === mini) setContentHeight(h);
+  });
+  ipcMain.handle('win:setSheetHeight', (e, h) => {
+    if (BrowserWindow.fromWebContents(e.sender) === mini) setSheetHeight(Number(h) || 0);
   });
   ipcMain.handle('win:setOpacity', (_e, o) => {
     state.opacity = Math.max(0.3, Math.min(1, Number(o) || 1));

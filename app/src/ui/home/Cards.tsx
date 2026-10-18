@@ -8,6 +8,7 @@ import { useApp, useDrafts } from '../../state/AppContext';
 import { EditableText } from '../EditableText';
 import { cardLate, cardWhen, formatDue, localDate, repeatShort } from '../format';
 import { CheckIcon, RepeatRingIcon, RingIcon } from '../Icons';
+import { useWebLongPress } from '../webLongPress';
 import { trimTrailingBlank } from './model';
 import { SwipeToDelete } from './SwipeToDelete';
 
@@ -162,6 +163,12 @@ export const TodoCard = memo(function TodoCard({
   const rest = [when, late, folderLabel, todo.conflict_of ? t('conflictCopy') : null].filter(Boolean);
   const hasMeta = !!rule || rest.length > 0;
 
+  // PC: 카드 어디를 꾹 누르거나 오른쪽 클릭해도(제목·보조 줄·빈 곳) 길게 누르기(정보·끌어서 순서 바꾸기).
+  // 제목 글자에서만 되던 것을 카드 전체로. 동그라미·버튼(반복 주기·날짜 지정)·편집 중 입력칸은 제 동작 그대로
+  const webLong = useWebLongPress(isEditing ? undefined : onLongPress, {
+    skip: (el) => !!el.closest('[role="checkbox"], [role="button"], textarea, input'),
+  });
+
   // PC는 테두리 대신 그린 동그라미(브라우저가 1.7 같은 테두리를 1px로 깎아 가늘고 울퉁불퉁해 보였다)
   const circle = st.circle;
   // 반복 할 일은 같은 크기·굵기의 동그라미를 두 곡선 화살표로(완료하면 다른 할 일처럼 테마색 + 흰 체크)
@@ -202,6 +209,7 @@ export const TodoCard = memo(function TodoCard({
       style={{ marginBottom: st.gap }}
     >
       <View
+        {...(webLong as object)}
         style={[
           styles.card,
           // 높이: 최소 높이(고정 아님)에 동그라미와 글 묶음(제목, 또는 제목 + 보조 줄)을 세로 가운데로. 내용이 길면 늘어난다
@@ -221,7 +229,7 @@ export const TodoCard = memo(function TodoCard({
             onStartEdit={(caret) => setEditing({ id: todo.id, caret })}
             onEndEdit={() => setEditing(null)}
             onSave={(text) => (text.trim() ? repo.setTodoText(todo.id, text) : Promise.resolve())}
-            onLongPress={onLongPress}
+            onLongPress={Platform.OS === 'web' ? undefined : onLongPress}
             lines={hasMeta ? TITLE_LINES.meta : TITLE_LINES.plain}
           />
           {hasMeta ? (

@@ -37,6 +37,14 @@ export default function Mini() {
   const opacity = prefs.mini.opacity;
   const [editing, setEditing] = useState<Editing>(null);
   const [sheet, setSheet] = useState<SheetState>(null);
+  // 시트(항목 정보·날짜·알림·반복·폴더)를 여는 동안 창이 짧으면 시트가 들어가게 잠깐 키운다(닫으면 원래 높이·자리로)
+  const sheetOpen = sheet != null;
+  const sheetWas = useRef(false);
+  useEffect(() => {
+    if (sheetOpen === sheetWas.current) return;
+    sheetWas.current = sheetOpen;
+    desktop?.setSheetHeight?.(sheetOpen ? SHEET_H : 0);
+  }, [sheetOpen]);
   const [menu, setMenu] = useState(false);
   const [pinned, setPinned] = useState(true);
   const [todoMode, setTodoMode] = useState(true);
@@ -512,6 +520,8 @@ export default function Mini() {
 }
 
 const FRAME_BOTTOM = 12;
+/** 시트를 여는 동안 미니창 최소 높이: 가장 큰 시트(반복 설정·날짜 달력)가 스크롤 없이 들어가는 높이 */
+const SHEET_H = 600;
 // v2: 예전에 끌어 둔 높이(메모보다 훨씬 길게 남아 있던 것)는 한 번 비워 내용에 맞게(최소 2줄) 다시 시작한다(사용자 요청 2026-10-18)
 const MEMO_KEY = 'modo.mini.memoHeight.v2';
 /** 한 번에 더 그리는 메모 문단·할 일 수(미니창 한 화면보다 넉넉히) */

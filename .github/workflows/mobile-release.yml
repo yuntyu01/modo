@@ -86,8 +86,9 @@ jobs:
             code=$(( GITHUB_RUN_NUMBER + 1 ))
             echo "::notice::PLAY_SERVICE_ACCOUNT_JSON이 없어 Play에 올리지 않고 AAB만 만듭니다(버전 코드 $code)."
           fi
+          # GITHUB_ENV는 다음 단계부터 보인다. 이 단계에서는 직접 넘긴다
           echo "VERSION_CODE=$code" >> "$GITHUB_ENV"
-          node -e "const f='app/app.json',fs=require('fs'),j=JSON.parse(fs.readFileSync(f,'utf8'));j.expo.android.versionCode=Number(process.env.VERSION_CODE);fs.writeFileSync(f,JSON.stringify(j,null,2)+'\n')"
+          VERSION_CODE=$code node -e "const n=Number(process.env.VERSION_CODE);if(!Number.isInteger(n)||n<2)throw new Error('bad versionCode '+process.env.VERSION_CODE);const f='app/app.json',fs=require('fs'),j=JSON.parse(fs.readFileSync(f,'utf8'));j.expo.android.versionCode=n;fs.writeFileSync(f,JSON.stringify(j,null,2)+'\n')"
           echo "versionCode $code (version $(node -p "require('./app/app.json').expo.version"))" >> "$GITHUB_STEP_SUMMARY"
 
       - run: npx expo prebuild --platform android --no-install

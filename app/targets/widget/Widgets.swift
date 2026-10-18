@@ -566,8 +566,9 @@ struct HomeWidgetView: View {
       .accessibilityLabel(l.markDone(t.text))
       Link(destination: URL(string: "naegirok://?folder=\(folderParam)&edit=\(t.id)")!) {
         VStack(alignment: .leading, spacing: Self.metaGap) {
-          Text(t.text).font(.system(size: titleSize)).foregroundStyle(Self.text).lineLimit(1)
           let parts = CardMeta.parts(t, l)
+          // 앱 카드처럼 보조 줄이 있으면 한 줄, 제목만이면 두 줄까지(줄 높이에 안 들면 Text가 줄여 …)
+          Text(t.text).font(.system(size: titleSize)).foregroundStyle(Self.text).lineLimit(parts.isEmpty ? 2 : 1)
           if !parts.isEmpty {
             parts.enumerated().reduce(Text("")) { acc, item in
               let piece = Text(item.element.text).foregroundColor(item.element.late ? Self.late : Self.muted)

@@ -153,10 +153,13 @@ object HomeWidget {
     val pageStarts = IntArray(memoPages.size) { i -> memoLayout?.getLineStart(memoPages[i].first) ?: 0 }
 
     // 할 일 한 줄 높이: 보조 줄이 있든 없든 같게(제목 + 2 + 보조 줄, 동그라미 44보다 작으면 44)
-    val titleH = layout("가g", paint(sp(titleSp), -0.02f), 4096, 1f).height
+    val titlePaint = paint(sp(titleSp), -0.02f)
+    val titleH = layout("가g", titlePaint, 4096, 1f).height
     val metaH = layout("가g", paint(sp(metaSp), 0f), 4096, 1f).height
     val blockH = titleH + dp(META_GAP).roundToInt() + metaH
     val rowH = dp(ROW_PAD_V * 2) + maxOf(dp(ROW_CHECK), blockH.toFloat())
+    // 제목만인 줄은 앱 카드처럼 두 줄까지(넘치면 …). 두 줄이 줄 높이(동그라미 44 또는 제목 + 보조 줄) 안에 들 때만, 아니면(큰 글자) 한 줄
+    val plainLines = if (layout("가g\n가g", titlePaint, 4096, 1f).height <= maxOf(dp(ROW_CHECK), blockH.toFloat())) 2 else 1
     val perPage = maxOf(1, floor((areaH - dp(SLACK)) / rowH).toInt())
     // 한 쪽에 다 넣고 남는 높이(한 줄이 안 되는 만큼)는 줄마다 나눠 넣는다: 마지막 할 일 아래에 몰려 점과 멀어지지 않게.
     // 줄 높이는 여전히 모두 같다(마지막 쪽에 할 일이 적어도 같은 높이)
@@ -258,7 +261,7 @@ object HomeWidget {
     val lang = ctx.resources.configuration.locales[0].language
     val slice = if (todoPage >= 0) data.todos.drop(todoPage * perPage).take(perPage) else emptyList()
     v.setViewVisibility(R.id.widget_rows, if (slice.isNotEmpty()) View.VISIBLE else View.GONE)
-    for (todo in slice) v.addView(R.id.widget_rows, todoRow(ctx, id, todo, lang, text, muted, circle, titleSp, metaSp, titleH, metaH, blockH, rowPad))
+    for (todo in slice) v.addView(R.id.widget_rows, todoRow(ctx, id, todo, lang, text, muted, circle, titleSp, metaSp, titleH, metaH, blockH, plainLines, rowPad))
     // 빈 할 일 쪽(메모만 있을 때 둘째 쪽, 또는 둘 다 없을 때)
     val empty = (todoPage >= 0 && slice.isEmpty()) || (!hasMemo && !showTodos)
     v.setViewVisibility(R.id.widget_empty, if (empty) View.VISIBLE else View.GONE)
@@ -319,7 +322,7 @@ object HomeWidget {
 
   private fun todoRow(
     ctx: Context, widgetId: Int, t: NotesDb.Todo, lang: String, text: Int, muted: Int, circle: Int,
-    titleSp: Float, metaSp: Float, titleH: Int, metaH: Int, blockH: Int, rowPad: Int,
+    titleSp: Float, metaSp: Float, titleH: Int, metaH: Int, blockH: Int, plainLines: Int, rowPad: Int,
   ) = RemoteViews(ctx.packageName, R.layout.widget_home_todo).apply {
     setViewPadding(R.id.item_row, 0, rowPad, 0, rowPad)
     setTextViewText(R.id.item_text, t.text)
@@ -327,9 +330,11 @@ object HomeWidget {
     setTextColor(R.id.item_text, text)
     val parts = CardMeta.parts(t.due, t.remindAt, t.repeatFreq, t.repeatDays, t.done, lang)
     if (parts.isEmpty()) {
-      // 제목만: 보조 줄 자리까지 같은 높이에 세로 가운데
+      // 제목만: 보조 줄 자리까지 같은 높이에 세로 가운데, plainLines줄까지 …
+      // (setHeight가 최대 줄 수를 픽셀 높이로 덮어써 …없이 잘리므로 줄 수는 그 뒤에 다시 준다)
       setViewVisibility(R.id.item_meta, View.GONE)
       setInt(R.id.item_text, "setHeight", blockH)
+      setInt(R.id.item_text, "setMaxLines", plainLines)
     } else {
       val line = SpannableStringBuilder()
       parts.forEachIndexed { i, p ->
@@ -343,7 +348,9 @@ object HomeWidget {
       setTextViewTextSize(R.id.item_meta, TypedValue.COMPLEX_UNIT_SP, metaSp)
       setTextColor(R.id.item_meta, muted)
       setInt(R.id.item_text, "setHeight", titleH)
+      setInt(R.id.item_text, "setMaxLines", 1)
       setInt(R.id.item_meta, "setHeight", metaH)
+      setInt(R.id.item_meta, "setMaxLines", 1)
     }
     // 일반은 빈 원, 반복은 원 테두리가 두 곡선 화살표(앱 카드와 같은 모양)
     setImageViewResource(R.id.item_check, if (t.repeatFreq != null) R.drawable.naegirok_check_repeat else R.drawable.naegirok_check_off)

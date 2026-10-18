@@ -99,6 +99,36 @@ test('account deletion clears local content, drafts and queued uploads only afte
   expect(calls.find((c) => c.url.endsWith('/api/me'))?.body).toEqual({ confirmation: 'DELETE' });
 });
 
+test('로그아웃은 돌던 동기화가 끝난 뒤에 계정을 떼어 낸다', async () => {
+  const db = await memoryDb();
+  const repo = new Repo(db, randomUUID); await repo.init();
+  await repo.addTodo('처음', null, 'bottom');
+  await repo.write(() => repo.setKv('account', { id: 'u1', email: '', token: 'tok', server: 'http://srv' }));
+  let release!: () => void;
+  const gate = new Promise<void>((r) => (release = r));
+  const order: string[] = [];
+  const sync = new SyncEngine(repo, (async (url: string, init?: RequestInit) => {
+    const path = new URL(url).pathname;
+    order.push(path);
+    if (path === '/api/sync/push') {
+      await gate;
+      order.push('push done');
+      const { ops } = JSON.parse(String(init?.body));
+      return new Response(JSON.stringify({ results: ops.map((o: { op_id: string }) => ({ op_id: o.op_id, status: 'ok' })) }));
+    }
+    return new Response(JSON.stringify(serverReply(url)));
+  }) as typeof fetch, 'test');
+  const syncing = sync.syncNow();
+  await new Promise((r) => setTimeout(r, 10));
+  const out = sync.logout();
+  await new Promise((r) => setTimeout(r, 10));
+  release();
+  await Promise.all([syncing, out]);
+  expect(order.indexOf('/api/auth/logout')).toBeGreaterThan(order.indexOf('push done'));
+  expect(await sync.account()).toBeNull();
+  expect(await repo.outboxCount()).toBe(0);
+});
+
 test('failed deletion preserves the local account and private records for retry', async () => {
   const db = await memoryDb();
   const repo = new Repo(db, randomUUID); await repo.init();

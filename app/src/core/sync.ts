@@ -97,7 +97,7 @@ export async function api<T>(fetchFn: Fetch, server: string, path: string, init:
  * push(오프라인 큐) → pull(커서 이후 변경) 순서. 실패하면 지수 백오프로 다시 시도한다.
  */
 export class SyncEngine {
-  private deleting = false;
+  private paused = false;
   private running: Promise<void> | null = null;
   private again = false;
   private timer: ReturnType<typeof setTimeout> | null = null;
@@ -183,34 +183,45 @@ export class SyncEngine {
   }
 
   async logout() {
-    const acc = await this.account();
-    if (acc) {
-      await api(this.fetchFn, acc.server, '/api/auth/logout', { method: 'POST', token: acc.token }).catch(() => {});
-    }
-    await this.repo.detachFromAccount();
-    // last_account_id는 남긴다: 같은 계정으로 다시 들어오면 전부 다시 올리지 않는다
-    await this.repo.write(() => this.repo.setKv('account', null));
-    this.setStatus({ state: 'local', message: undefined, code: undefined });
+    // 돌던 동기화가 끝난 뒤 떼어 낸다. 도중에 떼면 받던 남의 공유 항목이 로그아웃 뒤에 다시 들어오고,
+    // 보내던 op가 풀려 새 편집이 거기 합쳐졌다가 응답과 함께 지워진다.
+    await this.detaching(async () => {
+      const acc = await this.account();
+      if (acc) {
+        await api(this.fetchFn, acc.server, '/api/auth/logout', { method: 'POST', token: acc.token }).catch(() => {});
+      }
+      await this.repo.detachFromAccount();
+      // last_account_id는 남긴다: 같은 계정으로 다시 들어오면 전부 다시 올리지 않는다
+      await this.repo.write(() => this.repo.setKv('account', null));
+      this.setStatus({ state: 'local', message: undefined, code: undefined });
+    });
   }
 
   async deleteAccount() {
-    if (this.deleting) throw new Error('Account deletion is already in progress');
+    if (this.paused) throw new Error('Account deletion is already in progress');
     const acc = await this.account();
     if (!acc) throw new HttpError(401, '로그인이 필요해요', 'login_required');
-    this.deleting = true;
-    const wasPolling = this.interval != null;
-    this.stop();
-    try {
-      // Let an already-sent sync finish before deleting; new sync attempts wait.
-      await this.running;
+    await this.detaching(async () => {
       await api(this.fetchFn, acc.server, '/api/me', {
         method: 'DELETE', token: acc.token, body: JSON.stringify({ confirmation: 'DELETE' }),
       });
       await this.repo.eraseLocalData();
       this.editing.clear(); this.deferred.clear();
       this.setStatus({ state: 'local', pending: 0, rejected: 0, lastSyncAt: null, message: undefined, code: undefined });
+    });
+  }
+
+  /** 계정을 떼어 내는 동안(로그아웃·계정 삭제): 새 동기화를 막고, 이미 보낸 동기화가 끝난 뒤 fn을 돌린다. */
+  private async detaching(fn: () => Promise<void>) {
+    if (this.paused) throw new Error('Account change is already in progress');
+    this.paused = true;
+    const wasPolling = this.interval != null;
+    this.stop();
+    try {
+      await this.running;
+      await fn();
     } finally {
-      this.deleting = false;
+      this.paused = false;
       if (wasPolling) this.start(30_000, false);
     }
   }
@@ -230,14 +241,14 @@ export class SyncEngine {
     this.interval = this.timer = null;
   }
   schedule(delay = 1500) {
-    if (this.deleting) return;
+    if (this.paused) return;
     if (this.timer) clearTimeout(this.timer);
     this.timer = setTimeout(() => this.syncNow(), delay);
   }
 
   /** 겹쳐 부르면 진행 중인 것이 끝난 뒤 한 번 더 돈다. */
   syncNow(): Promise<void> {
-    if (this.deleting) return Promise.resolve();
+    if (this.paused) return Promise.resolve();
     if (this.running) {
       this.again = true;
       return this.running;

@@ -353,6 +353,29 @@ test('한 번 보낸(응답을 못 받은) op에는 새 변경을 합치지 않�
   expect(ob[1].fields.text).toEqual({ old: '처음', new: '그 뒤 고침' });
 });
 
+test('보내는 도중 앱이 죽었다 다시 켜도, 그 op에는 새 변경을 합치지 않는다', async () => {
+  const { repo, db } = await setup();
+  const id = await repo.addTodo('처음', null, 'bottom');
+  await repo.takeOutbox(10); // 보내는 중(inflight)에 앱이 죽음
+  const reopened = new Repo(db, randomUUID, () => 5000);
+  await reopened.init();
+  await reopened.setTodoText(id, '다시 켠 뒤 고침');
+  const ob = await outbox(reopened);
+  expect(ob).toHaveLength(2);
+  expect(ob[1].fields.text).toEqual({ old: '처음', new: '다시 켠 뒤 고침' });
+});
+
+test('로그아웃 때 보내던 op도 다시 보낼 op로 남고, 새 변경은 거기 합치지 않는다', async () => {
+  const { repo } = await setup();
+  const id = await repo.addTodo('처음', null, 'bottom');
+  await repo.takeOutbox(10);
+  await repo.detachFromAccount();
+  await repo.setTodoText(id, '로그아웃 뒤 고침');
+  const ob = await outbox(repo);
+  expect(ob).toHaveLength(2);
+  expect(ob[1].fields.text).toEqual({ old: '처음', new: '로그아웃 뒤 고침' });
+});
+
 test('글에 섞인 NUL 문자는 저장 전에 뺀다(서버 DB가 받지 않는다)', async () => {
   const { repo } = await setup();
   const id = await repo.addTodo('앞\u0000뒤', null, 'bottom');

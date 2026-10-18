@@ -189,7 +189,8 @@ export class Repo {
     ]);
     if (!owner) return;
     // 보내는 도중 앱이 죽었으면 다시 보낸다. op_id가 같아 서버가 중복 적용하지 않는다.
-    await this.db.run(`UPDATE outbox SET inflight = 0 WHERE inflight = 1`);
+    // 서버는 이미 적용했을 수 있으니 '보낸 적 있음'(attempts)도 올린다: 안 올리면 새 편집이 이 op에 합쳐져 버려진다.
+    await this.db.run(`UPDATE outbox SET inflight = 0, attempts = attempts + 1 WHERE inflight = 1`);
     await this.rekeyLongPositions();
   }
 
@@ -887,7 +888,7 @@ export class Repo {
       }
       await this.db.run(`DELETE FROM shared_folders`);
       await this.db.run(`DELETE FROM people`);
-      await this.db.run(`UPDATE outbox SET inflight = 0`);
+      await this.db.run(`UPDATE outbox SET inflight = 0, attempts = attempts + 1 WHERE inflight = 1`);
       await this.db.run(`DELETE FROM kv WHERE key IN ('sync_cursor', 'past_shared', 'foreign_digest')`);
     });
   }

@@ -5,18 +5,10 @@
   },
   "build": {
     "production": {
-      "autoIncrement": true,
-      "android": {
-        "buildType": "app-bundle"
-      }
+      "autoIncrement": true
     }
   },
   "submit": {
-    "production": {
-      "android": {
-        "track": "alpha",
-        "releaseStatus": "completed"
-      }
-    }
+    "production": {}
   }
 }

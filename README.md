@@ -99,26 +99,23 @@ cd desktop && npm run test:unit                   # 데이터 폴더 옮기기(�
 
 ## 모바일 자동 배포 (비공개 테스트)
 
-`master`에 앱(`app/`) 변경을 푸시하면 GitHub Actions(`.github/workflows/mobile-release.yml`)가 타입·린트·테스트를 돌리고, EAS(Expo 서버)에 Android·iOS 빌드를 맡긴다. 빌드가 끝나면 EAS가 자동 제출한다(`eas build --auto-submit`).
+`master`에 앱(`app/`) 변경을 푸시하면 GitHub Actions(`.github/workflows/mobile-release.yml`)가 돈다.
 
-- Android → Google Play **비공개 테스트**(closed testing, API 트랙 `alpha`, `app/eas.json`의 `submit.production.android`).
-- iOS → **TestFlight**(처리 후 내부 테스터에게).
-- 버전 코드·빌드 번호는 빌드마다 EAS가 하나씩 올린다(`appVersionSource: remote` + `autoIncrement`). 사용자에게 보이는 버전(`expo.version`)은 직접 올린다.
-- GitHub 작업은 빌드를 맡기고 바로 끝난다(`--no-wait`). 빌드·제출 진행과 로그는 expo.dev의 프로젝트 화면에서 본다.
-- `desktop/`·`server/`만 바뀐 푸시, 커밋 메시지에 `[skip ci]`가 있는 푸시는 돌지 않는다. Actions 탭에서 손으로 돌릴 수도 있다(workflow_dispatch).
-- `EXPO_TOKEN` 비밀값이 없으면 검사만 하고 빌드·제출은 건너뛴다.
+1. **checks**: 타입·린트·테스트.
+2. **android**: 기존 업로드 키(저장소 비밀값 `MODO_UPLOAD_*`, PR #1의 `plugins/withReleaseSigning.js`)로 AAB를 빌드하고 Google Play **비공개 테스트**(API 트랙 `alpha`)의 출시를 새 번들로 바꾼다(`.github/scripts/play_release.py`). 버전 코드는 Play에 있는 가장 큰 값 + 1(사용자에게 보이는 버전 `expo.version`은 직접 올린다). 이전 출시의 국가 제한은 이어 받는다. 만든 AAB는 Actions 아티팩트로 14일 남는다.
+3. **ios**: 저장소 변수 `IOS_RELEASE=true`일 때만. EAS에서 빌드하고 끝나면 TestFlight로 자동 제출(`eas build --auto-submit`, `app/eas.json`, 빌드 번호는 EAS가 올린다).
+
+- 연달아 푸시하면 앞의 실행은 멈추고 마지막 것만 올린다. `desktop/`·`server/`만 바뀐 푸시, 커밋 메시지에 `[skip ci]`가 있는 푸시는 돌지 않는다. Actions 탭에서 손으로 돌릴 수도 있다.
+- Google 검토가 필요한 변경이면 검토가 끝난 뒤 테스터에게 간다. 자동으로 검토에 보낼 수 없는 상태면 올려만 두고 경고를 남긴다(Console에서 '검토를 위해 변경사항 보내기').
 
 처음 한 번 할 일(계정·키, 사람이 직접):
 
-1. Expo: `cd app && npx eas-cli@latest login` → `npx eas-cli@latest init`(app.json에 projectId가 생김, 커밋). expo.dev → Account settings → Access tokens에서 토큰을 만들어 `gh secret set EXPO_TOKEN`.
-2. Android
-   - Play Console에서 앱(`com.yuntyu01.naegirok`)을 만들고 비공개 테스트 트랙과 테스터 목록을 설정한다.
-   - Google Cloud 서비스 계정 키(JSON)를 만들고, Play Console 사용자·권한에서 그 계정에 출시 권한을 준다. `npx eas-cli@latest credentials -p android` → production → Google Service Account에 키를 올린다.
-   - 첫 빌드에서 EAS가 업로드 키(keystore)를 만들어 보관한다. 아직 한 번도 출시하지 않은(초안) 앱은 Google이 API 제출을 막을 수 있어, 그때는 첫 .aab만 Play Console에서 직접 올린다.
-3. iOS
-   - Apple Developer Program 가입, `app.json`의 `ios.appleTeamId`에 팀 ID.
-   - 처음 한 번은 직접 `npx eas-cli@latest build -p ios --profile production`(Apple 로그인 → 앱·위젯(ModoWidget)·App Group 인증서와 프로필을 EAS가 만든다)과 `npx eas-cli@latest submit -p ios`(App Store Connect 앱과 API 키 설정)를 돌린다.
-   - App Store Connect 앱의 Apple ID를 `app/eas.json`의 `submit.production.ios.ascAppId`에 넣는다(이게 있어야 CI에서 묻지 않고 제출된다).
+- **Android**: Google Cloud에서 서비스 계정을 만들고 JSON 키를 받는다 → Play Console 사용자 및 권한에서 그 계정(이메일)을 초대해 이 앱의 출시 권한(테스트 트랙 출시 관리)을 준다 → `gh secret set PLAY_SERVICE_ACCOUNT_JSON < 키.json`. 이 비밀값이 없으면 AAB만 만들고 Play에는 올리지 않는다.
+- **iOS**(Apple Developer Program 가입 뒤)
+  1. `cd app && npx eas-cli@latest login` → `npx eas-cli@latest init`(app.json에 projectId가 생김, 커밋). `app.json`의 `ios.appleTeamId`에 팀 ID.
+  2. 처음 한 번은 직접 `npx eas-cli@latest build -p ios --profile production`(Apple 로그인 → 앱·위젯(ModoWidget)·App Group 인증서와 프로필을 EAS가 만든다)과 `npx eas-cli@latest submit -p ios`(App Store Connect 앱과 API 키). App Store Connect 앱의 Apple ID를 `app/eas.json`의 `submit.production.ios.ascAppId`에.
+  3. expo.dev → Access tokens에서 토큰 → `gh secret set EXPO_TOKEN`, `gh variable set IOS_RELEASE --body true`.
+  - iOS는 아직 한 번도 빌드해 보지 않아(위젯 Swift 포함) 첫 빌드에서 고칠 것이 나올 수 있다.
 
 ## 구현한 것
 

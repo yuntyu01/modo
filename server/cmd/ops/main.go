@@ -28,7 +28,7 @@ func main() {
 		dir = "/var/lib/modo-backups"
 	}
 	ctx := context.Background()
-	dsn := os.Getenv("DATABASE_URL")
+	dsn := retention.DatabaseURL(os.Getenv("DATABASE_URL"))
 	switch os.Args[1] {
 	case "delete-account":
 		if len(os.Args) != 3 || os.Getenv("MODO_ACCOUNT_VERIFIED") != os.Args[2] {
@@ -37,11 +37,7 @@ func main() {
 		if _, err := uuid.Parse(os.Args[2]); err != nil {
 			log.Fatal("invalid_account_id")
 		}
-		journal, err := api.OpenErasureJournal(os.Getenv("ERASURE_JOURNAL"))
-		if err != nil {
-			log.Fatal("erasure_journal_unavailable")
-		}
-		if err := journal.Request(os.Args[2], time.Now()); err != nil {
+		if err := api.QueueErasureRequest(os.Getenv("ERASURE_JOURNAL"), os.Args[2], time.Now()); err != nil {
 			log.Fatal("durable_erasure_request_failed")
 		}
 		pool, err := pgxpool.New(ctx, dsn)
@@ -49,7 +45,7 @@ func main() {
 			log.Fatal("account_blocked_database_retry_required")
 		}
 		defer pool.Close()
-		if err := api.New(pool, api.Config{Erasures: journal}).ApplyErasures(ctx); err != nil {
+		if _, err := pool.Exec(ctx, `DELETE FROM users WHERE id = $1`, os.Args[2]); err != nil {
 			log.Fatal("account_blocked_erasure_retry_required")
 		}
 		log.Print("verified_account_erased")

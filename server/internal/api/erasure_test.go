@@ -10,6 +10,34 @@ import (
 	"github.com/google/uuid"
 )
 
+func TestExternalErasureImmediatelyBlocksWithoutOverwritingJournal(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "journal.json")
+	j, err := OpenErasureJournal(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inside, outside := uuid.NewString(), uuid.NewString()
+	if err := j.Request(inside, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if err := QueueErasureRequest(path, outside, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if !j.Blocked(outside) {
+		t.Fatal("running server must immediately block externally requested account")
+	}
+	if err := j.importRequests(); err != nil {
+		t.Fatal(err)
+	}
+	j, err = OpenErasureJournal(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !j.Blocked(inside) || !j.Blocked(outside) {
+		t.Fatal("external request lost an existing deletion")
+	}
+}
+
 func TestJournalSurvivesRestartAndRetainsFailedRequests(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "erasure", "journal.json")
 	j, err := OpenErasureJournal(path)

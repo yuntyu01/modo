@@ -110,7 +110,91 @@ func (j *ErasureJournal) Blocked(id string) bool {
 	j.mu.RLock()
 	defer j.mu.RUnlock()
 	_, ok := j.entries[id]
-	return ok
+	if ok {
+		return true
+	}
+	_, err := os.Stat(filepath.Join(j.path+".requests", id+".json"))
+	return !errors.Is(err, os.ErrNotExist)
+}
+
+// Operators write a separate inbox; only the running server writes the journal.
+// This prevents an external request from replacing concurrent in-app deletions.
+func QueueErasureRequest(path, id string, now time.Time) error {
+	if _, err := uuid.Parse(id); err != nil {
+		return err
+	}
+	if _, err := os.Stat(path); err != nil {
+		return err
+	}
+	dir := path + ".requests"
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return err
+	}
+	b, err := json.Marshal(ErasureEntry{RequestedAt: now.UTC()})
+	if err != nil {
+		return err
+	}
+	f, err := os.CreateTemp(dir, ".request-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(f.Name())
+	if _, err = f.Write(b); err == nil {
+		err = f.Sync()
+	}
+	closeErr := f.Close()
+	if err != nil {
+		return err
+	}
+	if closeErr != nil {
+		return closeErr
+	}
+	if err := os.Rename(f.Name(), filepath.Join(dir, id+".json")); err != nil {
+		return err
+	}
+	if d, err := os.Open(dir); err == nil {
+		_ = d.Sync()
+		_ = d.Close()
+	}
+	return nil
+}
+
+func (j *ErasureJournal) importRequests() error {
+	files, err := os.ReadDir(j.path + ".requests")
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	for _, f := range files {
+		if f.IsDir() || filepath.Ext(f.Name()) != ".json" {
+			continue
+		}
+		id := f.Name()[:len(f.Name())-5]
+		if _, err := uuid.Parse(id); err != nil {
+			return err
+		}
+		path := filepath.Join(j.path+".requests", f.Name())
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		var e ErasureEntry
+		if err := json.Unmarshal(b, &e); err != nil {
+			return err
+		}
+		if e.RequestedAt.IsZero() {
+			return errors.New("invalid erasure request")
+		}
+		if err := j.Request(id, e.RequestedAt); err != nil {
+			return err
+		}
+		if err := os.Remove(path); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (j *ErasureJournal) Entries() map[string]ErasureEntry {
@@ -167,6 +251,9 @@ func (j *ErasureJournal) Prune(now time.Time) error {
 func (s *Server) ApplyErasures(ctx context.Context) error {
 	if s.cfg.Erasures == nil {
 		return nil
+	}
+	if err := s.cfg.Erasures.importRequests(); err != nil {
+		return err
 	}
 	for id := range s.cfg.Erasures.Entries() {
 		if _, err := s.db.Exec(ctx, `DELETE FROM users WHERE id = $1`, id); err != nil {

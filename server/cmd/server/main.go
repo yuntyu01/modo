@@ -9,7 +9,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
@@ -38,7 +37,7 @@ func main() {
 	}
 	dsn := env("DATABASE_URL", "postgres://modo:modo@localhost:5432/modo?sslmode=disable")
 	// KoDeploy injects a SQLAlchemy URL for its managed PostgreSQL dependency.
-	dsn = strings.Replace(dsn, "postgresql+psycopg2://", "postgresql://", 1)
+	dsn = retention.DatabaseURL(dsn)
 	addr := ":" + env("PORT", "8080")
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

@@ -8,8 +8,8 @@
 - 런타임 Go, 저장소 루트의 `Dockerfile`, 포트 8080
 - 새 PostgreSQL 의존성, 새 영속 저장소를 `/var/lib/modo`에 연결
 - 환경: `APP_ENV=production`, `PUBLIC_URL=https://modo.kodeploy.com`, `LOG_DIR=/var/lib/modo/logs`, `ERASURE_JOURNAL=/var/lib/modo/erasures/journal.json`, `BACKUP_DIR=/var/lib/modo/backups`, `MODO_BACKUPS_ENABLED=1`
-- 플랫폼이 주입한 PostgreSQL `DATABASE_URL`을 사용한다. SQLAlchemy 접두사는 서버에서 정규화한다. 비밀번호를 문서나 빌드 로그에 넣지 않는다.
-- 단일 replica와 Recreate 전략을 유지한다. 삭제 저널은 단일 writer용이다.
+- 플랫폼이 주입한 PostgreSQL `DATABASE_URL`을 사용한다. SQLAlchemy 접두사는 서버와 운영 도구에서 정규화한다. 실제 확인된 내부 `postgres` 서비스는 TLS가 꺼져 있어 이 전용 주입 주소에만 `sslmode=disable`을 적용한다. 외부 DB나 명시한 TLS 옵션은 바꾸지 않는다. 앱에서 공개 서버까지는 HTTPS를 사용한다. 비밀번호를 문서나 빌드 로그에 넣지 않는다.
+- 단일 replica와 Recreate 전략을 유지한다. 삭제 저널은 서버만 기록하고 외부 운영 도구는 별도 영속 요청함을 사용한다. 서버는 요청함을 인증 시 즉시 확인해 접근을 차단하고 매시간 저널로 수합한다.
 - 카카오 키는 아직 설정하지 않았다. 이메일 로그인과 로컬 사용을 우선 검증한다. 카카오를 제공하려면 실제 앱 및 Redirect URI 승인이 별도로 필요하다.
 - 정적 슬롯이 없다면 modo 도메인에서 서버를 제공하는지 실제 라우팅을 확인한다. 다른 앱의 도메인을 바꾸지 않는다.
 

@@ -48,8 +48,8 @@ export function useCardStyles() {
     padY,
     /** 카드 사이 간격(미니 6 · PC 8 · 휴대폰 8) */
     gap: CARD_GAP[kind],
-    /** 동그라미 지름: PC 큰 창 19, 미니창 14.5, 휴대폰 22.5(예전 24·18·28보다 약 20% 작게: 사용자 요청 2026-10-18). 반복 동그라미도 바깥 크기가 같다 */
-    circle: (theme.desk ? 19 : theme.mini ? 14.5 : CIRCLE) * z * theme.scale,
+    /** 동그라미 지름: PC 큰 창 19, 휴대폰 22.5(예전 24·28보다 약 20% 작게: 사용자 요청 2026-10-18), 미니창은 원래 작아서 18 그대로. 반복 동그라미도 바깥 크기가 같다 */
+    circle: (theme.desk ? 19 : theme.mini ? 18 : CIRCLE) * z * theme.scale,
     /** 동그라미와 제목 사이 */
     circleGap: right ? 20 * z : theme.desk ? 20 : theme.mini ? 14 : 20 * z,
     /** 카드 좌우 안쪽 여백(모든 카드 같게: 제목 시작 자리·오른쪽 끝이 카드마다 같다) */
@@ -180,8 +180,8 @@ export const TodoCard = memo(function TodoCard({
   // 반복 할 일은 같은 크기·굵기의 동그라미를 두 곡선 화살표로(완료하면 다른 할 일처럼 테마색 + 흰 체크)
   const repeatRing = !!rule && !done;
   const ring = (theme.desk || theme.mini) && !done && !repeatRing;
-  // 테두리도 크기에 맞춰 얇게(PC 1.35 · 미니 1.25 · 휴대폰 1.6)
-  const stroke = theme.desk ? 1.35 : theme.mini ? 1.25 : styles.circle.borderWidth;
+  // 테두리도 크기에 맞춰 얇게(PC 1.35 · 휴대폰 1.6), 미니창은 예전 그대로 1.5
+  const stroke = theme.desk ? 1.35 : theme.mini ? 1.5 : styles.circle.borderWidth;
   const check = (
     <Pressable
       accessibilityRole="checkbox"
@@ -202,7 +202,7 @@ export const TodoCard = memo(function TodoCard({
     >
       {ring ? <RingIcon color={theme.circle} size={circle} strokeWidth={stroke} /> : null}
       {repeatRing ? <RepeatRingIcon color={theme.circle} size={circle} strokeWidth={stroke} /> : null}
-      {done ? <CheckIcon color={theme.onAccent} size={(theme.desk ? 12.5 : theme.mini ? 11 : 12) * theme.zoom * theme.scale} /> : null}
+      {done ? <CheckIcon color={theme.onAccent} size={(theme.desk ? 12.5 : theme.mini ? 15 : 12) * theme.zoom * theme.scale} /> : null}
     </Pressable>
   );
 

@@ -156,7 +156,7 @@ export default function Calendar() {
 
   return (
     <View style={{ flex: 1 }}>
-      {/* 맨 위 작은 로고, 그 아래 제목처럼 '2026년 10월'(누르면 달 고르기) · 다른 달·날을 보고 있으면 오른쪽 '오늘' */}
+      {/* 맨 위 작은 로고, 그 아래 가운데에 제목처럼 '2026년 10월'(누르면 달 고르기) · 다른 달·날을 보고 있으면 오른쪽 끝 '오늘' */}
       <LogoBar />
       <View style={[styles.titleRow, { paddingTop: compact ? 2 : desktop ? 8 : 10 }]}>
         <Pressable
@@ -172,13 +172,9 @@ export default function Calendar() {
           <Text accessibilityRole="header" style={theme.kfont(compact ? 22 : desktop ? 24 : 26, { color: theme.text, fontWeight: '800' })}>
             {monthTitle(month, lang)}
           </Text>
-          <View style={{ marginLeft: 6, marginTop: 2 }}>
-            <ChevronIcon color={theme.subtle} dir="down" size={18} strokeWidth={2.2} />
-          </View>
         </Pressable>
-        <View style={{ flex: 1 }} />
         {awayFromToday ? (
-          <Pressable onPress={goToday} accessibilityRole="button" hitSlop={10} style={styles.todayBtn}>
+          <Pressable onPress={goToday} accessibilityRole="button" hitSlop={10} style={[styles.todayBtn, styles.todayEnd]}>
             <Text style={theme.kfont(15, { color: theme.subtle })}>{t('today')}</Text>
           </Pressable>
         ) : null}
@@ -276,8 +272,10 @@ export default function Calendar() {
 }
 
 const styles = StyleSheet.create({
-  titleRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 22, paddingBottom: 12 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 22, paddingBottom: 12 },
   monthBtn: { flexDirection: 'row', alignItems: 'center' },
+  // '오늘'은 오른쪽 끝에 따로(제목은 늘 가운데)
+  todayEnd: { position: 'absolute', right: 18, bottom: 12 },
   pickHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingTop: 22, paddingBottom: 10 },
   pickArrow: { paddingHorizontal: 18, paddingVertical: 6 },
   pickGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 14, paddingBottom: 12 },

@@ -32,10 +32,18 @@ export function Welcome({ onStart, onHidden, onLogin }: { onStart: (todoId: stri
   const [shake] = useState(() => new Animated.Value(0));
   const [fade] = useState(() => new Animated.Value(1));
 
-  // 키보드가 열리면 첫 할 일 칸이 보이게 끝까지 내린다
+  // 키보드가 열리면 첫 할 일 칸·안내·시작하기가 보이게 끝까지 내린다. 화면이 줄어든 뒤(onLayout)에 내려야 맞는다
+  const kbOpen = useRef(false);
   useEffect(() => {
-    const s = Keyboard.addListener('keyboardDidShow', () => scroll.current?.scrollToEnd({ animated: true }));
-    return () => s.remove();
+    const a = Keyboard.addListener('keyboardDidShow', () => {
+      kbOpen.current = true;
+      setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 60);
+    });
+    const b = Keyboard.addListener('keyboardDidHide', () => (kbOpen.current = false));
+    return () => {
+      a.remove();
+      b.remove();
+    };
   }, []);
 
   const nudge = () => {
@@ -44,6 +52,7 @@ export function Welcome({ onStart, onHidden, onLogin }: { onStart: (todoId: stri
     shake.setValue(0);
     Animated.sequence([-10, 10, -8, 8, -4, 4, 0].map((v) => Animated.timing(shake, { toValue: v, duration: 45, useNativeDriver: true }))).start();
     input.current?.focus();
+    setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 250);
   };
 
   const start = async () => {
@@ -74,8 +83,11 @@ export function Welcome({ onStart, onHidden, onLogin }: { onStart: (todoId: stri
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'web' ? undefined : 'padding'}>
         <ScrollView
           ref={scroll}
+          onLayout={() => kbOpen.current && scroll.current?.scrollToEnd({ animated: true })}
           keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{ paddingTop: insets.top + 18, paddingHorizontal: 22, paddingBottom: 20 }}
+          // 시작하기도 같은 흐름 안에(아래에 따로 고정해 두면 키보드가 뜰 때 첫 할 일 칸·안내를 덮었다: 사용자 지적 2026-10-18).
+          // 화면이 길면 빈 자리(flex)만큼 아래로 내려가 맨 아래에 붙는다
+          contentContainerStyle={{ flexGrow: 1, paddingTop: insets.top + 18, paddingHorizontal: 22, paddingBottom: insets.bottom + 14 }}
         >
           <Logo height={19.5} color={theme.text} markColor={theme.mark} markRatio={0.83} wordStretch={1.06} />
           <Text style={theme.kfont(33, { color: theme.text, fontWeight: '700', lineHeight: 44, marginTop: 30 })}>{t('welcomeTitle')}</Text>
@@ -145,8 +157,7 @@ export function Welcome({ onStart, onHidden, onLogin }: { onStart: (todoId: stri
             />
           </Animated.View>
           {need && !text.trim() ? <Text style={theme.kfont(13, { color: theme.danger, marginTop: 10 })}>{t('welcomeNeedTodo')}</Text> : null}
-        </ScrollView>
-        <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: insets.bottom + 14 }}>
+          <View style={{ flex: 1, minHeight: 22 }} />
           <Pressable
             onPress={start}
             accessibilityRole="button"
@@ -159,7 +170,7 @@ export function Welcome({ onStart, onHidden, onLogin }: { onStart: (todoId: stri
               <Text style={theme.kfont(13.5, { color: theme.subtle })}>{t('welcomeHaveAccount')}</Text>
             </Pressable>
           ) : null}
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </Animated.View>
   );

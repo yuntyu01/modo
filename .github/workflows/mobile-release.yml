@@ -1,0 +1,66 @@
+# 모바일 비공개 테스트 자동 배포: master에 앱(app/) 변경이 올라오면
+#   검사(타입·린트·테스트) → EAS(Expo 서버)에서 Android·iOS 빌드 → 빌드가 끝나면 자동 제출
+#   - Android: Google Play 비공개 테스트(closed testing, 트랙 alpha)
+#   - iOS: TestFlight
+# 이 작업은 빌드를 맡기고 바로 끝난다(--no-wait, 빌드·제출 진행은 expo.dev의 프로젝트 화면).
+# 버전 코드·빌드 번호는 EAS가 빌드마다 하나씩 올린다(app/eas.json appVersionSource remote + autoIncrement).
+# 처음 한 번 하는 설정(계정·키)은 README '모바일 자동 배포'. EXPO_TOKEN 비밀값이 없으면 검사만 하고 배포는 건너뛴다.
+# 커밋 메시지에 [skip ci]를 넣으면 이 푸시는 돌지 않는다.
+name: Mobile closed testing
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'app/**'
+      - '!app/**/*.md'
+      - '.github/workflows/mobile-release.yml'
+  workflow_dispatch:
+
+# 빌드 요청이 겹치지 않게 차례로(이미 맡긴 EAS 빌드는 취소하지 않는다)
+concurrency:
+  group: mobile-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: app
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npx jest --ci
+
+      - name: Skip deploy (no EXPO_TOKEN)
+        if: env.EXPO_TOKEN == ''
+        run: echo "::notice::EXPO_TOKEN 비밀값이 없어 빌드·제출을 건너뜁니다. README '모바일 자동 배포'를 보세요."
+
+      - uses: expo/expo-github-action@v8
+        if: env.EXPO_TOKEN != ''
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Build and submit (EAS)
+        if: env.EXPO_TOKEN != ''
+        run: eas build --platform all --profile production --non-interactive --no-wait --auto-submit

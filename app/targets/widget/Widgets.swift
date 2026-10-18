@@ -10,8 +10,7 @@ import WidgetKit
 // - 기본 모드: 첫 쪽은 그 폴더의 메모만, 다음 쪽부터 할 일만. 점 = 메모 쪽 1 + 할 일 쪽 수.
 // - 메모를 누르면 메모 읽기 모드(본문을 실제 줄바꿈으로 쪽에 나눔, 점 = 메모 쪽만). 다시 누르면 메모 쪽으로.
 // - WidgetKit 위젯은 Button·Toggle(App Intents)과 Link만 받는다. 옆으로 밀기·스크롤 같은 제스처는 없어서 쪽은 점을 눌러 넘긴다.
-// - 폴더: 앱과 같이 메모 위 폴더 탭을 누르면 그 폴더로(Button + App Intent). 처음 보일 폴더는 '위젯 편집'(길게 누르기)에서 고른다.
-//   중간 크기는 높이가 모자라 탭을 로고 줄 오른쪽에, 크게는 Android처럼 로고 줄 아래 따로 둔다.
+// - 폴더: 맨 위 한 줄(왼쪽 로고 + 폴더 탭)에서 탭을 누르면 그 폴더로(Button + App Intent). 처음 보일 폴더는 '위젯 편집'(길게 누르기)에서 고른다.
 // - 크기: 중간 이상(작게는 머리 + 할 일 2줄 + 점 줄이 들어가지 않아 뺐다).
 
 struct NotesEntry: TimelineEntry {
@@ -373,7 +372,6 @@ struct NotesWidgetView: View {
 
 /// 홈 화면 위젯 한 장(머리 · 쪽 내용 · 점과 +). 쪽 수는 위젯 크기와 실제 글꼴(시스템 글자 크기 반영)로 센다.
 struct HomeWidgetView: View {
-  @Environment(\.widgetFamily) var family
   let entry: NotesEntry
   let l: L
   let mark: Color
@@ -385,10 +383,10 @@ struct HomeWidgetView: View {
   static let padH: CGFloat = 16
   static let padTop: CGFloat = 6
   static let padBottom: CGFloat = 4
-  static let header: CGFloat = 28
-  /// 폴더 탭 줄(크게만 따로, 중간은 로고 줄에). 탭 사이 tabGap
-  static let tabs: CGFloat = 28
+  /// 머리 한 줄: 맨 왼쪽 로고(글자 없이) + 폴더 탭. 탭 사이 tabGap, 로고와 탭 사이 markGap
+  static let header: CGFloat = 30
   static let tabGap: CGFloat = 18
+  static let markGap: CGFloat = 14
   static let tabSize: CGFloat = 15
   static let footer: CGFloat = 28
   static let check: CGFloat = 44
@@ -407,8 +405,6 @@ struct HomeWidgetView: View {
   static let late = Color(hex: "#FF6B6B")
 
   var folderParam: String { entry.folderId ?? FolderEntity.baseId }
-  /// 중간 크기는 높이가 모자라(할 일 2줄) 폴더 탭을 로고 줄 오른쪽에
-  var tabsInHeader: Bool { family == .systemMedium }
 
   /// 앞뒤의 빈 문단은 빼고(앱 미니창과 같다)
   static func trimBlank(_ paragraphs: [String]) -> [String] {
@@ -429,7 +425,7 @@ struct HomeWidgetView: View {
     let preview = paragraphs.flatMap { $0.components(separatedBy: "\n") }.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }.joined(separator: "\n")
     let todos = s?.todos ?? []
     let width = size.width - Self.padH * 2
-    let area = size.height - Self.padTop - Self.padBottom - Self.header - Self.footer - (tabsInHeader ? 0 : Self.tabs)
+    let area = size.height - Self.padTop - Self.padBottom - Self.header - Self.footer
     let font = UIFont.systemFont(ofSize: memoSize)
     let pages = MemoPages.split(full, font: font, spacing: Self.memoSpacing, width: width, height: area - Self.slack)
     let previewLines = MemoPages.split(preview, font: font, spacing: Self.memoSpacing, width: width, height: area - Self.slack).first?.lines ?? 0
@@ -449,7 +445,6 @@ struct HomeWidgetView: View {
 
     VStack(alignment: .leading, spacing: 0) {
       headerRow(width).frame(height: Self.header)
-      if !tabsInHeader { tabRow(width).frame(height: Self.tabs) }
       Group {
         if reading {
           memoButton(String((full as NSString).substring(with: pages[readPage].range)), lines: pages[readPage].lines, hint: l.collapseMemo)
@@ -479,23 +474,19 @@ struct HomeWidgetView: View {
 
   static let markW: CGFloat = 15 * 1148.5 / 432
 
-  /// 머리: 로고 + modo(앱의 그 폴더). 중간 크기는 오른쪽에 폴더 탭
+  /// 머리 한 줄: 맨 왼쪽 로고(글자 없이, 앱의 그 폴더) + 폴더 탭
   func headerRow(_ width: CGFloat) -> some View {
-    let brandW = Self.markW + 8 + ceil(("modo" as NSString).size(withAttributes: [.font: UIFont.systemFont(ofSize: 18, weight: .medium)]).width)
-    return HStack(spacing: 0) {
+    HStack(spacing: 0) {
       Link(destination: URL(string: "naegirok://?folder=\(folderParam)")!) {
-        HStack(spacing: 8) {
-          // 예전 머리(글자 17에 심볼 높이 ×1.1, 선 ×0.42)와 같은 비율로 높이 15
-          MarkShape().stroke(mark, style: StrokeStyle(lineWidth: 15 / 1.1 * 0.42 * 145.5 / 432, lineCap: .round, lineJoin: .round))
-            .frame(width: Self.markW, height: 15)
-          Text("modo").font(.system(size: 18, weight: .medium)).foregroundStyle(Self.text)
-        }
+        // 예전 머리(글자 17에 심볼 높이 ×1.1, 선 ×0.42)와 같은 비율로 높이 15
+        MarkShape().stroke(mark, style: StrokeStyle(lineWidth: 15 / 1.1 * 0.42 * 145.5 / 432, lineCap: .round, lineJoin: .round))
+          .frame(width: Self.markW, height: 15)
+          .padding(.trailing, Self.markGap)
+          .frame(maxHeight: .infinity)
+          .contentShape(Rectangle())
       }
       .accessibilityLabel(l.openApp)
-      if tabsInHeader {
-        tabRow(width - brandW - Self.tabGap).padding(.leading, Self.tabGap)
-      }
-      Spacer(minLength: 0)
+      tabRow(width - Self.markW - Self.markGap)
     }
   }
 

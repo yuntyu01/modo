@@ -29,7 +29,7 @@ import kotlin.math.floor
 import kotlin.math.roundToInt
 
 /**
- * 홈 화면 위젯(시안): 로고 + modo / 폴더 탭(앱과 같이, 누르면 그 폴더로) / 쪽 내용 / 쪽 점 · +.
+ * 홈 화면 위젯(시안): 로고 · 폴더 탭(한 줄, 앱과 같이 누르면 그 폴더로) / 쪽 내용 / 쪽 점 · +.
  *
  * - 기본 모드: 첫 쪽은 그 폴더의 메모만, 다음 쪽부터 할 일만(한 쪽에 같이 두지 않는다). 점 = 메모 쪽 1 + 할 일 쪽 수.
  *   메모가 없으면 할 일 쪽만, 할 일이 없으면 빈 할 일 쪽 하나(+로 추가).
@@ -45,16 +45,18 @@ object HomeWidget {
   // widget_home.xml·widget_home_todo.xml의 여백(dp). 쪽 계산이 이 값에 기대므로 함께 바꿀 것
   private const val PAD_START = 22f
   private const val PAD_END = 12f
-  private const val PAD_TOP = 2f
+  private const val PAD_TOP = 4f
   private const val PAD_BOTTOM = 34f
-  private const val HEADER = 30f
-  /** 폴더 탭 줄(앱과 같이 메모 바로 위) */
-  private const val TABS = 28f
+  /** 머리 한 줄: 맨 왼쪽 로고 + 폴더 탭(앱과 같이 메모 바로 위) */
+  private const val HEADER = 36f
+  /** 로고(높이 15, naegirok_mark 비율)와 탭 사이(widget_brand paddingEnd) */
+  private const val MARK_W = 15f * 1148.5f / 432f
+  private const val MARK_GAP = 14f
   /** 탭 사이(widget_home_tab.xml paddingEnd) */
   private const val TAB_GAP = 18f
   private const val TEXT_PAD_END = 10f
   private const val MEMO_PAD_V = 4f
-  private const val ROW_PAD_V = 3f
+  private const val ROW_PAD_V = 4f
   private const val ROW_CHECK = 44f
   /** 제목과 보조 줄 사이(앱 카드와 같이 0: 줄 높이 안의 글자 여백만으로 붙는다). widget_home_todo.xml과 같게 */
   private const val META_GAP = 0f
@@ -126,8 +128,8 @@ object HomeWidget {
     val wDp = opts.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0).takeIf { it > 0 } ?: 320
     val hDp = opts.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0).takeIf { it > 0 } ?: 200
     val textW = dp(wDp - PAD_START - PAD_END - TEXT_PAD_END).roundToInt()
-    // 머리·폴더 탭과 아래 줄 사이(쪽 내용 자리)
-    val areaH = dp(hDp - PAD_TOP - PAD_BOTTOM - HEADER - TABS)
+    // 머리(로고 · 폴더 탭)와 아래 줄 사이(쪽 내용 자리)
+    val areaH = dp(hDp - PAD_TOP - PAD_BOTTOM - HEADER)
 
     val titleSp = wp.textSize + 1
     val metaSp = wp.textSize - 2
@@ -194,14 +196,12 @@ object HomeWidget {
     v.setInt(R.id.widget_bg, "setColorFilter", card)
     v.setInt(R.id.widget_bg, "setImageAlpha", ((wp.opacity ?: t.opacity) * 255).roundToInt())
 
-    // 머리: 로고 + modo → 앱의 그 폴더. 쪽을 바꿔도 그대로
+    // 머리 왼쪽 로고(글자 없이) → 앱의 그 폴더. 쪽을 바꿔도 그대로
     v.setInt(R.id.widget_mark, "setColorFilter", t.mark)
-    v.setTextColor(R.id.widget_brand_name, text)
-    v.setTextViewText(R.id.widget_brand_name, ctx.getString(R.string.app_name_widget))
     v.setOnClickPendingIntent(R.id.widget_brand, activity(ctx, id, openApp(ctx, data.folderId, id)))
     v.setContentDescription(R.id.widget_brand, ctx.getString(R.string.widget_open_app))
 
-    // 폴더 탭(앱과 같이 메모 바로 위, 누르면 그 폴더의 첫 쪽으로): 기본 + 폴더들. 폭이 모자라면 지금 폴더가 보이게 그 근처만
+    // 폴더 탭(로고 오른쪽, 누르면 그 폴더의 첫 쪽으로): 기본 + 폴더들. 폭이 모자라면 지금 폴더가 보이게 그 근처만
     v.removeAllViews(R.id.widget_tabs)
     val tabs = listOf<Pair<String?, String>>(null to ctx.getString(R.string.base_folder)) + data.folders.map { it.id to it.name }
     val curTab = tabs.indexOfFirst { it.first == data.folderId }.coerceAtLeast(0)
@@ -211,7 +211,7 @@ object HomeWidget {
     var first = curTab
     var last = curTab
     var used = widths[curTab]
-    val room = dp(wDp - PAD_START - PAD_END)
+    val room = dp(wDp - PAD_START - PAD_END - MARK_W - MARK_GAP)
     while (true) {
       val right = last + 1 < tabs.size && used + widths[last + 1] <= room
       if (right) { last++; used += widths[last] }

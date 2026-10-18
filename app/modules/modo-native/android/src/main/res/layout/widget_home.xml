@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  홈 화면 위젯(시안): 로고 + modo / 폴더 탭(앱과 같이) / [첫 쪽: 메모만 | 다음 쪽부터: 할 일만] / 쪽 점 · +(할 일 쪽만).
+  홈 화면 위젯(시안): 로고 · 폴더 탭(한 줄, 앱과 같이) / [첫 쪽: 메모만 | 다음 쪽부터: 할 일만] / 쪽 점 · +(할 일 쪽만).
   메모를 누르면 메모 읽기 모드(본문을 쪽으로 나눠 보여 준다). 줄·점은 HomeWidget이 채운다.
   잠금화면 위젯은 widget_notes_lock(그대로).
 -->
@@ -23,48 +23,38 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:paddingStart="22dp"
-    android:paddingTop="2dp"
+    android:paddingTop="4dp"
     android:paddingEnd="12dp"
     android:paddingBottom="34dp">
 
+    <!-- 머리 한 줄(36dp): 맨 왼쪽 로고(글자 없이, 누르면 앱) + 폴더 탭(앱과 같이, 누르면 그 폴더로. 지금 폴더는 굵은 글자) -->
     <LinearLayout
       android:layout_width="match_parent"
-      android:layout_height="30dp"
+      android:layout_height="36dp"
       android:gravity="center_vertical"
       android:orientation="horizontal">
-      <LinearLayout
+      <FrameLayout
         android:id="@+id/widget_brand"
         android:layout_width="wrap_content"
         android:layout_height="match_parent"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
+        android:paddingEnd="14dp">
         <ImageView
           android:id="@+id/widget_mark"
           android:layout_width="wrap_content"
           android:layout_height="15dp"
-          android:layout_marginEnd="8dp"
+          android:layout_gravity="center_vertical"
           android:adjustViewBounds="true"
           android:importantForAccessibility="no"
           android:src="@drawable/naegirok_mark" />
-        <TextView
-          android:id="@+id/widget_brand_name"
-          android:layout_width="wrap_content"
-          android:layout_height="wrap_content"
-          android:fontFamily="sans-serif-medium"
-          android:letterSpacing="-0.02"
-          android:text="@string/app_name_widget"
-          android:textColor="#FFFFFF"
-          android:textSize="18sp" />
-      </LinearLayout>
+      </FrameLayout>
+      <LinearLayout
+        android:id="@+id/widget_tabs"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:gravity="center_vertical"
+        android:orientation="horizontal" />
     </LinearLayout>
-
-    <!-- 폴더 탭(앱과 같이 메모 바로 위): 누르면 그 폴더로. 탭은 HomeWidget이 채운다(지금 폴더는 굵은 글자) -->
-    <LinearLayout
-      android:id="@+id/widget_tabs"
-      android:layout_width="match_parent"
-      android:layout_height="28dp"
-      android:gravity="center_vertical"
-      android:orientation="horizontal" />
 
     <!-- 메모 쪽·메모 읽기 쪽: 할 일 자리까지 한 쪽씩(줄 수는 HomeWidget이 잰다, 넘치면 마지막 줄 …) -->
     <TextView

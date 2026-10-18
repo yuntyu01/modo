@@ -110,6 +110,8 @@ struct ToggleTodoIntent: AppIntent {
   func perform() async throws -> some IntentResult {
     // 반복 할 일은 완료로 남기지 않고 다음 예정일로 넘긴다(이번 회차만)
     if done { NotesStore.complete(id: todoId) } else { NotesStore.uncheck(id: todoId) }
+    // 끝낸 할 일의 알림은 지우고, 반복 할 일은 다음 회차로 다시 건다(앱을 열기 전에도)
+    Reminders.scheduleAll()
     return .result()
   }
 }

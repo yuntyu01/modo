@@ -1,5 +1,6 @@
 import Foundation
 import SQLite3
+import UserNotifications
 
 /// 앱(JS, expo-sqlite)과 같은 SQLite 파일을 App Group 컨테이너에서 연다.
 /// 스키마는 app/src/core/schema.ts, 쓰기 규칙(outbox 포함)은 Android NotesDb.kt와 같다.
@@ -458,5 +459,33 @@ extension NotesStore {
       if let t = text(st, 0), let d = t.data(using: .utf8) { prefs = try? JSONSerialization.jsonObject(with: d) as? [String: Any] }
     }
     return L.current(prefs)
+  }
+}
+
+/// 할 일 알림. remind_at은 절대 시각이라 시간대가 바뀌어도 같은 순간에 울린다.
+/// iOS는 예약 알림이 64개로 제한돼 가까운 순으로 60개만 둔다. 앱이 앞으로 올 때마다 다시 맞춘다.
+/// 위젯에서 완료했을 때도 다시 맞추도록 위젯 확장과 같이 쓰는 이 파일에 둔다.
+enum Reminders {
+  static let prefix = "todo-"
+
+  static func scheduleAll() {
+    let center = UNUserNotificationCenter.current()
+    let now = Int64(Date().timeIntervalSince1970 * 1000)
+    let items = NotesStore.pendingReminders(now: now).sorted { $0.at < $1.at }.prefix(60)
+    center.getPendingNotificationRequests { reqs in
+      let keep = Set(items.map { prefix + $0.id })
+      center.removePendingNotificationRequests(withIdentifiers: reqs.map(\.identifier).filter { $0.hasPrefix(prefix) && !keep.contains($0) })
+      let l = NotesStore.strings()
+      for it in items {
+        let content = UNMutableNotificationContent()
+        content.title = l.reminderTitle
+        content.body = it.text
+        content.sound = .default
+        let date = Date(timeIntervalSince1970: TimeInterval(it.at) / 1000)
+        let comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
+        let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
+        center.add(UNNotificationRequest(identifier: prefix + it.id, content: content, trigger: trigger))
+      }
+    }
   }
 }

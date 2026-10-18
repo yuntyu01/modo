@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -18,6 +19,7 @@ import com.yuntyu01.naegirok.widget.NotesWidgetProvider
 /**
  * 할 일 알림. remind_at은 절대 시각(epoch ms)이라 시간대가 바뀌어도 같은 순간에 울린다.
  * 정확한 알람 권한이 없으면(Android 14+ 기본) setWindow로 10분 안에 울리게 하고 앱이 그 사실을 안내한다.
+ * setWindow는 대기(Doze) 중에는 미뤄지므로 setAndAllowWhileIdle을 하나 더 걸고, 먼저 울린 쪽만 알림을 띄운다.
  * 재부팅·시간 변경·앱 업데이트 뒤에는 BootReceiver가 다시 예약한다.
  */
 object Reminders {
@@ -45,13 +47,15 @@ object Reminders {
     val am = ctx.getSystemService(AlarmManager::class.java)
     val before = store.getStringSet("ids", emptySet()) ?: emptySet()
     val nowIds = pending.map { it.first.id }.toSet()
-    for (id in before - nowIds) am.cancel(intent(ctx, id))
+    for (id in before - nowIds) cancel(ctx, id)
     for ((todo, at) in pending) {
       val pi = intent(ctx, todo.id)
       if (canExact(ctx)) {
         am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
+        am.cancel(intent(ctx, todo.id, idle = true))
       } else {
         am.setWindow(AlarmManager.RTC_WAKEUP, at, 10 * 60 * 1000L, pi)
+        am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, intent(ctx, todo.id, idle = true))
       }
     }
     // 여유 시간이 지난 '울림' 기록은 더 볼 일이 없으니 정리한다.
@@ -59,15 +63,26 @@ object Reminders {
     store.edit().putStringSet("ids", nowIds).putStringSet("fired", keepFired.toSet()).apply()
   }
 
+  fun cancel(ctx: Context, id: String) {
+    val am = ctx.getSystemService(AlarmManager::class.java)
+    am.cancel(intent(ctx, id))
+    am.cancel(intent(ctx, id, idle = true))
+  }
+
+  fun hasFired(ctx: Context, id: String, at: Long): Boolean =
+    "$id@$at" in (ctx.getSharedPreferences(STORE, Context.MODE_PRIVATE).getStringSet("fired", emptySet()) ?: emptySet())
+
   fun markFired(ctx: Context, id: String, at: Long) {
     val store = ctx.getSharedPreferences(STORE, Context.MODE_PRIVATE)
     val fired = (store.getStringSet("fired", emptySet()) ?: emptySet()) + "$id@$at"
     store.edit().putStringSet("fired", fired).apply()
   }
 
-  fun intent(ctx: Context, id: String): PendingIntent = PendingIntent.getBroadcast(
+  /** idle: 대기 중에도 울리는 두 번째 알람. data로 첫 번째와 다른 PendingIntent가 된다. */
+  fun intent(ctx: Context, id: String, idle: Boolean = false): PendingIntent = PendingIntent.getBroadcast(
     ctx, id.hashCode(),
-    Intent(ctx, ReminderReceiver::class.java).setAction(ACTION_FIRE).putExtra(EXTRA_ID, id),
+    Intent(ctx, ReminderReceiver::class.java).setAction(ACTION_FIRE).putExtra(EXTRA_ID, id)
+      .apply { if (idle) data = Uri.fromParts("modo-reminder", "idle/$id", null) },
     PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
   )
 
@@ -96,6 +111,8 @@ class ReminderReceiver : BroadcastReceiver() {
             NotificationManagerCompat.from(ctx).cancel(id.hashCode())
             NotesWidgetProvider.refreshAll(ctx)
             LockNotifier.refresh(ctx)
+            // 반복 할 일은 다음 회차 알림을 건다(앱이 꺼져 있으면 앱 쪽 다시 맞추기가 돌지 않는다)
+            Reminders.scheduleAll(ctx)
           }
         }
       } finally {
@@ -117,7 +134,12 @@ class ReminderReceiver : BroadcastReceiver() {
       Reminders.scheduleAll(ctx)
       return
     }
-    Reminders.markFired(ctx, id, at)
+    // 두 알람이 거의 같이 울려도(지난 시각) 한 번만 띄운다. 각자 다른 스레드라 확인과 기록을 함께 잠근다.
+    val first = synchronized(Reminders) {
+      !Reminders.hasFired(ctx, id, at).also { if (!it) Reminders.markFired(ctx, id, at) }
+    }
+    if (!first) return
+    Reminders.cancel(ctx, id) // 남은 쪽 알람이 한참 뒤(울림 기록이 지워진 뒤) 또 울리지 않게
     Reminders.ensureChannel(ctx)
     val open = ctx.packageManager.getLaunchIntentForPackage(ctx.packageName)?.let {
       PendingIntent.getActivity(ctx, id.hashCode(), it, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)

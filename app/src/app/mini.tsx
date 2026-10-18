@@ -182,7 +182,8 @@ export default function Mini() {
   // '+' 바와 입력칸은 입력창 색. 투명도 설정(기본 80%)이 바탕과 블록을 함께 움직인다: 기본값에서 바탕 80%(뒤가 비친다), 블록은 덜 투명하게 90%.
   const frameAlpha = 0.6 + 0.25 * opacity;
   const blockAlpha = Math.min(1, 0.7 + 0.25 * opacity);
-  const block = withAlpha(theme.card, blockAlpha);
+  // 블록(메모·할 일)은 앱 할 일 카드와 같은 색(다크는 테마색이 살짝 밴 카드색)에 미니창 투명도
+  const block = withAlpha(theme.todoCardSolid, blockAlpha);
   const addPill = withAlpha(theme.composer, blockAlpha);
   const idleTab = theme.tab;
   const memoFont = theme.font(15, { color: theme.text, lineHeight: 21.5 });

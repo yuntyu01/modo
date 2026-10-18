@@ -20,6 +20,8 @@ export type Theme = {
   card: string;
   /** 할 일·메모·달력 카드: 은은하게 비치는 카드(위쪽 테마색 그라데이션이 살짝 비친다) */
   todoCard: string;
+  /** 할 일 카드 색(불투명). PC 미니창은 이 색에 자기 투명도를 입혀 블록을 그린다(앱 카드와 같은 색) */
+  todoCardSolid: string;
   cardPressed: string;
   /** 선택된 옵션 카드(꾸미기의 체크 위치 등) */
   cardActive: string;
@@ -93,33 +95,29 @@ function glassTint(card: string, accent: string) {
 
 const onDesktop = () => Platform.OS === 'web' && typeof window !== 'undefined' && !!(window as { desktop?: unknown }).desktop;
 
-const MINI_DARK_POINT = '#82C3F4';
 
 export function makeTheme(p: Prefs, systemDark: boolean, surface?: SurfaceTheme): Theme {
   const dark = p.themeMode === 'system' ? systemDark : p.themeMode === 'dark';
   const rawAccent = surface && !surface.linked ? surface.accent : p.accent;
   const cardPref = surface && !surface.linked ? surface.card : p.card;
-  // PC 미니창(메모) 다크(사용자 요청): 검정에 가까운 회색 바탕 #1E1F22, 한 단계 밝은 카드 #2A2C30, 입력창·+ 버튼 #25272A,
-  // 본문 #F1F2F4, 보조 글자·아이콘 #A9ABB0, 로고·포인트는 하늘색 #82C3F4(다른 테마색을 골랐으면 그 색).
-  // 처음 고른 #1D2024·#292D33보다 파란 기를 조금 뺐다(사용자 요청)
-  const isMini = onDesktop() && window.location.pathname.startsWith('/mini');
-  const miniDark = dark && isMini;
+  // PC 미니창(메모)도 색은 앱(휴대폰·PC 큰 창)과 똑같다: 바탕·카드·입력칸·글자·그라데이션 모두(사용자 요청 2026-10-18).
+  // 예전엔 미니창만 회색 바탕 #1E1F22·카드 #2A2C30·하늘색 포인트를 따로 써서 미니창만 푸른 회색으로 보였다. 창 투명도만 미니창 설정을 따른다
   // 라이트 바탕은 화이트 시안의 거의 흰색(#F7F9FC)
-  const bg = miniDark ? '#1E1F22' : dark ? '#000000' : '#F7F9FC';
-  const point = miniDark && rawAccent.toUpperCase() === BRAND ? MINI_DARK_POINT : rawAccent;
+  const bg = dark ? '#000000' : '#F7F9FC';
+  const point = rawAccent;
   // 다크에서 블랙, 라이트에서 화이트를 골라도 아이콘·선택 표시가 보이게 보정(대표색은 흰 바탕에서도 그대로 쓰이게 2:1까지만).
   // 바탕과 같은 무채색(라이트의 화이트, 다크의 블랙)은 회색으로 흐리지 않고 반대쪽 무채색으로: 회색 스위치·버튼이 꺼진 것처럼 보였다(사용자 요청 2026-10-18)
   const surfaceBg = dark ? '#1B1C20' : '#FFFFFF';
   const flat = rgbToHsv(hexToRgb(point))[1] < NEUTRAL_S && contrast(point, surfaceBg) < 2;
   const accent = flat ? (dark ? '#F2F3F5' : '#1B1C20') : ensureContrast(point, surfaceBg, 2);
   // 다크 카드·입력창·하단바·알약 색은 시안에서 잰 값
-  const baseCard = miniDark ? '#2A2C30' : dark ? '#1B1C20' : '#FFFFFF';
+  const baseCard = dark ? '#1B1C20' : '#FFFFFF';
   // 카드색은 기본 카드 위에 살짝 물들이는 정도로(과한 강조 배경 피하기)
   const card = cardPref ? mix(baseCard, cardPref, dark ? 0.32 : 0.16) : baseCard;
   // PC 큰 창·미니창도 색(바탕·그라데이션·블록·글자)은 휴대폰 앱과 같다(사용자 요청). 배치·크기만 PC 시안대로
   const desk = onDesktop() && !surface && !window.location.pathname.startsWith('/mini');
   // 미니창(메모)은 그라데이션을 은은하게: 색은 더 옅게, 길게 천천히 바탕색으로 녹아들게(아래 gradientStops). 다크는 파란 기도 줄여서
-  const top = gradientTop(rawAccent, isMini ? p.gradient * (dark ? 0.4 : 0.55) : p.gradient, dark, bg);
+  const top = gradientTop(rawAccent, p.gradient, dark, bg);
   const scale = SIZE[p.size];
   const family = fontFamily(p.font);
   const weight = WEIGHT[p.weight];
@@ -127,7 +125,7 @@ export function makeTheme(p: Prefs, systemDark: boolean, surface?: SurfaceTheme)
     dark,
     accent,
     // 로고 심볼: 테마색과 똑같이(아이콘·선택 표시와 같은 값). 끄면 대표색
-    mark: p.logoAccent === false ? (miniDark ? MINI_DARK_POINT : BRAND) : accent,
+    mark: p.logoAccent === false ? BRAND : accent,
     bg,
     // 테마색 위 체크·화살표: 대표색처럼 중간 밝기는 흰색(시안), 아주 밝은 색만 검정
     onAccent: luminance(accent) > 0.45 ? '#0B0C0E' : '#FFFFFF',
@@ -138,21 +136,22 @@ export function makeTheme(p: Prefs, systemDark: boolean, surface?: SurfaceTheme)
     gradientStops: dark ? [0, 0.32, 0.68] : [0, 0.18, 0.42],
     card,
     // 다크: 바탕이 살짝 비치게(80%), 테마색 쪽으로 아주 조금 물들인다. 라이트(화이트 시안): 불투명한 흰 블록
-    todoCard: miniDark ? card : dark ? withAlpha(glassTint(card, rawAccent), 0.8) : card,
+    todoCard: dark ? withAlpha(glassTint(card, rawAccent), 0.8) : card,
+    todoCardSolid: dark ? glassTint(card, rawAccent) : card,
     cardPressed: mix(card, dark ? '#FFFFFF' : '#000000', 0.05),
     cardActive: mix(card, accent, dark ? 0.2 : 0.14),
     selection: withAlpha(accent, dark ? 0.55 : 0.4),
     // 입력창·하단바(화이트 시안): 옅은 회청색 알약 #EEF2F8 / #EDF3F8
-    composer: miniDark ? '#25272A' : dark ? mix(card, '#000000', 0.04) : '#EEF2F8',
+    composer: dark ? mix(card, '#000000', 0.04) : '#EEF2F8',
     // 하단바(시안 #16191F): 카드보다 조금 어둡고 테마색 쪽으로 아주 살짝
     nav: dark ? mix(glassTint(card, rawAccent), '#000000', 0.14) : '#EDF3F8',
     raised: dark ? '#24282C' : '#E9ECF1',
-    text: miniDark ? '#F1F2F4' : dark ? '#FFFFFF' : '#15171A',
+    text: dark ? '#FFFFFF' : '#15171A',
     muted: dark ? '#929398' : '#7A7F87',
     /** 입력 안내 글자·날짜/시각처럼 조금 더 밝은 보조 글자 */
-    subtle: miniDark ? '#A9ABB0' : dark ? '#BFC1C6' : '#6E737B',
-    tab: miniDark ? '#A9ABB0' : dark ? '#C4C5CD' : '#80858D',
-    circle: miniDark ? '#A9ABB0' : dark ? '#AEB0B5' : '#9AA0A8',
+    subtle: dark ? '#BFC1C6' : '#6E737B',
+    tab: dark ? '#C4C5CD' : '#80858D',
+    circle: dark ? '#AEB0B5' : '#9AA0A8',
     outline: dark ? '#5A5E66' : '#B9BEC6',
     danger: '#FF6B6B',
     scale,

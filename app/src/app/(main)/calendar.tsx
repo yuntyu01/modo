@@ -135,7 +135,8 @@ export default function Calendar() {
         onLongPress={() => setSheet({ type: 'todo', id: todo.id })}
         onInfo={() => setSheet({ type: 'todo', id: todo.id })}
         folderLabel={undatedRow ? undefined : folderLabel(todo.folder_id)}
-        hideDue
+        // 고른 날짜의 할 일은 날짜를 빼고 시간만. 날짜 없는 할 일은 알림 날짜까지 보여 준다(시간만 있으면 언제인지 모른다)
+        hideDue={!undatedRow}
         onRepeatPress={writable ? () => setSheet({ type: 'repeat', id: todo.id }) : undefined}
         accessory={
           undatedRow && writable ? (

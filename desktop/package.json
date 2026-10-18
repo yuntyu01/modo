@@ -29,12 +29,14 @@
     ],
     "win": {
       "target": "zip",
-      "icon": "assets/icon.png",
+      "icon": "assets/icon.ico",
       "signAndEditExecutable": false
-    }
+    },
+    "afterPack": "./scripts/win-exe.cjs"
   },
   "devDependencies": {
     "electron": "^44.7.2",
-    "esbuild": "^0.28.2"
+    "esbuild": "^0.28.2",
+    "resedit": "^3.1.0"
   }
 }

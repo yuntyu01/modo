@@ -420,7 +420,7 @@ cd desktop && npm run test:unit                   # 데이터 폴더 옮기기(�
   - 휴대폰 큰 데이터 측정. 에뮬레이터가 Play 이미지라 앱 DB를 넣을 수 없었다. 할 때는 `<profileable android:shell="true"/>` 진단 빌드에 백업 JSON(큰 데이터)을 가져오기로 넣고 같은 표(`am start -W`, `dumpsys meminfo`, `dumpsys gfxinfo`, `/proc/<pid>/stat`)를 잰다.
   - 실기기 배터리. 위 worklets 매 프레임 루프의 실기기 영향은 미측정이다.
   - iOS 전부(빌드 환경 없음): 위젯의 루틴 기록·체크 풀기, 입력창 모드 아이콘의 키보드 동작.
-  - 시작 프로그램 이름이 `electron.app.Electron`으로 보이는 것은 지금 쓰는 시험 실행 폴더(이름만 바꾼 electron.exe) 때문이다. electron-builder로 꾸리면 제품 이름이 들어간다(확인 필요).
+  - PC 실행 파일 아이콘·이름: Electron 그대로면 탐색기·작업 표시줄·시작 프로그램에 원자 모양 아이콘과 'Electron'이 보인다. `desktop/scripts/win-exe.cjs`가 modo.exe에 modo 아이콘(`assets/icon.ico`, 16~256)과 이름(설명·제품 이름 modo)을 넣는다 — electron-builder `afterPack`으로 자동, 이미 풀어 둔 폴더는 앱을 끈 뒤 `node scripts/win-exe.cjs <modo.exe>`. rcedit(signAndEditExecutable)은 Linux에서 wine이 있어야 해서 쓰지 않는다. 미니창·큰 창도 같은 .ico를 창 아이콘으로 쓴다. 시작 프로그램 레지스트리 값 이름(`electron.app.Electron`)은 그대로다(화면에 보이는 이름·아이콘은 실행 파일 정보).
 
 - **iOS 전체 미검증**: macOS·Xcode가 없어 빌드·실행하지 못했다. Swift(위젯·잠금화면 위젯·제어 센터 버튼·리마인더)는 작성만 했고 `expo prebuild -p ios`로 프로젝트 생성(위젯 타깃·App Group 연결)까지만 확인했다.
 - **Windows 일부 미검증**: 화면 캡처 권한이 없어(잠긴 화면) 창 투명 합성은 앱 자체 캡처로만 확인했다. 트레이 메뉴 조작, 로그인 시 실행의 실제 동작, 여러 모니터 이동은 직접 조작해 보지 못했다(좌표 보정은 화면 밖 좌표로 검증). 설치 프로그램(서명된 exe)은 만들지 않았다(zip 실행 폴더).

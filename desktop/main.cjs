@@ -12,6 +12,8 @@ const { createSyncHost } = require('./sync-host.cjs');
 const RENDERER = path.join(__dirname, 'renderer');
 // 미니창 최소 높이: ⋯ → 최소화로 접으면 머리 한 줄(46)만
 const MIN_HEIGHT = 46;
+/** 창 아이콘(작업 표시줄·Alt+Tab). Windows는 여러 크기가 든 .ico라야 작은 크기도 또렷하다 */
+const APP_ICON = path.join(__dirname, 'assets', process.platform === 'win32' ? 'icon.ico' : 'icon.png');
 
 protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 
@@ -120,6 +122,8 @@ function createMini() {
     alwaysOnTop: state.pinned,
     skipTaskbar: false,
     title: 'modo',
+    // 없으면 작업 표시줄에 실행 파일 아이콘(Electron 기본)이 보였다
+    icon: APP_ICON,
     show: false,
     webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, sandbox: false },
   });
@@ -363,7 +367,7 @@ function openSettings(route) {
     title: 'modo',
     backgroundColor: '#000000',
     autoHideMenuBar: true,
-    icon: path.join(__dirname, 'assets', 'icon.png'),
+    icon: APP_ICON,
     // 제목줄 없이 창 버튼(최소화·최대화·닫기)만 위쪽 그라데이션 위에 겹친다(시안)
     titleBarStyle: 'hidden',
     titleBarOverlay: { color: '#00000000', symbolColor: '#E6E7EA', height: 40 },

@@ -28,11 +28,11 @@ export const makeState = () => randomString(16);
 
 /**
  * 로그인 페이지 열기. 휴대폰은 시스템 인증 브라우저(iOS ASWebAuthenticationSession, Android Custom Tabs),
- * 데스크톱은 Electron 창(desktop/main.cjs openAuth)이 modo://auth 로 돌아오는 순간을 잡는다.
+ * 데스크톱은 시스템 브라우저와 127.0.0.1 임시 콜백을 사용한다.
  */
 export const openAuth: AuthBrowser = async (url, redirect) => {
   if (Platform.OS === 'web') {
-    if (!desktop?.openAuth) throw new CodedError('kakao_unavailable', '이 환경에서는 카카오 로그인을 열 수 없어요');
+    if (!desktop?.openAuth) throw new CodedError('auth_unavailable', '이 환경에서는 로그인을 열 수 없어요');
     return desktop.openAuth(url, redirect);
   }
   const r = await WebBrowser.openAuthSessionAsync(url, redirect);

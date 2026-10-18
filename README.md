@@ -32,8 +32,10 @@ cd server && go run ./cmd/server
 | `PORT` | `8080` | 서버 포트 |
 | `EXPO_PUBLIC_API_URL` | `http://127.0.0.1:8080` | 앱 로그인 화면의 서버 주소 기본값(화면에서 바꿀 수 있음) |
 | `KAKAO_REST_API_KEY` | - | 카카오 로그인 REST API 키. 비우면 앱에 카카오 버튼이 안 나온다 |
-| `KAKAO_CLIENT_SECRET` | - | 카카오 콘솔에서 Client Secret을 켰을 때만 |
-| `PUBLIC_URL` | `http://127.0.0.1:<PORT>` | 카카오가 돌아올 이 서버의 외부 주소(휴대폰 브라우저에서 열려야 함) |
+| `KAKAO_CLIENT_SECRET` | - | 카카오 Client Secret. 새 키는 기본 활성화이므로 함께 설정 |
+| `GOOGLE_CLIENT_ID` | - | Google OAuth 웹 애플리케이션 클라이언트 ID |
+| `GOOGLE_CLIENT_SECRET` | - | Google OAuth 클라이언트 보안 비밀. 두 값이 모두 있어야 Google 로그인 활성화 |
+| `PUBLIC_URL` | `http://127.0.0.1:<PORT>` | 외부 로그인 콜백의 서버 주소. 운영 환경은 `https://modo.kodeploy.com` |
 | `TRUST_PROXY` | - | `1`이면 리버스 프록시(HTTPS) 뒤로 보고 `X-Forwarded-For`로 접속 주소를 본다(요청 수 제한이 모든 사용자에게 한꺼번에 걸리지 않게) |
 | `RATE_LIMIT` | `10` | 로그인·가입·외부 로그인을 접속 주소마다 1분에 몇 번까지 받을지(E2E 테스트 서버는 크게) |
 | `TEST_DATABASE_URL` | - | 서버 통합 테스트용 DB(테이블을 지우므로 전용 DB) |
@@ -48,9 +50,11 @@ Docker 프로젝트 이름은 `modo`로 고정(볼륨 `modo_pgdata`). 예전 `to
 1. [카카오 개발자](https://developers.kakao.com) → 내 애플리케이션 → 앱 추가 → **REST API 키**를 `KAKAO_REST_API_KEY`로.
 2. 카카오 로그인 활성화, **Redirect URI**에 `<PUBLIC_URL>/api/auth/kakao/callback` 등록(예: `http://192.168.0.10:8080/api/auth/kakao/callback`).
 3. 동의 항목: 닉네임(필수 권장), 카카오계정(이메일)(선택). 카카오 로그인은 늘 따로 된 계정이다: 같은 이메일의 비밀번호 계정에 자동으로 붙지 않는다(비밀번호 가입은 이메일을 확인하지 않아, 남의 이메일로 먼저 가입해 둔 사람이 그 계정을 넘겨받을 수 있어서). 이메일이 이미 쓰이고 있으면 카카오 계정은 이메일 없이 만들어지고(이름으로 표시), 공유 초대는 이메일이 있는 계정만 받을 수 있다.
-4. 보안 → Client Secret을 켰다면 `KAKAO_CLIENT_SECRET`.
+4. 플랫폼 키 → REST API 키의 Client Secret을 `KAKAO_CLIENT_SECRET`로. 새 키는 기본 활성화되어 있다.
 
-흐름: 앱 → 서버 `/api/auth/kakao/start` → 카카오 로그인 → 서버 `/callback`(토큰 교환·사용자 확인) → `modo://auth?code=…`로 앱 복귀 → 앱이 PKCE verifier와 함께 `/api/auth/exchange` → 세션 토큰. 카카오 키는 서버에만 있고, 앱으로 돌아오는 일회용 코드는 그 기기의 verifier 없이는 쓸 수 없다. 휴대폰은 시스템 인증 브라우저(`expo-web-browser`), Windows는 Electron 로그인 창이 `modo://auth`로 가는 순간을 잡는다. `modo://` 스킴이 새로 들어가서 Android/iOS는 다시 빌드(`npx expo prebuild --clean`)해야 한다.
+Google 로그인 설정, 정확한 운영 리다이렉트 주소, 보관 방식과 검증은 [소셜 로그인](docs/social-login.md)을 참고한다. Google 로그인에는 일반 API 키가 필요하지 않다.
+
+흐름: 앱 → 서버 `/api/auth/kakao/start` → 카카오 로그인 → 서버 `/callback`(토큰 교환·사용자 확인) → `modo://auth?code=…`로 앱 복귀 → 앱이 PKCE verifier와 함께 `/api/auth/exchange` → 세션 토큰. 카카오 키는 서버에만 있고, 앱으로 돌아오는 일회용 코드는 그 기기의 verifier 없이는 쓸 수 없다. 휴대폰은 시스템 인증 브라우저(`expo-web-browser`), Windows는 기본 브라우저와 `127.0.0.1` 임시 콜백을 사용한다. `modo://` 스킴이 새로 들어가서 Android/iOS는 다시 빌드(`npx expo prebuild --clean`)해야 한다.
 
 ### Android
 

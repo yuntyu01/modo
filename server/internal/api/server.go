@@ -4,6 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"github.com/coreos/go-oidc/v3/oidc"
 	"log"
 	"net/http"
 
@@ -14,15 +15,21 @@ import (
 var schema string
 
 type Server struct {
-	db      *pgxpool.Pool
-	limiter *limiter
-	cfg     Config
-	popular popularCache
+	db             *pgxpool.Pool
+	limiter        *limiter
+	cfg            Config
+	popular        popularCache
+	googleVerifier *oidc.IDTokenVerifier
 }
 
 func New(db *pgxpool.Pool, cfg Config) *Server {
 	cfg.defaults()
-	return &Server{db: db, limiter: newLimiter(cfg.RateLimit), cfg: cfg}
+	s := &Server{db: db, limiter: newLimiter(cfg.RateLimit), cfg: cfg}
+	if s.googleEnabled() {
+		ctx := oidc.ClientContext(context.Background(), cfg.HTTP)
+		s.googleVerifier = oidc.NewVerifier("https://accounts.google.com", oidc.NewRemoteKeySet(ctx, cfg.GoogleJWKSURL), &oidc.Config{ClientID: cfg.GoogleClientID, SupportedSigningAlgs: []string{oidc.RS256}})
+	}
+	return s
 }
 
 func (s *Server) Migrate(ctx context.Context) error {
@@ -55,6 +62,8 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/auth/providers", s.providers)
 	mux.HandleFunc("GET /api/auth/kakao/start", s.kakaoStart)
 	mux.HandleFunc("GET /api/auth/kakao/callback", s.kakaoCallback)
+	mux.HandleFunc("GET /api/auth/google/start", s.googleStart)
+	mux.HandleFunc("GET /api/auth/google/callback", s.googleCallback)
 	mux.HandleFunc("POST /api/auth/exchange", s.exchange)
 	mux.HandleFunc("GET /api/me", s.auth(s.me))
 	mux.HandleFunc("DELETE /api/me", s.auth(s.deleteAccount))

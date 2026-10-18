@@ -50,12 +50,14 @@ func main() {
 	defer pool.Close()
 
 	srvAPI := api.New(pool, api.Config{
-		Erasures:    journal,
-		KakaoKey:    os.Getenv("KAKAO_REST_API_KEY"),
-		KakaoSecret: os.Getenv("KAKAO_CLIENT_SECRET"),
-		PublicURL:   env("PUBLIC_URL", "http://127.0.0.1:"+env("PORT", "8080")),
-		TrustProxy:  os.Getenv("TRUST_PROXY") == "1",
-		RateLimit:   atoi(os.Getenv("RATE_LIMIT")),
+		Erasures:       journal,
+		KakaoKey:       os.Getenv("KAKAO_REST_API_KEY"),
+		KakaoSecret:    os.Getenv("KAKAO_CLIENT_SECRET"),
+		GoogleClientID: os.Getenv("GOOGLE_CLIENT_ID"),
+		GoogleSecret:   os.Getenv("GOOGLE_CLIENT_SECRET"),
+		PublicURL:      env("PUBLIC_URL", "http://127.0.0.1:"+env("PORT", "8080")),
+		TrustProxy:     os.Getenv("TRUST_PROXY") == "1",
+		RateLimit:      atoi(os.Getenv("RATE_LIMIT")),
 	})
 	if err := waitAndMigrate(ctx, srvAPI); err != nil {
 		log.Fatal("database_migration_failed")

@@ -3,7 +3,7 @@ import { AuthCancelled, HttpError, type Account, type SyncApi, type SyncStatus }
 import { CodedError } from '../core/errors';
 
 type CallResult = { ok: true; value?: unknown } | { ok: false; error: { kind: 'cancelled' | 'http' | 'error'; status?: number; code?: string; message?: string } };
-export type ServerState = { api: { kakao: boolean; password: boolean } | null; gate: boolean; at: number };
+export type ServerState = { api: { kakao: boolean; google: boolean; password: boolean } | null; gate: boolean; at: number };
 type Bridge = {
   call(method: string, args?: unknown[]): Promise<CallResult>;
   onStatus(fn: (s: SyncStatus) => void): () => void;
@@ -63,10 +63,10 @@ export class DesktopSync implements SyncApi {
     return this.call<Account>('login', [server, email, password, register]);
   }
   providers(server: string) {
-    return this.call<{ password: boolean; kakao: boolean }>('providers', [server]);
+    return this.call<{ password: boolean; kakao: boolean; google?: boolean }>('providers', [server]);
   }
   /** 로그인 창은 메인이 연다(browser는 쓰지 않는다) */
-  loginExternal(server: string, provider: 'kakao', _browser: unknown, pkce: { verifier: string; challenge: string }, state: string) {
+  loginExternal(server: string, provider: 'kakao' | 'google', _browser: unknown, pkce: { verifier: string; challenge: string }, state: string) {
     return this.call<Account>('loginExternal', [server, provider, pkce, state]);
   }
   logout() {

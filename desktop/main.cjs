@@ -1,6 +1,6 @@
 // modo 데스크톱: 바탕화면 한쪽에 두는 작은 메모창 + 그 아래 붙은 할 일 카드(한 창 안의 묶음).
 // 큰 관리 화면(설정·로그인·휴지통 등)은 '더보기 → 설정 열기'로 여는 별도 창이다.
-const { app, BrowserWindow, ipcMain, Menu, Tray, nativeImage, screen, dialog, protocol, net } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, Tray, nativeImage, screen, dialog, protocol, net, shell, session } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const { pathToFileURL } = require('node:url');
@@ -8,6 +8,9 @@ const { DesktopDb } = require('./db.cjs');
 const winState = require('./window-state.cjs');
 const { adoptOldUserData } = require('./userdata.cjs');
 const { createSyncHost } = require('./sync-host.cjs');
+const { protectWindow } = require('./navigation.cjs');
+const { createLocalErasure } = require('./local-erasure.cjs');
+const { openSystemAuth } = require('./oauth.cjs');
 
 const RENDERER = path.join(__dirname, 'renderer');
 // 미니창 최소 높이: ⋯ → 최소화로 접으면 머리 한 줄(46)만
@@ -57,7 +60,7 @@ function serveRenderer() {
   protocol.handle('app', (req) => {
     const url = new URL(req.url);
     let file = path.normalize(path.join(RENDERER, decodeURIComponent(url.pathname)));
-    if (!file.startsWith(RENDERER) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
+    if (!file.startsWith(RENDERER + path.sep) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
       file = path.join(RENDERER, 'index.html');
     }
     return net.fetch(pathToFileURL(file).toString());
@@ -125,8 +128,9 @@ function createMini() {
     // 없으면 작업 표시줄에 실행 파일 아이콘(Electron 기본)이 보였다
     icon: APP_ICON,
     show: false,
-    webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, sandbox: false },
+    webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, sandbox: true },
   });
+  protectWindow(mini, shell);
   mini.setOpacity(state.opacity ?? 1);
   mini.loadURL('app://local/mini');
   // 로그인 자동 실행인데 지난번에 미니창을 숨겨 두고(트레이만) 끝냈으면 그대로 트레이에만. 직접 켰으면 늘 보인다
@@ -371,8 +375,9 @@ function openSettings(route) {
     // 제목줄 없이 창 버튼(최소화·최대화·닫기)만 위쪽 그라데이션 위에 겹친다(시안)
     titleBarStyle: 'hidden',
     titleBarOverlay: { color: '#00000000', symbolColor: '#E6E7EA', height: 40 },
-    webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, sandbox: false },
+    webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, sandbox: true },
   });
+  protectWindow(settings, shell);
   settings.loadURL(`app://local${target ?? '/'}`);
   const win = settings;
   for (const ev of ['show', 'restore', 'focus']) win.on(ev, () => visibilityChanged(true));
@@ -446,6 +451,7 @@ function buildTray() {
         {
           label: t.login,
           type: 'checkbox',
+          visible: !process.windowsStore,
           checked: loginItem(),
           click: (i) => setLoginItem(i.checked),
         },
@@ -469,15 +475,17 @@ let refreshTray = () => {};
 
 // 로그인 시 실행: 사용자가 고른 대로만. 켜 둔 것은 '--autostart' 인자를 붙여 등록해 자동 실행인지 알 수 있게 한다
 function loginItem() {
+  if (process.windowsStore) return false;
   return app.getLoginItemSettings({ args: AUTOSTART_ARGS }).openAtLogin;
 }
 function setLoginItem(on) {
+  if (process.windowsStore) return;
   app.setLoginItemSettings({ openAtLogin: !!on, args: AUTOSTART_ARGS });
   refreshTray();
 }
 /** 예전 버전은 인자 없이 등록했다. 켜 둔 사람만 같은 설정으로 다시 등록하고, 꺼 둔 사람은 그대로 둔다(업데이트로 다시 켜지 않는다) */
 function migrateLoginItem() {
-  if (process.platform !== 'win32') return;
+  if (process.platform !== 'win32' || process.windowsStore) return;
   if (app.getLoginItemSettings().openAtLogin && !loginItem()) setLoginItem(true);
 }
 function setPinned(on) {
@@ -513,37 +521,15 @@ function releaseTx() {
   w.forEach((x) => x.resolve());
 }
 
-// 카카오 로그인: 서버의 시작 주소를 작은 창으로 열고, 서버가 modo://auth?… 로 돌려보내는 순간 그 주소를 렌더러에 준다.
-// (데스크톱은 modo:// 를 OS에 등록하지 않는다. 창 안의 이동만 가로챈다)
-function openAuth(parent, url, redirect) {
-  return new Promise((resolve) => {
-    const win = new BrowserWindow({
-      parent: parent ?? undefined,
-      modal: !!parent,
-      width: 480,
-      height: 720,
-      title: uiText().auth,
-      autoHideMenuBar: true,
-      webPreferences: { partition: 'auth', sandbox: true },
-    });
-    let done = false;
-    const finish = (value) => {
-      if (done) return;
-      done = true;
-      resolve(value);
-      if (!win.isDestroyed()) win.close();
-    };
-    const catchRedirect = (e, target) => {
-      if (!target.startsWith(redirect)) return;
-      e.preventDefault();
-      finish(target);
-    };
-    win.webContents.on('will-redirect', catchRedirect);
-    win.webContents.on('will-navigate', catchRedirect);
-    win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-    win.on('closed', () => finish(null));
-    win.loadURL(url).catch(() => {});
-  });
+// One system-browser login at a time; cancel pending loopback listener on app shutdown.
+let pendingAuth;
+app.on('before-quit', () => pendingAuth?.abort());
+function openAuth(_parent, url, redirect) {
+  pendingAuth?.abort();
+  const controller = new AbortController();
+  pendingAuth = controller;
+  return openSystemAuth(url, redirect, (target) => shell.openExternal(target), { signal: controller.signal })
+    .finally(() => { if (pendingAuth === controller) pendingAuth = null; });
 }
 
 function registerIpc() {
@@ -740,7 +726,12 @@ if (process.env.MODO_BENCH) {
 
 app.whenReady().then(async () => {
   stamp('app-ready');
+  session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
+  session.defaultSession.setPermissionCheckHandler(() => false);
   db = new DesktopDb(path.join(app.getPath('userData'), 'naegirok.db'));
+  const localErasure = createLocalErasure(app.getPath('userData'), db);
+  // Do not reopen an account's local state while a previous cleanup remains incomplete.
+  localErasure.retry();
   stamp('db-open');
   serveRenderer();
   host = createSyncHost({
@@ -750,6 +741,7 @@ app.whenReady().then(async () => {
     broadcast: broadcastAll,
     hasVisibleWindow,
     openAuth: (win, url, redirect) => openAuth(win, url, redirect),
+    afterAccountDeleted: async () => localErasure.accepted(),
     backupBeforeMigrate: async (from) => {
       // 스키마를 고치기 전 DB 사본: <데이터 폴더>/backups/naegirok-v<예전 버전>-<시각>.db. 최근 3개만 남긴다
       const dir = path.join(app.getPath('userData'), 'backups');

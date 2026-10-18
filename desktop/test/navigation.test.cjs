@@ -1,0 +1,17 @@
+const assert = require('node:assert/strict');
+const { isLocalPage, isExternalLink, protectWindow } = require('../navigation.cjs');
+assert.ok(isLocalPage('app://local/settings/account'));
+for (const url of ['app://evil/settings', 'app://local.evil/', 'https://modo.kodeploy.com', 'javascript:alert(1)', 'file:///C:/Windows/']) assert.equal(isLocalPage(url), false);
+for (const url of ['https://modo.kodeploy.com', 'mailto:yuntyu01@gmail.com']) assert.ok(isExternalLink(url));
+for (const url of ['file:///C:/Windows/', 'javascript:alert(1)', 'http://insecure.test', 'ms-settings:privacy', 'not-a-url']) assert.equal(isExternalLink(url), false);
+const handlers = {};
+const opened = [];
+const contents = { setWindowOpenHandler: (fn) => { handlers.popup = fn; }, on: (event, fn) => { handlers[event] = fn; } };
+protectWindow({ webContents: contents }, { openExternal: async (url) => { opened.push(url); } });
+assert.deepEqual(handlers.popup({ url: 'https://modo.kodeploy.com' }), { action: 'deny' });
+let blocked = 0;
+handlers['will-navigate']({ preventDefault: () => blocked++ }, 'file:///C:/Windows/');
+handlers['will-navigate']({ preventDefault: () => blocked++ }, 'app://local/calendar');
+assert.equal(blocked, 1);
+assert.equal(opened.length, 1);
+console.log('navigation: external links isolated; privileged local windows cannot navigate to remote or file pages');

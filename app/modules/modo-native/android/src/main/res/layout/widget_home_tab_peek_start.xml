@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 왼쪽에 가려진 폴더(widget_home_tab_peek.xml의 왼쪽판): 이름 끝만 "…본"처럼. 오른쪽 사이는 다른 탭과 같은 18dp -->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+  android:id="@+id/tab"
+  android:layout_width="0dp"
+  android:layout_weight="1"
+  android:layout_height="match_parent"
+  android:ellipsize="start"
+  android:fontFamily="sans-serif"
+  android:gravity="center_vertical|end"
+  android:maxLines="1"
+  android:paddingEnd="18dp"
+  android:textColor="#A1A1A6"
+  android:textSize="15sp" />

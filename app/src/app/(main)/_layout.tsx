@@ -42,7 +42,9 @@ export default function MainLayout() {
     };
   }, []);
   // 하단바 아래 여백(시안 25~26dp). 아이폰은 홈 표시줄(34dp) 위로 살짝 겹쳐도 되고, Android 내비게이션 버튼은 피한다.
-  const bottomGap = Platform.OS === 'web' ? 28 : compact ? 4 : Math.max(26, Platform.OS === 'ios' ? insets.bottom - 8 : insets.bottom);
+  // 가로로 눕힌 낮은 화면(compact)은 여백을 줄이되 제스처 표시줄·내비게이션 버튼 위로는 올린다(4로 두면 하단바가 그 위에 겹쳤다)
+  const sysBottom = Platform.OS === 'ios' ? insets.bottom - 8 : insets.bottom;
+  const bottomGap = Platform.OS === 'web' ? 28 : compact ? Math.max(4, sysBottom) : Math.max(26, sysBottom);
   const navSpace = keyboard ? 8 : 50 + 12 + bottomGap;
   // 휴대폰: 하단바는 따로 자리를 차지하지 않고 내용 위에 떠 있다(양옆·아래로 내용이 비친다). 화면들은 이 높이만큼 스크롤 끝 여백을 둔다.
   // PC 큰 창(시안): 하단바는 창 아래에 붙은 줄이라 자리를 차지한다(덮는 높이 0).

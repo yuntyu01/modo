@@ -14,6 +14,8 @@ type NativeModule = {
   /** maybe: OS는 지원하지만 켜는 메뉴가 제조사에 달린 경우(Android 16 QPR2+ 휴대폰) */
   lockScreenWidgetSupport(): Promise<{ supported: boolean; maybe?: boolean; reason: string }>;
   notificationPermission(): Promise<'granted' | 'denied' | 'undetermined'>;
+  /** Android만: 알림 권한을 한 번 물었다고 남긴다(그 전에는 꺼져 있어도 'undetermined') */
+  markNotificationAsked?(): Promise<void>;
   /** iOS만: UNUserNotificationCenter 권한 요청(Android는 PermissionsAndroid) */
   requestNotificationPermission?(): Promise<'granted' | 'denied' | 'undetermined'>;
   canScheduleExactAlarms(): Promise<boolean>;
@@ -36,6 +38,7 @@ export const native = {
     if (Platform.OS === 'android') {
       if (Number(Platform.Version) < 33) return mod ? mod.notificationPermission() : 'granted';
       const r = await PermissionsAndroid.request('android.permission.POST_NOTIFICATIONS');
+      await mod?.markNotificationAsked?.();
       return r === PermissionsAndroid.RESULTS.GRANTED ? 'granted' : 'denied';
     }
     return mod?.requestNotificationPermission ? mod.requestNotificationPermission() : 'undetermined';

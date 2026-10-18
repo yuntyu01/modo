@@ -175,7 +175,8 @@ export default function CustomizeMore() {
         </View>
       </Group>
       <SurfaceSettings title={t('widgetTheme')} value={prefs.widget} onChange={(widget) => setPrefs({ widget })} />
-      <SurfaceSettings title={t('miniTheme')} value={prefs.mini} onChange={(mini) => setPrefs({ mini })} />
+      {/* 미니창은 PC에만 있고 설정은 기기마다 따로라, 휴대폰에서는 바꿔도 아무 데도 쓰이지 않는다 */}
+      {Platform.OS === 'web' ? <SurfaceSettings title={t('miniTheme')} value={prefs.mini} onChange={(mini) => setPrefs({ mini })} /> : null}
     </SubScreen>
   );
 }

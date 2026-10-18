@@ -18,6 +18,7 @@ export default function Folders() {
   const folders = snap.folders.filter((f) => !f.deleted_at);
   const sharedIds = new Set(snap.shared.map((s) => s.folder_id));
   const count = (id: string) => snap.todos.filter((x) => x.folder_id === id && !x.deleted_at && !x.done).length;
+  const baseCount = snap.todos.filter((x) => !x.folder_id && !x.deleted_at && !x.done).length;
   const iconBtn = (label: string, icon: ReactNode, onPress: () => void) => (
     <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} hitSlop={8} style={styles.icon}>
       {icon}
@@ -26,7 +27,19 @@ export default function Folders() {
   return (
     <SubScreen title={t('manageFolders')}>
       <Group>
-        <Row label={t('baseFolder')} value={String(snap.todos.filter((x) => !x.folder_id && !x.deleted_at && !x.done).length || '')} last={!folders.length} />
+        {/* 기본 폴더는 고치기·지우기가 없지만 개수는 다른 줄과 같은 자리에(아이콘 자리만큼 비운다) */}
+        <Row
+          label={t('baseFolder')}
+          last={!folders.length}
+          right={
+            <View style={styles.actions}>
+              {baseCount ? <Text style={theme.kfont(13, { color: theme.subtle, marginRight: 6 })}>{baseCount}</Text> : null}
+              {Array.from({ length: serverApi && account ? 3 : 2 }, (_, i) => (
+                <View key={i} style={styles.iconSpace} />
+              ))}
+            </View>
+          }
+        />
         {folders.map((f, i) => {
           const mine = !sharedIds.has(f.id);
           return (
@@ -64,5 +77,6 @@ export default function Folders() {
 const styles = StyleSheet.create({
   actions: { flexDirection: 'row', alignItems: 'center', gap: 4, marginRight: -6 },
   icon: { padding: 6 },
+  iconSpace: { width: 31 },
   add: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14.5, height: 52, marginBottom: 12 },
 });

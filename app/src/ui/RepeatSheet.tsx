@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { dayBit, ruleOf, type RepeatFreq, type RepeatRule } from '../core/repeat';
+import { dayBit, firstOnOrAfter, ruleOf, type RepeatFreq, type RepeatRule } from '../core/repeat';
 import type { Todo } from '../core/types';
 import { resolveLang } from '../i18n';
 import { useApp } from '../state/AppContext';
@@ -57,8 +57,9 @@ function Body({ todo, onClose }: { todo: Todo; onClose: () => void }) {
     }
     const rule: RepeatRule = { freq, days: freq === 'weekly' ? days : null };
     await repo.setRepeat(todo.id, rule, start);
-    // 시작일이 앞으로면 그날까지 폴더 화면에서 숨으니 언제 보이는지 알려 준다
-    if (start > today) showToast({ message: t('repeatNext', { date: formatDue(start, lang) }) });
+    // 첫 예정일이 앞으로면 그날까지 폴더 화면에서 숨으니 언제 보이는지 알려 준다
+    const first = firstOnOrAfter(rule, start);
+    if (first > today) showToast({ message: t('repeatNext', { date: formatDue(first, lang) }) });
   };
 
   const row = (label: string, value: string, onPress: () => void, expanded: boolean) => (

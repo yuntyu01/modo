@@ -7,7 +7,8 @@
   <string name="mark_done">%1$s 완료하기</string>
   <string name="mark_undone">%1$s 완료 취소</string>
   <string name="mark_done_short">완료</string>
-  <string name="quick_add">modo 빠른 추가</string>
+  <!-- 앱 서랍 아이콘 이름: 앞에 modo를 붙이면 "modo 빠른 …"으로 잘린다(아이콘이 modo 것임을 보여 준다) -->
+  <string name="quick_add">빠른 추가</string>
   <string name="quick_add_to">빠른 추가 · %1$s</string>
   <string name="tile_label">modo 빠른 추가</string>
   <string name="new_todo">새로운 할 일</string>

@@ -54,6 +54,8 @@ object HomeWidget {
   private const val MARK_GAP = 14f
   /** 탭 사이(widget_home_tab.xml paddingEnd) */
   private const val TAB_GAP = 18f
+  /** 가려진 폴더를 잘린 채로 보여 주는 끝 탭에 적어도 남길 폭("…" 하나). 끝 탭은 남는 폭을 다 쓴다(widget_home_tab_peek*.xml) */
+  private const val PEEK_MIN = 14f
   private const val TEXT_PAD_END = 10f
   private const val MEMO_PAD_V = 4f
   private const val ROW_PAD_V = 4f
@@ -201,27 +203,43 @@ object HomeWidget {
     v.setOnClickPendingIntent(R.id.widget_brand, activity(ctx, id, openApp(ctx, data.folderId, id)))
     v.setContentDescription(R.id.widget_brand, ctx.getString(R.string.widget_open_app))
 
-    // 폴더 탭(로고 오른쪽, 누르면 그 폴더의 첫 쪽으로): 기본 + 폴더들. 폭이 모자라면 지금 폴더가 보이게 그 근처만
+    // 폴더 탭(로고 오른쪽, 누르면 그 폴더의 첫 쪽으로): 기본 + 폴더들. 폭이 모자라면 지금 폴더를 가운데 두고 양옆을 채운 뒤
+    // 가려진 쪽 끝에 바로 옆 폴더를 잘린 채로("제주…") 보여 준다(안 그리면 네 번째 폴더부터 있는지조차 몰랐다).
+    // 위젯은 옆으로 밀 수 없어서, 잘린 탭을 누르면 그 폴더로 가며 가운데로 오고 그 옆이 드러난다
     v.removeAllViews(R.id.widget_tabs)
     val tabs = listOf<Pair<String?, String>>(null to ctx.getString(R.string.base_folder)) + data.folders.map { it.id to it.name }
     val curTab = tabs.indexOfFirst { it.first == data.folderId }.coerceAtLeast(0)
     val tabPaint = paint(sp(15f), 0f)
     val boldPaint = paint(sp(15f), 0f).apply { typeface = Typeface.create("sans-serif", Typeface.BOLD) }
     val widths = tabs.mapIndexed { i, (_, name) -> (if (i == curTab) boldPaint else tabPaint).measureText(name) + dp(TAB_GAP) }
-    var first = curTab
-    var last = curTab
-    var used = widths[curTab]
-    val room = dp(wDp - PAD_START - PAD_END - MARK_W - MARK_GAP)
-    while (true) {
-      val right = last + 1 < tabs.size && used + widths[last + 1] <= room
-      if (right) { last++; used += widths[last] }
-      val left = first > 0 && used + widths[first - 1] <= room
-      if (left) { first--; used += widths[first] }
-      if (!right && !left) break
+    /** 지금 폴더에서 시작해 오른쪽·왼쪽을 번갈아 채운 범위와 쓴 폭 */
+    fun window(room: Float): Triple<Int, Int, Float> {
+      var first = curTab
+      var last = curTab
+      var used = widths[curTab]
+      while (true) {
+        val right = last + 1 < tabs.size && used + widths[last + 1] <= room
+        if (right) { last++; used += widths[last] }
+        val left = first > 0 && used + widths[first - 1] <= room
+        if (left) { first--; used += widths[first] }
+        if (!right && !left) break
+      }
+      return Triple(first, last, used)
     }
-    for (i in first..last) {
+    /** 가려진 쪽마다 끝 탭이 적어도 차지할 폭(왼쪽 끝 탭은 뒤 탭과의 사이까지) */
+    fun peekRoom(first: Int, last: Int) = (if (first > 0) dp(PEEK_MIN + TAB_GAP) else 0f) + (if (last < tabs.size - 1) dp(PEEK_MIN) else 0f)
+    val room = dp(wDp - PAD_START - PAD_END - MARK_W - MARK_GAP)
+    var (first, last, used) = window(room)
+    // 남는 폭이 끝 탭에 모자라면 그만큼 비우고 다시. 끝 탭이 둘이면 남는 폭을 반씩 나눠 쓴다
+    val need = peekRoom(first, last) * (if (first > 0 && last < tabs.size - 1) 2 else 1)
+    if (room - used < need) {
+      val fit = window(room - need)
+      first = fit.first
+      last = fit.second
+    }
+    fun addTab(i: Int, layout: Int = R.layout.widget_home_tab) {
       val (fid, name) = tabs[i]
-      val tab = RemoteViews(ctx.packageName, R.layout.widget_home_tab)
+      val tab = RemoteViews(ctx.packageName, layout)
       val sel = i == curTab
       tab.setTextViewText(R.id.tab, if (sel) SpannableString(name).apply { setSpan(StyleSpan(Typeface.BOLD), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) } else name)
       tab.setTextColor(R.id.tab, if (sel) text else muted)
@@ -233,6 +251,9 @@ object HomeWidget {
       tab.setContentDescription(R.id.tab, ctx.getString(if (sel) R.string.widget_folder_tab_current else R.string.widget_folder_tab, name))
       v.addView(R.id.widget_tabs, tab)
     }
+    if (first > 0) addTab(first - 1, R.layout.widget_home_tab_peek_start)
+    for (i in first..last) addTab(i)
+    if (last < tabs.size - 1) addTab(last + 1, R.layout.widget_home_tab_peek)
 
     val onMemoPage = !reading && hasMemo && wp.page == 0
     val todoPage = if (!reading && showTodos && wp.page >= memoFirst) wp.page - memoFirst else -1

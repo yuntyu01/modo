@@ -1,7 +1,7 @@
 import type { Db, Params } from './db';
 import { Mutex } from './db';
 import { keyBetween } from './frac';
-import { daysBetween, nextDue, ruleOf, shiftTime, type RepeatRule } from './repeat';
+import { daysBetween, firstOnOrAfter, nextDue, ruleOf, shiftTime, type RepeatRule } from './repeat';
 import { addDoneDay, removeDoneDay } from './doneLog';
 import { MIGRATE_V2, MIGRATE_V3, MIGRATE_V5, SCHEMA, SCHEMA_SHARED, SCHEMA_VERSION } from './schema';
 import type { EntityName, Folder, Paragraph, SharedFolder, Snapshot, Todo } from './types';
@@ -502,7 +502,8 @@ export class Repo {
     return this.write(() => this.patch('todo', id, { remind_at: at }));
   }
   /**
-   * 반복 정하기/없애기. 정하면 시작일을 예정일로 두고(그날부터 보이고, 체크하면 규칙에 맞는 다음 날로 넘어간다)
+   * 반복 정하기/없애기. 정하면 시작일 당일이나 그 뒤 규칙에 맞는 첫날을 예정일로 두고(그날부터 보이고, 체크하면 다음 날로 넘어간다)
+   * (시작일을 그대로 두면 일요일에 '매주 금요일'로 정한 할 일이 그날 '오늘', 다음 날 '1일 지남'으로 보였다)
    * 알림도 같은 날만큼 옮기고 완료 표시를 푼다. 없애면 반복만 지우고 예정일은 그대로 둔다.
    */
   setRepeat(id: string, rule: RepeatRule | null, start: string) {
@@ -510,7 +511,7 @@ export class Repo {
       if (!rule) return void (await this.patch('todo', id, { repeat_freq: null, repeat_days: null }));
       const cur = await this.row('todo', id);
       if (!cur) return;
-      const due = start;
+      const due = firstOnOrAfter(rule, start);
       const remind = cur.remind_at as number | null;
       const from = (cur.due_date as string | null) ?? (remind != null ? localDay(remind) : due);
       await this.patch('todo', id, {

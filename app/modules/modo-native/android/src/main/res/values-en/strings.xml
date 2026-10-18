@@ -7,7 +7,7 @@
   <string name="mark_done">Complete %1$s</string>
   <string name="mark_undone">Uncomplete %1$s</string>
   <string name="mark_done_short">Done</string>
-  <string name="quick_add">modo quick add</string>
+  <string name="quick_add">Quick add</string>
   <string name="quick_add_to">Quick add · %1$s</string>
   <string name="tile_label">modo quick add</string>
   <string name="new_todo">New to-do</string>

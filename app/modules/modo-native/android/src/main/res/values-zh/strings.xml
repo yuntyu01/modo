@@ -7,7 +7,7 @@
   <string name="mark_done">完成“%1$s”</string>
   <string name="mark_undone">取消完成“%1$s”</string>
   <string name="mark_done_short">完成</string>
-  <string name="quick_add">modo 快速添加</string>
+  <string name="quick_add">快速添加</string>
   <string name="quick_add_to">快速添加 · %1$s</string>
   <string name="tile_label">modo 快速添加</string>
   <string name="new_todo">新建待办</string>

@@ -33,6 +33,7 @@ import (
 // 있어야만 토큰으로 바뀐다.
 
 type Config struct {
+	Erasures     *ErasureJournal
 	KakaoKey     string // 카카오 REST API 키. 비어 있으면 카카오 로그인을 끈다
 	KakaoSecret  string // 카카오 Client Secret(콘솔에서 켰을 때만)
 	PublicURL    string // 카카오가 돌아올 이 서버의 외부 주소(예: https://modo.example.com). 콘솔의 Redirect URI = PublicURL + /api/auth/kakao/callback
@@ -169,13 +170,13 @@ func (s *Server) kakaoCallback(w http.ResponseWriter, r *http.Request) {
 	}
 	ku, err := s.kakaoUser(ctx, q.Get("code"))
 	if err != nil {
-		log.Printf("kakao: %v", err)
+		log.Print("kakao_exchange_failed")
 		back(url.Values{"error": {"kakao"}})
 		return
 	}
 	u, err := s.findOrCreateKakaoUser(ctx, ku)
 	if err != nil {
-		log.Printf("kakao user: %v", err)
+		log.Print("kakao_user_lookup_failed")
 		back(url.Values{"error": {"server"}})
 		return
 	}
@@ -183,7 +184,7 @@ func (s *Server) kakaoCallback(w http.ResponseWriter, r *http.Request) {
 	if _, err := s.db.Exec(ctx, `
 		INSERT INTO login_codes (code_hash, user_id, challenge, expires_at) VALUES ($1, $2, $3, now() + interval '2 minutes')`,
 		sum, u.ID, challenge); err != nil {
-		log.Printf("kakao code: %v", err)
+		log.Print("kakao_login_code_failed")
 		back(url.Values{"error": {"server"}})
 		return
 	}

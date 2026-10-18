@@ -38,7 +38,7 @@ export class AuthCancelled extends Error {}
  */
 export type SyncApi = Pick<
   SyncEngine,
-  'status' | 'onStatus' | 'start' | 'stop' | 'schedule' | 'syncNow' | 'account' | 'login' | 'providers' | 'loginExternal' | 'logout' | 'syncTheme' | 'shareApi' | 'beginEdit' | 'endEdit'
+  'status' | 'onStatus' | 'start' | 'stop' | 'schedule' | 'syncNow' | 'account' | 'login' | 'providers' | 'loginExternal' | 'logout' | 'deleteAccount' | 'syncTheme' | 'shareApi' | 'beginEdit' | 'endEdit'
 >;
 
 export type SyncStatus = {
@@ -52,6 +52,15 @@ export type SyncStatus = {
 };
 
 type Fetch = typeof fetch;
+
+/** Release builds send account/content data only to the configured modo service. */
+function serviceBase(server: string) {
+  const base = server.replace(/\/+$/, '');
+  if (process.env.NODE_ENV === 'production' && base !== 'https://modo.kodeploy.com') {
+    throw new HttpError(0, 'Please use the modo HTTPS service.', 'network');
+  }
+  return base;
+}
 
 /** status 0 = 연결 안 됨. code가 없던 예전 서버 응답은 상태 코드로 대신 정한다. */
 export class HttpError extends CodedError {
@@ -67,7 +76,7 @@ export class HttpError extends CodedError {
 export async function api<T>(fetchFn: Fetch, server: string, path: string, init: RequestInit & { token?: string } = {}) {
   let res: Response;
   try {
-    res = await fetchFn(server.replace(/\/+$/, '') + path, {
+    res = await fetchFn(serviceBase(server) + path, {
       ...init,
       headers: {
         ...(init.body ? { 'Content-Type': 'application/json' } : {}),
@@ -88,6 +97,7 @@ export async function api<T>(fetchFn: Fetch, server: string, path: string, init:
  * push(오프라인 큐) → pull(커서 이후 변경) 순서. 실패하면 지수 백오프로 다시 시도한다.
  */
 export class SyncEngine {
+  private deleting = false;
   private running: Promise<void> | null = null;
   private again = false;
   private timer: ReturnType<typeof setTimeout> | null = null;
@@ -140,7 +150,7 @@ export class SyncEngine {
    * 그 코드는 이 기기만 아는 PKCE verifier가 있어야 세션으로 바뀐다(다른 앱이 modo:// 주소를 가로채도 못 쓴다).
    */
   async loginExternal(server: string, provider: 'kakao', browser: AuthBrowser, pkce: Pkce, state: string) {
-    const base = server.replace(/\/+$/, '');
+    const base = serviceBase(server);
     const url = `${base}/api/auth/${provider}/start?${encodeQuery({ redirect_uri: AUTH_REDIRECT, state, code_challenge: pkce.challenge })}`;
     const back = await browser(url, AUTH_REDIRECT);
     if (!back) throw new AuthCancelled();
@@ -183,6 +193,28 @@ export class SyncEngine {
     this.setStatus({ state: 'local', message: undefined, code: undefined });
   }
 
+  async deleteAccount() {
+    if (this.deleting) throw new Error('Account deletion is already in progress');
+    const acc = await this.account();
+    if (!acc) throw new HttpError(401, '로그인이 필요해요', 'login_required');
+    this.deleting = true;
+    const wasPolling = this.interval != null;
+    this.stop();
+    try {
+      // Let an already-sent sync finish before deleting; new sync attempts wait.
+      await this.running;
+      await api(this.fetchFn, acc.server, '/api/me', {
+        method: 'DELETE', token: acc.token, body: JSON.stringify({ confirmation: 'DELETE' }),
+      });
+      await this.repo.eraseLocalData();
+      this.editing.clear(); this.deferred.clear();
+      this.setStatus({ state: 'local', pending: 0, rejected: 0, lastSyncAt: null, message: undefined, code: undefined });
+    } finally {
+      this.deleting = false;
+      if (wasPolling) this.start(30_000, false);
+    }
+  }
+
   /**
    * 앞에 있는 동안 주기적으로(기본 30초), 로컬 변경 뒤에는 조금 기다렸다가 동기화.
    * PC는 창이 모두 숨으면 간격을 늘린다(desktop/main.cjs). immediate=false면 지금 한 번 돌리지 않고 간격만 바꾼다.
@@ -198,12 +230,14 @@ export class SyncEngine {
     this.interval = this.timer = null;
   }
   schedule(delay = 1500) {
+    if (this.deleting) return;
     if (this.timer) clearTimeout(this.timer);
     this.timer = setTimeout(() => this.syncNow(), delay);
   }
 
   /** 겹쳐 부르면 진행 중인 것이 끝난 뒤 한 번 더 돈다. */
   syncNow(): Promise<void> {
+    if (this.deleting) return Promise.resolve();
     if (this.running) {
       this.again = true;
       return this.running;

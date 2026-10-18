@@ -16,3 +16,7 @@ app/modules/*/android/build/
 app/modules/*/android/.gradle/
 *.apk
 *.aab
+*.jks
+*.keystore
+*.clixml
+var/

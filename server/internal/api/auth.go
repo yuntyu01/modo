@@ -131,6 +131,10 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 var dummyHash, _ = bcrypt.GenerateFromPassword([]byte("dummy-password"), bcrypt.DefaultCost)
 
 func (s *Server) issueSession(w http.ResponseWriter, r *http.Request, u authUser, device string, status int) {
+	if s.cfg.Erasures.Blocked(u.ID.String()) {
+		errJSON(w, 401, "session_expired", "삭제 요청된 계정입니다")
+		return
+	}
 	raw := make([]byte, 32)
 	rand.Read(raw)
 	token := base64.RawURLEncoding.EncodeToString(raw)
@@ -197,6 +201,10 @@ func (s *Server) auth(next http.HandlerFunc) http.HandlerFunc {
 			serverError(w, err)
 			return
 		}
+		if s.cfg.Erasures.Blocked(u.ID.String()) {
+			errJSON(w, 401, "session_expired", "삭제 요청된 계정입니다")
+			return
+		}
 		next(w, r.WithContext(context.WithValue(r.Context(), ctxKey{}, u)))
 	}
 }
@@ -243,6 +251,12 @@ func (l *limiter) allow(key string) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	now := time.Now()
+	// Expire inactive IP/email keys too, rather than keeping them until restart.
+	for k, times := range l.hits {
+		if len(times) == 0 || now.Sub(times[len(times)-1]) >= time.Minute {
+			delete(l.hits, k)
+		}
+	}
 	kept := l.hits[key][:0]
 	for _, t := range l.hits[key] {
 		if now.Sub(t) < time.Minute {

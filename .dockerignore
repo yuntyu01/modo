@@ -1,0 +1,11 @@
+.git
+app
+desktop
+docs
+deploy
+**/node_modules
+**/var
+**/*.jks
+**/*.keystore
+**/*.clixml
+**/.env

@@ -1,0 +1,70 @@
+name: modo-closed-test
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: modo
+      POSTGRES_DB: modo
+      POSTGRES_PASSWORD: ${MODO_DATABASE_PASSWORD:?Set a unique modo-only database password}
+      # This dedicated instance does not write request or SQL body logs.
+    command: ["postgres", "-c", "log_statement=none", "-c", "log_min_error_statement=panic", "-c", "logging_collector=off", "-c", "log_connections=off", "-c", "log_disconnections=off"]
+    logging:
+      driver: none
+    volumes:
+      - modo-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U modo -d modo"]
+      interval: 5s
+      retries: 12
+    restart: unless-stopped
+  server:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    environment: &modo-env
+      APP_ENV: production
+      DATABASE_URL: postgresql://modo:${MODO_DATABASE_PASSWORD}@db:5432/modo?sslmode=disable
+      PUBLIC_URL: https://modo.kodeploy.com
+      LOG_DIR: /var/lib/modo/logs
+      ERASURE_JOURNAL: /var/lib/modo/erasures/journal.json
+      BACKUP_DIR: /var/lib/modo/backups
+      MODO_BACKUPS_ENABLED: "0"
+      TRUST_PROXY: "0"
+    volumes:
+      - modo-logs:/var/lib/modo/logs
+      - modo-erasures:/var/lib/modo/erasures
+    # Only an existing HTTPS reverse proxy should reach this loopback port.
+    ports:
+      - "127.0.0.1:18080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    logging:
+      driver: none
+    restart: unless-stopped
+  backups:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    entrypoint: ["modo-ops", "backups"]
+    environment: *modo-env
+    volumes:
+      - modo-backups:/var/lib/modo/backups
+      - modo-backup-logs:/var/lib/modo/logs
+      - modo-erasures:/var/lib/modo/erasures
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "modo-ops", "backup-health"]
+      interval: 15m
+      retries: 1
+    logging:
+      driver: none
+    restart: unless-stopped
+volumes:
+  modo-db:
+  modo-logs:
+  modo-erasures:
+  modo-backups:
+  modo-backup-logs:

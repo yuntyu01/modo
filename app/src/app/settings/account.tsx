@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Linking, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { AuthCancelled } from '../../core/sync';
+import { DELETION_URL, POLICY_URL } from '../../policies';
 import { codeText, errorText, resolveLang } from '../../i18n';
 import { makePkce, makeState, openAuth } from '../../native/auth';
 import { useApp, useSyncStatus } from '../../state/AppContext';
@@ -10,19 +11,28 @@ import { KakaoIcon } from '../../ui/Icons';
 import { ConfirmDialog, Group, Row, Segmented } from '../../ui/primitives';
 import { Note, SubScreen } from '../../ui/SubScreen';
 import { inputColors } from '../../ui/theme';
+import { DEFAULT_SERVER } from '../../state/prefs';
 
 export default function Account() {
-  const { theme, t, account, sync, prefs, setPrefs, refreshAccount, showToast } = useApp();
+  const { theme, t, account, sync, prefs, setPrefs, refreshAccount, deleteAccount, showToast } = useApp();
   const status = useSyncStatus();
   const lang = resolveLang(prefs.language);
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [server, setServer] = useState(prefs.server);
+  const [server, setServer] = useState(process.env.NODE_ENV === 'production' ? DEFAULT_SERVER : prefs.server);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmLogout, setConfirmLogout] = useState(false);
+  const [confirmDeletion, setConfirmDeletion] = useState(false);
   const [kakao, setKakao] = useState(false);
+  const open = (url: string) => Linking.openURL(url).catch(() => showToast({ message: t('linkOpenFailed') }));
+  const policyLinks = (
+    <Group>
+      <Row label={t('privacyPolicy')} onPress={() => open(POLICY_URL)} />
+      <Row label={t('requestAccountDeletion')} danger onPress={() => open(DELETION_URL)} last />
+    </Group>
+  );
 
   // 서버 주소를 고치면 그 서버가 카카오 로그인을 켜 두었는지 다시 묻는다(잠깐 멈춘 뒤)
   useEffect(() => {
@@ -98,9 +108,27 @@ export default function Account() {
           <Row label={t('syncNow')} onPress={() => sync.syncNow().then(() => showToast({ message: t('syncIdle') }))} last />
         </Group>
         <Note>{t('accountSignedIn')}</Note>
+        {policyLinks}
         <Group>
-          <Row label={t('logout')} danger onPress={() => setConfirmLogout(true)} last />
+          {Platform.OS !== 'web' ? <Row label={t('deleteAccount')} danger onPress={busy ? undefined : () => setConfirmDeletion(true)} /> : null}
+          <Row label={t('logout')} danger onPress={busy ? undefined : () => setConfirmLogout(true)} last />
         </Group>
+        {busy ? <ActivityIndicator color={theme.accent} /> : null}
+        {error ? <Text style={theme.font(14, { color: theme.danger })}>{error}</Text> : null}
+        <ConfirmDialog
+          visible={confirmDeletion}
+          title={t('deleteAccount')}
+          body={t('deleteAccountBody')}
+          confirmLabel={t('deleteAccount')}
+          danger
+          onConfirm={async () => {
+            setBusy(true); setError(null);
+            try { await deleteAccount(); showToast({ message: t('accountDeletionAccepted') }); }
+            catch (e) { setError(errorText(e, t)); }
+            finally { setBusy(false); }
+          }}
+          onClose={() => setConfirmDeletion(false)}
+        />
         <ConfirmDialog
           visible={confirmLogout}
           title={t('logout')}
@@ -120,6 +148,8 @@ export default function Account() {
   return (
     <SubScreen title={t('account')}>
       <Note>{t('accountSignedOut')}</Note>
+      <Note>{t('targetAudienceNotice')}</Note>
+      {policyLinks}
       {kakao ? (
         <>
           <Pressable
@@ -150,7 +180,7 @@ export default function Account() {
         textContentType: mode === 'register' ? 'newPassword' : 'password',
         onSubmitEditing: submit,
       })}
-      {field(server, setServer, t('server'), { keyboardType: 'url' })}
+      {process.env.NODE_ENV !== 'production' ? field(server, setServer, t('server'), { keyboardType: 'url' }) : null}
       {error ? <Text style={theme.font(14, { color: theme.danger, marginHorizontal: 8, marginBottom: 10 })}>{error}</Text> : null}
       <Pressable
         accessibilityRole="button"

@@ -1,0 +1,82 @@
+name: modo closed test checks
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ["server/**", "app/**", "Dockerfile", "deploy/**", ".github/workflows/closed-test-checks.yml"]
+permissions:
+  contents: read
+jobs:
+  upload-key-recovery:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Restore encrypted upload key and verify signing without exposing secrets
+        env:
+          MODO_UPLOAD_KEYSTORE_B64: ${{ secrets.MODO_UPLOAD_KEYSTORE_B64 }}
+          MODO_UPLOAD_STORE_PASSWORD: ${{ secrets.MODO_UPLOAD_STORE_PASSWORD }}
+          MODO_UPLOAD_KEY_ALIAS: ${{ secrets.MODO_UPLOAD_KEY_ALIAS }}
+          MODO_UPLOAD_KEY_PASSWORD: ${{ secrets.MODO_UPLOAD_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          key_path=$(mktemp "$RUNNER_TEMP/modo-upload-XXXXXX.jks")
+          probe_path=$(mktemp "$RUNNER_TEMP/modo-probe-XXXXXX.txt")
+          jar_path="$probe_path.jar"
+          trap 'rm -f "$key_path" "$probe_path" "$jar_path" "$probe_path.log"' EXIT
+          printf '%s' "$MODO_UPLOAD_KEYSTORE_B64" | base64 --decode > "$key_path"
+          chmod 600 "$key_path"
+          digest=$(keytool -exportcert -keystore "$key_path" -alias "$MODO_UPLOAD_KEY_ALIAS" -storepass:env MODO_UPLOAD_STORE_PASSWORD | sha256sum | cut -d' ' -f1)
+          test "$digest" = 664e6748990e279b1d891166cb1bf63231e3fa16a3235b904af4444ad309b5b0
+          printf '%s\n' 'modo upload key recovery check' > "$probe_path"
+          jar --create --file "$jar_path" -C "$(dirname "$probe_path")" "$(basename "$probe_path")"
+          jarsigner -keystore "$key_path" -storepass:env MODO_UPLOAD_STORE_PASSWORD -keypass:env MODO_UPLOAD_KEY_PASSWORD "$jar_path" "$MODO_UPLOAD_KEY_ALIAS" > "$probe_path.log" 2>&1
+          jarsigner -verify "$jar_path" > "$probe_path.log" 2>&1
+          echo 'Upload key backup restored; certificate matched; private-key signing and verification passed.' >> "$GITHUB_STEP_SUMMARY"
+  server:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: modo_test
+          POSTGRES_PASSWORD: isolated-test-only
+          POSTGRES_DB: modo_policy_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U modo_test -d modo_policy_test"
+          --health-interval 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+      - name: Install official PostgreSQL 17 client
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsS https://www.postgresql.org/media/keys/ACCC4CF8.asc -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+          . /etc/os-release
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client-17
+      - run: go test ./... -count=1
+        working-directory: server
+        env:
+          TEST_DATABASE_URL: postgres://modo_test:isolated-test-only@127.0.0.1:5432/modo_policy_test?sslmode=disable
+  app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm install --global npm@11.17.0 --no-audit --no-fund
+      - run: npm ci --no-audit --no-fund
+        working-directory: app
+      - run: npm run typecheck && npm run lint && npm test -- --runInBand
+        working-directory: app

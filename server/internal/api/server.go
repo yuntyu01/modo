@@ -32,6 +32,9 @@ func (s *Server) Migrate(ctx context.Context) error {
 
 // Cleanup: 오래된 재전송 기록(30일), 오래 안 쓴 세션(180일), 끝난 외부 로그인 상태를 지운다. main이 주기적으로 부른다.
 func (s *Server) Cleanup(ctx context.Context) error {
+	if err := s.ApplyErasures(ctx); err != nil {
+		return err
+	}
 	for _, q := range []string{
 		`DELETE FROM applied_ops WHERE created_at < now() - interval '30 days'`,
 		`DELETE FROM sessions WHERE last_used_at < now() - interval '180 days'`,
@@ -54,6 +57,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/auth/kakao/callback", s.kakaoCallback)
 	mux.HandleFunc("POST /api/auth/exchange", s.exchange)
 	mux.HandleFunc("GET /api/me", s.auth(s.me))
+	mux.HandleFunc("DELETE /api/me", s.auth(s.deleteAccount))
 	mux.HandleFunc("GET /api/me/theme", s.auth(s.getTheme))
 	mux.HandleFunc("PUT /api/me/theme", s.auth(s.putTheme))
 	mux.HandleFunc("GET /api/themes/popular", s.popularThemes)
@@ -95,6 +99,7 @@ func badRequest(w http.ResponseWriter, msg string) {
 }
 
 func serverError(w http.ResponseWriter, err error) {
-	log.Printf("error: %v", err)
+	// Database errors can contain row values. Keep user content and credentials out of logs.
+	log.Print("request_failed")
 	errJSON(w, http.StatusInternalServerError, "server", "서버 오류")
 }

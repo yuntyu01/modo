@@ -83,3 +83,29 @@ test('테마: 늦게 바꾼 쪽이 이긴다(계정이 더 늦으면 받아 오�
   expect(await sync.syncTheme({ accent: '#FF7F6B', accentAt: 300 })).toBeNull();
   expect(puts.length).toBe(1);
 });
+
+test('account deletion clears local content, drafts and queued uploads only after acceptance', async () => {
+  const { repo, sync, calls } = await engine(serverReply);
+  await repo.addTodo('private task', null, 'bottom');
+  await repo.write(async () => {
+    await repo.setKv('account', { id: 'u1', email: 'review@example.test', token: 'tok', server: 'http://srv' });
+    await repo.setKv('session', { drafts: { memo: 'private draft' } });
+  });
+  await sync.deleteAccount();
+  expect(await sync.account()).toBeNull();
+  expect((await repo.snapshot()).todos).toEqual([]);
+  expect(await repo.outboxCount()).toBe(0);
+  expect(await repo.getKv('session', null)).toBeNull();
+  expect(calls.find((c) => c.url.endsWith('/api/me'))?.body).toEqual({ confirmation: 'DELETE' });
+});
+
+test('failed deletion preserves the local account and private records for retry', async () => {
+  const db = await memoryDb();
+  const repo = new Repo(db, randomUUID); await repo.init();
+  await repo.addTodo('keep on failure', null, 'bottom');
+  await repo.write(() => repo.setKv('account', { id: 'u1', token: 'tok', email: '', server: 'http://srv' }));
+  const sync = new SyncEngine(repo, (async () => new Response('{}', { status: 503 })) as typeof fetch);
+  await expect(sync.deleteAccount()).rejects.toThrow();
+  expect(await sync.account()).not.toBeNull();
+  expect((await repo.snapshot()).todos[0].text).toBe('keep on failure');
+});

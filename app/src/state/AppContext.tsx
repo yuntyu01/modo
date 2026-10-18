@@ -30,6 +30,7 @@ type App = {
   setFilter: (f: FolderFilter) => void;
   account: Account | null;
   refreshAccount: () => Promise<void>;
+  deleteAccount: () => Promise<void>;
   toast: Toast | null;
   showToast: (t: Toast | null) => void;
   /** 편집기들이 등록하는 '지금 저장' 함수(백그라운드 전환·종료 직전에 호출) */
@@ -418,6 +419,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setFilter,
       account,
       refreshAccount: async () => setAccount(await boot.sync.account()),
+      deleteAccount: async () => {
+        await flushAll();
+        await boot.sync.deleteAccount();
+        if (saveTimer.current) clearTimeout(saveTimer.current);
+        session.current = { lastFolder: null, drafts: {} };
+        setDrafts({});
+        setFilterState(null);
+        setAccount(null);
+        setPrefs({ lock: { enabled: false, visibility: 'private' } });
+        await native.refresh();
+      },
       toast,
       showToast: setToast,
       registerFlush,

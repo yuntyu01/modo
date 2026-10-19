@@ -5,7 +5,7 @@ import { ja } from './locales/ja';
 import { zh } from './locales/zh';
 
 const ko = {
-  appTitle: 'modo - 메모와 할 일',
+  appTitle: 'modo',
   tagline: '떠오른 생각과 해야 할 일을 한곳에.',
   nameMeaning: 'Memo + Do, 메모하고 실행하기',
   all: '전체',
@@ -342,7 +342,7 @@ const ko = {
 export type StringKey = keyof typeof ko;
 
 const en: Record<StringKey, string> = {
-  appTitle: 'modo - Simple Memo & ToDo',
+  appTitle: 'modo',
   tagline: 'Simple, modern Memo & ToDo.',
   nameMeaning: 'Memo + Do',
   all: 'All',

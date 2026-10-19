@@ -1,4 +1,4 @@
-// Platform icon encoding from the current icon source (restored original symbol).
+// Deterministic platform encodings of the user-approved icon source; never redraw it.
 // Run: node app/scripts/generate-icons.cjs (from any directory).
 const fs = require('node:fs/promises');
 const path = require('node:path');
@@ -18,15 +18,18 @@ async function main() {
   const bytes = await fs.readFile(source);
   const image = await Jimp.read(bytes);
   if (image.bitmap.width !== image.bitmap.height) throw new Error('Icon source must be square');
+  const background = image.getPixelColor(0, 0);
   await write(path.join(assets, 'icon.png'), resize(image, 1024));
+  await write(path.join(assets, 'brand/store-icon-512.png'), resize(image, 512));
   await write(path.join(assets, 'favicon.png'), resize(image, 64));
   // Adaptive artwork is 108dp; its normal visible viewport is the middle 72dp.
-  const contentSize = Math.round(1024 * 72 / 108);
+  // A wide mark also needs a little inset within the circular 66dp safe zone.
+  const contentSize = Math.round(1024 * 66 / 108);
   const offset = Math.floor((1024 - contentSize) / 2);
   const foreground = new Jimp(1024, 1024, 0x00000000);
   foreground.composite(resize(image, contentSize), offset, offset);
   await write(path.join(assets, 'android-icon-foreground.png'), foreground);
-  await write(path.join(assets, 'android-icon-background.png'), new Jimp(1024, 1024, 0x121212ff));
+  await write(path.join(assets, 'android-icon-background.png'), new Jimp(1024, 1024, background));
   // Android's themed variant uses the blue mark's coverage as a white alpha mask.
   const mono = image.clone();
   mono.scan(0, 0, mono.bitmap.width, mono.bitmap.height, function (_x, _y, i) {

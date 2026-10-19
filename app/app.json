@@ -18,7 +18,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#0E0F11",
+        "backgroundColor": "#292929",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -100,7 +100,9 @@
         {
           "android": {
             "usesCleartextTraffic": false,
-            "extraMavenRepos": ["https://devrepo.kakao.com/nexus/content/groups/public/"],
+            "extraMavenRepos": [
+              "https://devrepo.kakao.com/nexus/content/groups/public/"
+            ],
             "targetSdkVersion": 36,
             "compileSdkVersion": 36
           }

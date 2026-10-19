@@ -1,8 +1,8 @@
 # modo
 
-앱 이름은 **modo - 메모와 할 일**, 앱 안 로고는 **modo**, 소개 문구는 **떠오른 생각과 해야 할 일을 한곳에.** 영문 앱 이름은 **modo - Simple Memo & ToDo** (끝에 마침표 없음), 영문 홍보 문구는 **Simple, modern Memo & ToDo.** 이름은 Memo + Do, 메모하고 실행하기. 로고는 받은 시안(파란 m + 체크 심볼과 둥근 글자 modo): 심볼은 시안에 맞춰 다시 그린 벡터 선 경로(`app/src/ui/Logo.tsx`, 시안과 겹침 96.8%), 글자는 시안에서 오린 이미지(`app/assets/brand/modo-wordmark.png`).
+설치 후 홈 화면·앱 목록·위젯 목록의 앱 이름과 앱 안 로고는 **modo**입니다. 한국어 스토어 이름은 **modo - 메모와 할 일**, 소개 문구는 **떠오른 생각과 해야 할 일을 한곳에.** 영문 스토어 이름은 **modo - Simple Memo & ToDo** (끝에 마침표 없음), 영문 홍보 문구는 **Simple, modern Memo & ToDo.** 이름은 Memo + Do, 메모하고 실행하기. 로고는 받은 시안(파란 m + 체크 심볼과 둥근 글자 modo): 심볼은 시안에 맞춰 다시 그린 벡터 선 경로(`app/src/ui/Logo.tsx`, 시안과 겹침 96.8%), 글자는 시안에서 오린 이미지(`app/assets/brand/modo-wordmark.png`).
 
-영문 앱 이름은 공백·기호를 포함해 25자로 Google Play의 30자 제목 제한에 맞는다([공식 제목 규격](https://support.google.com/googleplay/android-developer/answer/9859152?hl=en)). 스토어 등록정보를 저장한 것과 실제 게시 완료는 구분한다. 설치 패키지 식별자와 로컬 데이터 경로용 짧은 이름은 `modo`를 사용한다.
+영문 스토어 이름은 공백·기호를 포함해 25자로 Google Play의 30자 제목 제한에 맞는다([공식 제목 규격](https://support.google.com/googleplay/android-developer/answer/9859152?hl=en)). 스토어 등록정보를 저장한 것과 실제 게시 완료는 구분한다. 설치 이름은 Expo `name`으로 설정하고 스토어 제목은 Play Console에서 별도로 관리한다. 설치 패키지 식별자는 `com.yuntyu01.naegirok`을 유지한다.
 
 할 일과 메모를 한 화면에서 쓰는 앱. Android·iOS(React Native/Expo), Windows 데스크톱 미니창(Electron), 동기화·공유 서버(Go + PostgreSQL).
 모든 기능 무료(개수 제한·Pro·결제·광고 없음).

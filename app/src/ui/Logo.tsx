@@ -2,22 +2,22 @@ import { Image, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
 import { BRAND } from '../brand';
+import symbol from '../../assets/brand/symbol-path.json';
 
 /**
- * 로고. 심볼(m + 체크)은 받은 로고를 선 경로로 다시 그린 벡터, 글자 modo는 받은 로고에서 오린 이미지.
- * 배치(심볼 높이 : 글자 높이 : 사이 = 201 : 266 : 83, 아래 맞춤)도 받은 로고와 같다.
+ * 로고. 심볼은 사용자가 제공한 최신 이미지의 외곽선, 글자 modo는 기존 워드마크.
+ * 기존 modo 워드마크의 높이·간격·아래 맞춤 배치는 유지한다.
  */
-const D = 'M124.5 794.5V764.5A173.5 173.5 0 0 1 471.5 764.5V796.2M496 796.2V764.5A173.5 173.5 0 0 1 843 764.5V779.5L883 798L1127.5 511.5';
-const VB = '51.8 438.8 1148.5 432';
-/** 심볼 선 경로·보이는 범위(다른 그림 안에 심볼을 넣을 때: ui/HowToArt.tsx) */
-export const MARK_PATH = { d: D, x: 51.8, y: 438.8, width: 1148.5, height: 432, stroke: 145.5 };
-const ASPECT = 2.6586;
+/** 동일한 닫힌 외곽선을 앱 로고·안내 그림·네이티브 위젯이 공유한다. */
+export const MARK_PATH = { d: symbol.d, x: symbol.x, y: symbol.y, width: symbol.width, height: symbol.height };
+const VB = `${MARK_PATH.x} ${MARK_PATH.y} ${MARK_PATH.width} ${MARK_PATH.height}`;
+const ASPECT = MARK_PATH.width / MARK_PATH.height;
 const WORD_ASPECT = 894 / 278;
 
 export function Mark({ height, color = BRAND }: { height: number; color?: string }) {
   return (
     <Svg width={height * ASPECT} height={height} viewBox={VB}>
-      <Path d={D} stroke={color} strokeWidth={145.5} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      <Path d={MARK_PATH.d} fill={color} />
     </Svg>
   );
 }

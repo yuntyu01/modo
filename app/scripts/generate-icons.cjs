@@ -19,7 +19,13 @@ async function main() {
   const image = await Jimp.read(bytes);
   if (image.bitmap.width !== image.bitmap.height) throw new Error('Icon source must be square');
   const background = image.getPixelColor(0, 0);
+  const rgba = Jimp.intToRGBA(background);
+  const configFile = path.join(root, 'app/app.json');
+  const config = JSON.parse(await fs.readFile(configFile, 'utf8'));
+  config.expo.android.adaptiveIcon.backgroundColor = '#' + [rgba.r, rgba.g, rgba.b].map(n => n.toString(16).padStart(2, '0')).join('');
+  await fs.writeFile(configFile, JSON.stringify(config, null, 2) + '\n');
   await write(path.join(assets, 'icon.png'), resize(image, 1024));
+  await write(path.join(assets, 'splash-icon.png'), resize(image, 1024));
   await write(path.join(assets, 'brand/store-icon-512.png'), resize(image, 512));
   await write(path.join(assets, 'favicon.png'), resize(image, 64));
   // Adaptive artwork is 108dp; its normal visible viewport is the middle 72dp.

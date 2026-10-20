@@ -233,19 +233,29 @@ CREATE TABLE IF NOT EXISTS share_links (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS share_links_folder ON share_links (folder_id);
+-- 공유받은 폴더를 내 홈(목록 탭)에도 보일지: 참여자 각자의 설정. 숨겨도 공유는 그대로(함께 탭에는 보인다)
+ALTER TABLE folder_members ADD COLUMN IF NOT EXISTS home BOOLEAN NOT NULL DEFAULT true;
 
 -- ---------- 친구 ----------
 -- 친구는 폴더 공유(folder_members)와 따로다: 친구가 되어도 공유한 폴더만 보이고, 친구를 끊어도 공유는 그대로다.
 -- 요청: 보낸 사람 → 받는 사람 한 쌍에 하나. 수락하면 지우고 friendships에 한 줄. 거절·취소는 지우기만(알리지 않는다).
+-- 요청은 상태와 처리 시각을 남긴다(수락·거절·취소). 닫힌 요청은 30일 뒤 지운다(Cleanup).
 CREATE TABLE IF NOT EXISTS friend_requests (
-    id         UUID PRIMARY KEY,
-    from_id    UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    to_id      UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE (from_id, to_id),
+    id           UUID PRIMARY KEY,
+    from_id      UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    to_id        UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    status       TEXT        NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'declined', 'cancelled')),
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    responded_at TIMESTAMPTZ,
     CHECK (from_id <> to_id)
 );
-CREATE INDEX IF NOT EXISTS friend_requests_to ON friend_requests (to_id);
+ALTER TABLE friend_requests ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pending';
+ALTER TABLE friend_requests ADD COLUMN IF NOT EXISTS responded_at TIMESTAMPTZ;
+ALTER TABLE friend_requests DROP CONSTRAINT IF EXISTS friend_requests_from_id_to_id_key;
+-- 한 쌍(방향과 상관없이)에 대기 중인 요청은 하나: 서로 동시에 보내도 하나만 남는다
+CREATE UNIQUE INDEX IF NOT EXISTS friend_requests_pending_pair ON friend_requests (LEAST(from_id, to_id), GREATEST(from_id, to_id)) WHERE status = 'pending';
+CREATE INDEX IF NOT EXISTS friend_requests_to_pending ON friend_requests (to_id) WHERE status = 'pending';
+CREATE INDEX IF NOT EXISTS friend_requests_from_created ON friend_requests (from_id, created_at);
 -- 친구 한 쌍은 한 줄(작은 id가 a). 계정을 지우면 함께 지워진다.
 CREATE TABLE IF NOT EXISTS friendships (
     a          UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,

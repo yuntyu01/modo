@@ -13,11 +13,12 @@ import { inputColors } from '../../ui/theme';
 type Role = 'view' | 'edit';
 type Member = { user_id: string; email: string; name: string; role: Role };
 type Link = { token: string; link_path: string };
-type Shares = { members: Member[]; links: Link[] };
+type Shares = { owner?: { id: string; email: string; name: string }; can_manage?: boolean; my_role?: 'owner' | Role; members: Member[]; links: Link[] };
 
 /**
  * 폴더 공유(시안): 초대(이메일 + 권한 + 초대하기) → 함께하는 사람(나 소유자, 초대한 사람 권한) →
  * 링크 공유(보기 전용 링크 켜기/끄기, 링크 복사) → 공유 중지. 권한은 서버가 다시 확인한다.
+ * 공유받은 사람(참여자)에게는 누가 함께하는지와 권한만 보이고(바꾸기는 소유자만), '공유 폴더 나가기'가 있다.
  */
 export default function ShareFolder() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -29,6 +30,8 @@ export default function ShareFolder() {
   const [error, setError] = useState<string | null>(null);
   const [roleSheet, setRoleSheet] = useState<{ member?: Member } | null>(null);
   const [confirmStop, setConfirmStop] = useState(false);
+  const [confirmLeave, setConfirmLeave] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
   // 화면을 닫은 뒤 늦게 온 응답은 버린다
   const alive = useRef(true);
@@ -47,6 +50,7 @@ export default function ShareFolder() {
         const s = await sync.shareApi<Shares>(`/api/folders/${id}/shares`);
         if (!alive.current) return;
         setShares(s);
+        setLoaded(true);
         setError(null);
       } catch (e) {
         if (alive.current) setError(errorText(e, t));
@@ -99,6 +103,63 @@ export default function ShareFolder() {
     </View>
   );
   const okEmail = email.includes('@');
+
+  // 참여자: 함께하는 사람과 권한만 보고, 나갈 수 있다(바꾸기·초대·링크는 소유자만, 서버도 막는다)
+  if ((loaded && shares.can_manage === false) || snap.shared.some((s) => s.folder_id === id)) {
+    const owner = shares.owner;
+    return (
+      <SubScreen title={t('shareFolderTitle', { name })}>
+        {error ? <Text style={theme.kfont(14, { color: theme.danger, marginHorizontal: 6, marginBottom: 14 })}>{error}</Text> : null}
+        <Text style={[styles.label, theme.kfont(14.5, { color: theme.tab })]}>{t('members')}</Text>
+        <View style={[styles.card, { backgroundColor: theme.card, paddingBottom: 3 }]}>
+          {owner ? (
+            <View style={styles.person}>
+              {avatar}
+              <Text style={theme.kfont(16.5, { color: theme.text, flex: 1, marginLeft: 11 })} numberOfLines={1}>
+                {owner.name || owner.email}
+              </Text>
+              <Text style={theme.kfont(14, { color: theme.subtle })}>{t('owner')}</Text>
+            </View>
+          ) : null}
+          {shares.members.map((m) => (
+            <View key={m.user_id}>
+              <View style={[styles.sep, { backgroundColor: theme.dark ? '#2A2D33' : '#E7E9ED' }]} />
+              <View style={styles.person}>
+                {avatar}
+                <Text style={theme.kfont(16.5, { color: theme.text, flex: 1, marginLeft: 11 })} numberOfLines={1}>
+                  {m.user_id === account.id ? t('me') : m.name || m.email}
+                </Text>
+                <Text style={theme.kfont(14, { color: theme.subtle })}>{m.role === 'edit' ? t('editTogether') : t('viewOnly')}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+        <Text style={theme.kfont(13.5, { color: theme.subtle, marginLeft: 7, marginTop: -8, marginBottom: 20 })}>{t('participantsOnly')}</Text>
+        <Pressable onPress={() => setConfirmLeave(true)} hitSlop={10} accessibilityRole="button" style={{ alignSelf: 'flex-start', marginLeft: 7 }}>
+          <Text style={theme.kfont(14.5, { color: theme.danger })}>{t('leaveFolder')}</Text>
+        </Pressable>
+        <ConfirmDialog
+          visible={confirmLeave}
+          title={t('leaveFolderQ', { name })}
+          body={t('leaveFolderBody')}
+          confirmLabel={t('leaveFolder')}
+          danger
+          onClose={() => setConfirmLeave(false)}
+          onConfirm={async () => {
+            try {
+              await sync.shareApi(`/api/folders/${id}/leave`, { method: 'POST' });
+              showToast({ message: t('leftFolder') });
+              router.back();
+              // 다음 동기화가 이 기기의 사본을 치운다
+              void sync.syncNow();
+            } catch (e) {
+              setError(errorText(e, t));
+            }
+          }}
+        />
+      </SubScreen>
+    );
+  }
 
   return (
     <SubScreen title={t('shareFolderTitle', { name })}>

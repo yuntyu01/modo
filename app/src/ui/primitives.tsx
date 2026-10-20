@@ -22,18 +22,23 @@ import { useToast, useUi } from '../state/AppContext';
 import { ChevronIcon } from './Icons';
 import { useSlidingPill } from './motion';
 
-/** 아래에서 올라오는 시트. 상태바·내비게이션 영역을 피한다. soft: 바탕을 화면 바탕색으로(안에 흰 카드를 놓는 시트, 친구 추가 시안) */
-export function Sheet({ visible, onClose, children, soft }: { visible: boolean; onClose: () => void; children: ReactNode; soft?: boolean }) {
+/**
+ * 아래에서 올라오는 시트. 상태바·내비게이션 영역을 피한다. soft: 바탕을 화면 바탕색으로(안에 흰 카드를 놓는 시트, 친구 추가 시안).
+ * dialog: PC(웹)에서는 가운데 뜨는 알맞은 크기의 대화상자로(휴대폰은 그대로 시트)
+ */
+export function Sheet({ visible, onClose, children, soft, dialog }: { visible: boolean; onClose: () => void; children: ReactNode; soft?: boolean; dialog?: boolean }) {
   const { theme, t } = useUi();
   const insets = useSafeAreaInsets();
+  const centered = dialog && Platform.OS === 'web';
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel={t('cancel')}>
+        <Pressable style={[styles.backdrop, centered && { justifyContent: 'center' }]} onPress={onClose} accessibilityLabel={t('cancel')}>
           <Pressable
             style={[
               styles.sheet,
               { backgroundColor: theme.dark ? '#18191C' : soft ? theme.bg : '#FFFFFF', marginBottom: insets.bottom + 10, maxHeight: '86%' },
+              centered && { maxWidth: 460, marginBottom: 0 },
             ]}
           >
             <ScrollView keyboardShouldPersistTaps="handled" bounces={false}>

@@ -35,8 +35,20 @@ function createSyncHost({ db, fetch, device, broadcast, hasVisibleWindow, openAu
   repo.subscribe((_source, tables) => {
     if (touchesData(tables)) broadcast('data-changed', [...tables]);
   });
+  // 친구·요청 목록은 동기화(pull)로 kv 'friends'에 온다. kv는 알리지 않으니, 동기화가 끝났을 때 그 요약이 바뀌었으면 창에 알린다
+  let friendsKey;
+  const checkFriends = async () => {
+    const f = await repo.getKv('friends', null);
+    // 권한이 바뀌어 막힌 글(rejected_texts)이 있어도 알린다(창이 보관할지 묻는다)
+    const lost = (await repo.getKv('rejected_texts', [])).length;
+    const key = f ? `${f.account}:${f.digest}:${lost}` : `:${lost}`;
+    if (key === friendsKey) return;
+    friendsKey = key;
+    broadcast('data-changed', ['friends']);
+  };
   engine.onStatus((st) => {
     broadcast('sync:status', st);
+    if (st.state === 'idle') checkFriends().catch(() => {});
     if (st.state === 'idle' && Date.now() - lastTheme > 60_000) themeSync();
   });
 

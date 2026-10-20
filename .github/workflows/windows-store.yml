@@ -100,7 +100,9 @@ jobs:
           if (-not $file) { Write-Error "dist에 .appx가 없어요"; exit 1 }
           "file=$($file.FullName)" >> $env:GITHUB_OUTPUT
 
-      - uses: actions/upload-artifact@v4
+      # PR에서는 패키지가 만들어지는지만 본다(저장 공간을 쓰지 않게 올리지 않음)
+      - if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
         with:
           name: modo-windows-${{ steps.version.outputs.version }}
           path: |

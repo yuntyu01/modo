@@ -346,7 +346,7 @@ test('v3 DB를 열면 파생 열(owner_id)·version·purged를 없애고 공유 
   const s = await repo.snapshot();
   expect(s.todos.map((t) => t.id)).toEqual(['t1', 't2']);
   expect(s.paragraphs).toHaveLength(0);
-  expect(s.shared).toEqual([{ folder_id: 'theirs', role: 'view', owner: { id: 'owner-1', email: 'owner@example.com', name: '' } }]);
+  expect(s.shared).toEqual([{ folder_id: 'theirs', role: 'view', owner: { id: 'owner-1', email: 'owner@example.com', name: '' }, home: true }]);
   // 공유 캐시가 남아 있어 로그아웃하면 남의 것만 지운다
   await repo.detachFromAccount();
   expect((await repo.snapshot()).todos.map((t) => t.id)).toEqual(['t1']);
@@ -503,4 +503,47 @@ test('v4 DB(루틴 기록 열 전)를 열면 열만 더하고 기존 행·보낼
   const s = await repo.snapshot();
   expect(s.paragraphs.map((p) => p.text)).toEqual(['메모']);
   expect(s.folders.map((f) => f.name)).toEqual(['업무']);
+});
+
+test('내 폴더에 복사: 새 id의 독립된 항목, 미완료·알림 없이, 날짜·반복은 고른 대로, 메모는 덮어쓰지 않고 덧붙인다', async () => {
+  const { repo, db } = await setup();
+  await db.run(`INSERT INTO folders (id, name, position, created_at, updated_at) VALUES ('theirs', '여행', 'V', 1, 1)`);
+  await db.run(
+    `INSERT INTO todos (id, folder_id, text, position, done_at, due_date, repeat_freq, remind_at, created_at, updated_at) VALUES ('t1', 'theirs', '숙소 예약', 'V', 5, '2026-11-01', 'weekly', 99, 1, 1)`,
+  );
+  await repo.sweepForeign(['theirs', 't1'], [{ folder_id: 'theirs', role: 'view', owner: { id: 'o', email: 'o@example.com', name: '' } }]);
+  const mine = await repo.createFolder('내 여행');
+  await repo.appendParagraphs('원래 메모', mine);
+  const src = (await repo.snapshot()).todos.find((x) => x.id === 't1')!;
+
+  await repo.copyItems({ todos: [src], paragraphs: ['같이 갈 곳'], target: mine, keepDates: true, header: '— 여행에서 복사 —' });
+  await repo.copyItems({ todos: [src], paragraphs: [], target: null, keepDates: false });
+  const s = await repo.snapshot();
+  const copies = s.todos.filter((x) => x.text === '숙소 예약' && x.id !== 't1');
+  expect(copies).toHaveLength(2);
+  const kept = copies.find((x) => x.folder_id === mine)!;
+  const bare = copies.find((x) => x.folder_id === null)!;
+  expect([kept.done, kept.remind_at, kept.due_date, kept.repeat_freq]).toEqual([false, null, '2026-11-01', 'weekly']);
+  expect([bare.done, bare.remind_at, bare.due_date, bare.repeat_freq]).toEqual([false, null, null, null]);
+  expect(s.paragraphs.filter((p) => p.folder_id === mine).map((p) => p.text)).toEqual(['원래 메모', '— 여행에서 복사 —', '같이 갈 곳']);
+  // 원본은 그대로(공유 폴더의 항목은 바뀌지 않고, 복사본은 내 것이라 보낼 큐에 오른다)
+  expect(s.todos.find((x) => x.id === 't1')!.done).toBe(true);
+  const sent = (await outbox(repo)).map((o) => o.entity_id);
+  expect(sent).toContain(kept.id);
+  expect(sent).not.toContain('t1');
+});
+
+test('공유 폴더의 홈 표시는 참여자 각자의 설정: 동기화로 받고, 서버가 받아들이면 이 기기에도 바로', async () => {
+  const { repo, db } = await setup();
+  await db.run(`INSERT INTO folders (id, name, position, created_at, updated_at) VALUES ('f', '장보기', 'V', 1, 1)`);
+  const owner = { id: 'o', email: 'o@example.com', name: '' };
+  await repo.sweepForeign(['f'], [{ folder_id: 'f', role: 'edit', owner, home: false }]);
+  expect((await repo.snapshot()).shared.map((x) => [x.folder_id, x.home])).toEqual([['f', false]]);
+  await repo.setSharedHome('f', true);
+  expect((await repo.snapshot()).shared[0].home).toBe(true);
+  // 예전 서버(home을 보내지 않음)는 늘 보이게
+  await repo.sweepForeign(['f'], [{ folder_id: 'f', role: 'edit', owner }]);
+  expect((await repo.snapshot()).shared[0].home).toBe(true);
+  // 홈 표시는 내 설정이라 보낼 큐에 오르지 않는다
+  expect(await outbox(repo)).toEqual([]);
 });

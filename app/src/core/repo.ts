@@ -179,6 +179,9 @@ export class Repo {
     if (!cols.has('done_log')) await this.addColumns(MIGRATE_V5);
     await this.migrateV4();
     await this.db.exec(SCHEMA_SHARED);
+    // 공유받은 폴더를 내 홈에 보일지(2026-10-20). 공유 표는 동기화 때마다 다시 채워 버전을 올리지 않는다
+    const sharedCols = new Set((await this.db.all<{ name: string }>(`PRAGMA table_info(shared_folders)`)).map((c) => c.name));
+    if (!sharedCols.has('home')) await this.addColumns(`ALTER TABLE shared_folders ADD COLUMN home INTEGER NOT NULL DEFAULT 1`);
     // 예전 버전이 받은 행에는 새 열(반복 등)이 비어 있다. 버전이 오르면 한 번 처음부터 다시 받아 채운다.
     // (위젯이 앱보다 먼저 열을 추가했을 수도 있어 열 유무가 아니라 저장된 버전으로 판단한다)
     const prev = await this.getKv<number>('schema_version', 0);
@@ -322,12 +325,13 @@ export class Repo {
       if (part.shared) {
         const next: SharedFolder[] = (
           await this.db.all<Row>(
-            `SELECT s.folder_id, s.role, s.owner_id, p.email, p.name FROM shared_folders s LEFT JOIN people p ON p.id = s.owner_id ORDER BY s.folder_id`,
+            `SELECT s.folder_id, s.role, s.owner_id, s.home, p.email, p.name FROM shared_folders s LEFT JOIN people p ON p.id = s.owner_id ORDER BY s.folder_id`,
           )
         ).map((r) => ({
           folder_id: r.folder_id as string,
           role: r.role as SharedFolder['role'],
           owner: { id: r.owner_id as string, email: (r.email as string) ?? '', name: (r.name as string) ?? '' },
+          home: r.home !== 0,
         }));
         if (!same(prev.shared, next)) shared = next;
       }
@@ -467,6 +471,48 @@ export class Repo {
       return id;
     });
   }
+  /** 공유받은 폴더를 내 홈에 보일지(서버가 받아들인 뒤에만 부른다. 다음 동기화가 같은 값을 다시 준다) */
+  setSharedHome(folderId: string, home: boolean) {
+    return this.write(() => this.db.run(`UPDATE shared_folders SET home = ? WHERE folder_id = ?`, [home ? 1 : 0, folderId]));
+  }
+
+  /**
+   * 내 폴더에 복사: 새 id의 독립된 항목으로(이후 원본과 동기화되지 않는다). 할 일은 미완료·알림 없이 시작하고,
+   * keepDates면 예정일·반복도 가져간다. 메모는 대상 메모를 덮어쓰지 않고 header 줄 뒤에 덧붙인다.
+   * 공유 권한·참여자·수정·완료 기록은 가져가지 않는다. 돌려주는 값: 만든 할 일·문단 수
+   */
+  copyItems(o: {
+    todos: { text: string; due_date?: string | null; repeat_freq?: Todo['repeat_freq']; repeat_days?: number | null }[];
+    paragraphs: string[];
+    target: string | null;
+    keepDates: boolean;
+    header?: string;
+  }) {
+    return this.write(async () => {
+      const t = this.now();
+      let last = await this.edgeKey('todos', '1 = 1', [], 'last');
+      for (const x of o.todos) {
+        last = keyBetween(last, null);
+        await this.insert('todo', {
+          id: this.newId(),
+          folder_id: o.target,
+          text: x.text,
+          position: last,
+          ...(o.keepDates ? { due_date: x.due_date ?? null, repeat_freq: x.repeat_freq ?? null, repeat_days: x.repeat_days ?? null } : null),
+          created_at: t,
+          updated_at: t,
+        });
+      }
+      const lines = o.paragraphs.length && o.header ? [o.header, ...o.paragraphs] : o.paragraphs;
+      let plast = await this.edgeKey('paragraphs', '1 = 1', [], 'last');
+      for (const line of lines) {
+        plast = keyBetween(plast, null);
+        await this.insert('paragraph', { id: this.newId(), folder_id: o.target, text: line, position: plast, created_at: t, updated_at: t });
+      }
+      return o.todos.length + lines.length;
+    });
+  }
+
   renameFolder(id: string, name: string) {
     return this.write(() => this.patch('folder', id, { name: name.trim() }));
   }
@@ -844,7 +890,7 @@ export class Repo {
     // 화면 다시 읽기·위젯 갱신·다른 창 알림을 일으켰다(2026-10-18 측정). 실제로 바뀔 때만 아래 쓰기를 탄다.
     const changed = await this.read(async () => {
       const keep = new Set(visibleForeign ?? []);
-      const before = await this.db.all<{ folder_id: string; role: string; owner_id: string }>(`SELECT folder_id, role, owner_id FROM shared_folders ORDER BY folder_id`);
+      const before = await this.db.all<{ folder_id: string; role: string; owner_id: string; home: number }>(`SELECT folder_id, role, owner_id, home FROM shared_folders ORDER BY folder_id`);
       const people = await this.db.all<{ id: string; email: string; name: string }>(`SELECT id, email, name FROM people ORDER BY id`);
       const past = await this.getKv<string[]>('past_shared', []);
       const folders = [...new Set([...past, ...before.map((r) => r.folder_id), ...shared.map((x) => x.folder_id)])];
@@ -859,8 +905,8 @@ export class Repo {
       );
       return (
         !same(
-          before.map((r) => [r.folder_id, r.role, r.owner_id]),
-          want.map((x) => [x.folder_id, x.role, x.owner.id]),
+          before.map((r) => [r.folder_id, r.role, r.owner_id, r.home !== 0]),
+          want.map((x) => [x.folder_id, x.role, x.owner.id, x.home !== false]),
         ) || !same(people.map((r) => [r.id, r.email, r.name]), wantPeople.map((r) => [r.id, r.email, r.name]))
       );
     });
@@ -891,7 +937,7 @@ export class Repo {
       await this.db.run(`DELETE FROM shared_folders`);
       await this.db.run(`DELETE FROM people`);
       for (const s of shared) {
-        await this.db.run(`INSERT INTO shared_folders (folder_id, role, owner_id) VALUES (?, ?, ?)`, [s.folder_id, s.role, s.owner.id]);
+        await this.db.run(`INSERT INTO shared_folders (folder_id, role, owner_id, home) VALUES (?, ?, ?, ?)`, [s.folder_id, s.role, s.owner.id, s.home === false ? 0 : 1]);
         await this.db.run(`INSERT OR REPLACE INTO people (id, email, name) VALUES (?, ?, ?)`, [s.owner.id, s.owner.email ?? '', s.owner.name ?? '']);
       }
     }, 'remote');

@@ -188,7 +188,7 @@ export function FolderBody({
             isDraggable={(b) => isOrdered(b) && b.kind === 'todo' && canWrite(b.todo.folder_id)}
             renderBlock={renderBlock}
             onMove={onMove}
-            bottomPad={composerH + navInset + 16}
+            bottomPad={(writable ? composerH : 0) + navInset + 16}
             header={memo ?? undefined}
             footer={
               search && blocks.length === 0 && !paragraphs.length ? (
@@ -199,7 +199,9 @@ export function FolderBody({
         </Animated.View>
       </BlurTargetView>
       {/* 입력창·하단바 줄과 그 아래로 내려간 목록은 점점 희미하게 */}
-      {Platform.OS !== 'web' ? <BottomFade height={composerH + navInset + 28} /> : null}
+      {Platform.OS !== 'web' ? <BottomFade height={(writable ? composerH : 0) + navInset + 28} /> : null}
+      {/* 보기만 공유된 폴더는 입력창을 두지 않는다(카드의 체크도 잠긴다. 서버도 쓰기를 거절한다) */}
+      {writable ? (
       <View
         pointerEvents="box-none"
         onLayout={(e) => setComposerH(e.nativeEvent.layout.height)}
@@ -232,6 +234,7 @@ export function FolderBody({
           </View>
         </BlurTargetContext.Provider>
       </View>
+      ) : null}
     </>
   );
 }

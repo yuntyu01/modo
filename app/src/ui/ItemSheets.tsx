@@ -1,10 +1,12 @@
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { Folder } from '../core/types';
 import { native } from '../native/bridge';
+import { errorText } from '../i18n';
 import { useApp, useUi } from '../state/AppContext';
+import { useFriends } from '../state/friends';
 import { ruleOf } from '../core/repeat';
 import { describeRepeat, formatDate, formatDateTime, localDate, parseLocalDate } from './format';
 import { BellIcon, CalendarIcon, ChevronIcon, EditIcon, FolderIcon, PeopleIcon, RepeatIcon, ShareIcon, TrashIcon } from './Icons';
@@ -12,6 +14,8 @@ import { MonthGrid } from './MonthGrid';
 import { ConfirmDialog, InfoRow, PromptDialog, Sheet, SheetButton, SheetTitle } from './primitives';
 import { RepeatSheet } from './RepeatSheet';
 import { folderAsText, shareText } from './share';
+import { CopySheet } from './together/CopySheet';
+import { FriendShareSheet, joinNames } from './together/ShareSheets';
 
 export type SheetState =
   | { type: 'todo'; id: string }
@@ -24,12 +28,20 @@ export type SheetState =
   | { type: 'rename'; id: string }
   | { type: 'deleteFolder'; id: string }
   | { type: 'newFolder' }
+  /** 내 폴더를 친구에게 공유(친구 고르기 + 보기만/함께 편집) */
+  | { type: 'shareFriend'; id: string }
+  /** 공유받은 폴더(또는 그 안의 할 일)를 내 폴더에 복사 */
+  | { type: 'copy'; folderId: string; todoIds?: string[] }
+  /** 공유 폴더 나가기(참여자) */
+  | { type: 'leave'; id: string }
   | null;
 
 export function ItemSheets({ state, setState }: { state: SheetState; setState: (s: SheetState) => void }) {
   const app = useApp();
   const { snap, repo, t, theme, showToast, canWrite, setFilter, filter, lang } = app;
+  const friends = useFriends();
   const close = () => setState(null);
+  const foreign = (folderId: string | null) => !!folderId && snap.shared.some((s) => s.folder_id === folderId);
   const folderName = (id: string | null) => (id ? (snap.folders.find((f) => f.id === id)?.name ?? t('baseFolder')) : t('baseFolder'));
 
   const trashWithUndo = async (entity: 'todo' | 'paragraph', id: string) => {
@@ -45,6 +57,14 @@ export function ItemSheets({ state, setState }: { state: SheetState; setState: (
   const todo = state && 'id' in state ? snap.todos.find((x) => x.id === state.id) : undefined;
   const para = state && 'id' in state ? snap.paragraphs.find((x) => x.id === state.id) : undefined;
   const folder = state && 'id' in state ? snap.folders.find((x) => x.id === state.id) : undefined;
+  const sharedWith = folder ? friends.data.friends.filter((f) => f.folders.some((ff) => ff.folder_id === folder.id && ff.mine)) : [];
+  // 복사 시트에 넘기는 것은 열려 있는 동안 같은 객체(시트가 열릴 때마다 처음 상태로 맞춘다)
+  const copyKey = state?.type === 'copy' ? `${state.folderId}|${state.todoIds?.join(',') ?? ''}` : '';
+  const copySource = useMemo(() => {
+    if (!copyKey) return null;
+    const [folderId, ids] = copyKey.split('|');
+    return { folderId, todoIds: ids ? ids.split(',') : undefined };
+  }, [copyKey]);
 
   return (
     <>
@@ -69,10 +89,19 @@ export function ItemSheets({ state, setState }: { state: SheetState; setState: (
                 <SheetButton icon={<BellIcon color={theme.text} size={20} />} label={t('setReminder')} onPress={() => setState({ type: 'remind', id: todo.id })} />
                 <SheetButton icon={<RepeatIcon color={theme.text} size={20} />} label={t('repeat')} onPress={() => setState({ type: 'repeat', id: todo.id })} />
                 <SheetButton icon={<ShareIcon color={theme.text} size={20} />} label={t('share')} onPress={() => doShare(todo.text)} />
+                {foreign(todo.folder_id) ? (
+                  <SheetButton icon={<FolderIcon color={theme.text} size={20} />} label={t('copyToMine')} onPress={() => setState({ type: 'copy', folderId: todo.folder_id ?? '', todoIds: [todo.id] })} />
+                ) : null}
                 <SheetButton icon={<TrashIcon color={theme.danger} size={20} />} label={t('delete')} danger onPress={() => trashWithUndo('todo', todo.id)} />
               </>
             ) : (
-              <SheetButton icon={<ShareIcon color={theme.text} size={20} />} label={t('share')} onPress={() => doShare(todo.text)} />
+              <>
+                <SheetButton icon={<ShareIcon color={theme.text} size={20} />} label={t('share')} onPress={() => doShare(todo.text)} />
+                {/* 보기만 공유된 할 일도 내 폴더로 독립 복사할 수 있다 */}
+                {foreign(todo.folder_id) ? (
+                  <SheetButton icon={<FolderIcon color={theme.text} size={20} />} label={t('copyToMine')} onPress={() => setState({ type: 'copy', folderId: todo.folder_id ?? '', todoIds: [todo.id] })} />
+                ) : null}
+              </>
             )}
           </>
         ) : null}
@@ -159,9 +188,40 @@ export function ItemSheets({ state, setState }: { state: SheetState; setState: (
               router.push({ pathname: '/share/[id]', params: { id: folder.id } });
             }}
             onDelete={() => setState({ type: 'deleteFolder', id: folder.id })}
+            onShareFriend={() => setState({ type: 'shareFriend', id: folder.id })}
+            onCopy={() => setState({ type: 'copy', folderId: folder.id })}
+            onLeave={() => setState({ type: 'leave', id: folder.id })}
+            onHome={(home) => {
+              close();
+              friends
+                .setHome(folder.id, home)
+                .then(() => showToast({ message: home ? t('shownOnHome') : t('hiddenFromHome') }))
+                .catch((e: unknown) => showToast({ message: errorText(e, t) }));
+            }}
           />
         ) : null}
       </Sheet>
+
+      <FriendShareSheet open={state?.type === 'shareFriend'} folderId={state?.type === 'shareFriend' ? state.id : null} onClose={close} />
+      <CopySheet source={copySource} onClose={close} />
+      <ConfirmDialog
+        visible={state?.type === 'leave' && !!folder}
+        title={t('leaveFolderQ', { name: folder?.name ?? '' })}
+        body={t('leaveFolderBody')}
+        confirmLabel={t('leaveFolder')}
+        danger
+        onConfirm={async () => {
+          if (!folder) return;
+          try {
+            await friends.leave(folder.id);
+            if (filter === folder.id) setFilter(null);
+            showToast({ message: t('leftFolder') });
+          } catch (e) {
+            showToast({ message: errorText(e, t) });
+          }
+        }}
+        onClose={close}
+      />
 
       <PromptDialog
         visible={state?.type === 'newFolder'}
@@ -181,8 +241,9 @@ export function ItemSheets({ state, setState }: { state: SheetState; setState: (
       <ConfirmDialog
         visible={state?.type === 'deleteFolder' && !!folder}
         title={t('deleteFolderQ', { name: folder?.name ?? '' })}
-        body={t('deleteFolderBody')}
-        confirmLabel={t('delete')}
+        // 친구와 함께 쓰는 내 폴더면 누가 더 이상 볼 수 없게 되는지 함께 보인다
+        body={sharedWith.length ? `${t('deleteSharedBody', { names: joinNames(sharedWith) })} ${t('deleteFolderBody')}` : t('deleteFolderBody')}
+        confirmLabel={sharedWith.length ? t('deleteFolderAll') : t('delete')}
         danger
         onConfirm={async () => {
           if (!folder) return;
@@ -321,29 +382,48 @@ function Chip({ label, onPress, color }: { label: string; onPress: () => void; c
   );
 }
 
+/**
+ * 폴더 메뉴. 내 폴더: 이름 바꾸기·글로 공유·친구에게 공유·계정으로 공유(공유 관리)·삭제.
+ * 공유받은 폴더: 글로 공유·공유 관리(참여자 보기)·홈에서 숨기기(내 설정만, 공유는 그대로)·내 폴더에 복사·공유 폴더 나가기(셋을 분명히 나눈다).
+ */
 function FolderMenu({
   folder,
   onRename,
   onShareText,
   onShareAccount,
   onDelete,
+  onShareFriend,
+  onCopy,
+  onLeave,
+  onHome,
 }: {
   folder: Folder;
   onRename: () => void;
   onShareText: () => void;
   onShareAccount: () => void;
   onDelete: () => void;
+  onShareFriend: () => void;
+  onCopy: () => void;
+  onLeave: () => void;
+  onHome: (home: boolean) => void;
 }) {
   const { theme, t, snap, serverApi, account } = useApp();
-  const mine = !snap.shared.some((s) => s.folder_id === folder.id);
+  const shared = snap.shared.find((s) => s.folder_id === folder.id);
+  // 친구·계정 공유는 서버가 있어야 해서 서버에 닿고 로그인했을 때만
+  const online = !!serverApi && !!account;
   return (
     <>
       <SheetTitle title={t('folder')} subtitle={folder.name} />
-      {mine ? <SheetButton icon={<EditIcon color={theme.text} size={20} />} label={t('rename')} onPress={onRename} /> : null}
+      {!shared ? <SheetButton icon={<EditIcon color={theme.text} size={20} />} label={t('rename')} onPress={onRename} /> : null}
       <SheetButton icon={<ShareIcon color={theme.text} size={20} />} label={t('shareText')} onPress={onShareText} />
-      {/* 계정으로 함께 쓰기는 서버가 있어야 해서 서버에 닿고 로그인했을 때만 */}
-      {mine && serverApi && account ? <SheetButton icon={<PeopleIcon color={theme.text} size={20} />} label={t('shareAccount')} onPress={onShareAccount} /> : null}
-      {mine ? <SheetButton icon={<TrashIcon color={theme.danger} size={20} />} label={t('delete')} danger onPress={onDelete} /> : null}
+      {!shared && online ? <SheetButton icon={<PeopleIcon color={theme.text} size={20} />} label={t('shareToFriend')} onPress={onShareFriend} /> : null}
+      {online ? <SheetButton icon={<PeopleIcon color={theme.text} size={20} />} label={shared ? t('manageSharing') : t('shareAccount')} onPress={onShareAccount} /> : null}
+      {shared && online ? (
+        <SheetButton icon={<FolderIcon color={theme.text} size={20} />} label={shared.home === false ? t('showOnHome') : t('hideFromHome')} onPress={() => onHome(shared.home === false)} />
+      ) : null}
+      {shared ? <SheetButton icon={<FolderIcon color={theme.text} size={20} />} label={t('copyToMine')} onPress={onCopy} /> : null}
+      {!shared ? <SheetButton icon={<TrashIcon color={theme.danger} size={20} />} label={t('delete')} danger onPress={onDelete} /> : null}
+      {shared && online ? <SheetButton icon={<TrashIcon color={theme.danger} size={20} />} label={t('leaveFolder')} danger onPress={onLeave} /> : null}
     </>
   );
 }

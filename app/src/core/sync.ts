@@ -1,6 +1,6 @@
 import { CodedError } from './errors';
 import type { Repo } from './repo';
-import type { EntityName, SharedFolder } from './types';
+import type { EntityName, FriendsData, SharedFolder } from './types';
 
 /** email은 카카오 계정이면 비어 있을 수 있다(이메일 동의를 안 했을 때). 그때는 name을 보여 준다. */
 export type Account = { id: string; email: string; name?: string; token: string; server: string };
@@ -341,7 +341,18 @@ export class SyncEngine {
       if (rejected.length) {
         // 서버가 거절한 변경은 다음 pull에서 서버 상태로 되돌아간다. 몇 건인지 사용자에게 보여준다.
         this.setStatus({ rejected: this.status.rejected + rejected.length });
-        await this.repo.write(() => this.repo.setKv('sync_cursor', 0));
+        // 권한이 바뀌어(예: 함께 편집 → 보기만) 막힌 글은 버리기 전에 남겨 둔다: 화면이 알리고 내 기본 폴더에 보관할 수 있게
+        const byId = new Map(ops.map((o) => [o.op_id, o]));
+        const lost = rejected
+          .filter((x) => x.status === 'forbidden')
+          .map((x) => byId.get(x.op_id))
+          .filter((o): o is NonNullable<typeof o> => !!o && (o.entity === 'todo' || o.entity === 'paragraph') && typeof o.fields.text?.new === 'string')
+          .map((o) => ({ entity: o.entity as 'todo' | 'paragraph', text: o.fields.text!.new as string }))
+          .filter((x) => x.text.trim());
+        await this.repo.write(async () => {
+          await this.repo.setKv('sync_cursor', 0);
+          if (lost.length) await this.repo.setKv('rejected_texts', [...(await this.repo.getKv<{ entity: string; text: string }[]>('rejected_texts', [])), ...lost].slice(-50));
+        });
       }
       await this.repo.ackOutbox(r.results.map((x) => x.op_id));
       // 서버에서 이미 영구 삭제된 항목(백업에서 되살렸거나 오래 꺼져 있던 기기): 여기서도 지운다
@@ -354,6 +365,9 @@ export class SyncEngine {
   private async pullAll(acc: Account) {
     // 지난번 남의 항목 목록 요약: 서버의 것과 같으면 서버가 목록을 빼고 보낸다(빈 동기화마다 공유 폴더 항목 id를 다 받지 않게)
     const fd = await this.repo.getKv<string>('foreign_digest', '');
+    // 친구·요청 목록 요약: 같으면 서버가 목록을 빼고 보낸다(친구 상태도 이 동기화로 받아 창마다 따로 묻지 않는다)
+    const friendsCache = await this.repo.getKv<{ account: string; digest: string } | null>('friends', null);
+    const ffd = friendsCache?.account === acc.id ? friendsCache.digest : '';
     for (;;) {
       const since = await this.repo.getKv<number>('sync_cursor', 0);
       const p = await api<{
@@ -367,7 +381,14 @@ export class SyncEngine {
         foreign_ids?: string[];
         foreign_digest?: string;
         foreign_same?: boolean;
-      }>(this.fetchFn, acc.server, `/api/sync/pull?since=${since}&limit=1000${fd ? `&fd=${encodeURIComponent(fd)}` : ''}`, { token: acc.token });
+        friends?: FriendsData;
+        friends_digest?: string;
+      }>(
+        this.fetchFn,
+        acc.server,
+        `/api/sync/pull?since=${since}&limit=1000${fd ? `&fd=${encodeURIComponent(fd)}` : ''}${ffd ? `&ffd=${encodeURIComponent(ffd)}` : ''}`,
+        { token: acc.token },
+      );
       if (p.folders.length || p.todos.length || p.paragraphs.length || p.deleted?.length) {
         await this.repo.applyRemote(p, this.editing, this.deferred);
       }
@@ -378,6 +399,11 @@ export class SyncEngine {
         const clean = await this.repo.sweepForeign(p.foreign_same ? null : (p.foreign_ids ?? []), p.shared);
         const digest = clean && p.foreign_digest ? p.foreign_digest : '';
         if (digest !== fd) await this.repo.write(() => this.repo.setKv('foreign_digest', digest), 'remote');
+        // 친구 상태가 바뀌었을 때만 온다(계정별로 남겨 인터넷이 없을 때도 마지막 목록을 보인다)
+        if (p.friends && p.friends_digest) {
+          const data = p.friends;
+          await this.repo.write(() => this.repo.setKv('friends', { account: acc.id, digest: p.friends_digest, data }), 'remote');
+        }
         return;
       }
     }

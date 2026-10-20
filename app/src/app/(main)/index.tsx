@@ -54,7 +54,13 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [linkKey]);
 
-  const folders = useMemo(() => liveFolders(snap.folders), [snap.folders]);
+  // 홈에서 숨긴 공유 폴더(내 설정)는 폴더 줄에 두지 않는다. 공유는 그대로라 함께 탭에서 계속 보인다
+  const hidden = useMemo(() => new Set(snap.shared.filter((s) => s.home === false).map((s) => s.folder_id)), [snap.shared]);
+  const folders = useMemo(() => liveFolders(snap.folders).filter((f) => !hidden.has(f.id)), [snap.folders, hidden]);
+  // 보고 있던 폴더를 숨겼으면 기본 폴더로
+  useEffect(() => {
+    if (filter && hidden.has(filter)) setFilter(null);
+  }, [filter, hidden, setFilter]);
   const order = useMemo(() => ['base', ...folders.map((f) => f.id)], [folders]);
   const current = folders.find((f) => f.id === filter) ?? null;
   const sharedIds = useMemo(() => new Set(snap.shared.map((s) => s.folder_id)), [snap.shared]);

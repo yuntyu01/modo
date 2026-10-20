@@ -85,7 +85,12 @@ function MiniWindow() {
     desktop?.isPinned().then(setPinned);
   }, []);
 
-  const folders = liveFolders(snap.folders);
+  // 홈에서 숨긴 공유 폴더는 미니창 폴더 줄에도 두지 않는다(홈에 표시한 공유 폴더는 내 폴더처럼 고르고, 권한은 같게)
+  const folders = liveFolders(snap.folders).filter((f) => snap.shared.find((s) => s.folder_id === f.id)?.home !== false);
+  const hiddenFilter = !!filter && snap.shared.some((s) => s.folder_id === filter && s.home === false);
+  useEffect(() => {
+    if (hiddenFilter) setFilter(null);
+  }, [hiddenFilter, setFilter]);
   // 선택한 폴더의 메모 하나와 그 폴더의 할 일(null = 기본)
   const live = liveFolderIds(snap.folders);
   const inView = (id: string | null) => homeFolder(id, live) === filter;

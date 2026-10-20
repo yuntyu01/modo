@@ -22,8 +22,8 @@ import { useToast, useUi } from '../state/AppContext';
 import { ChevronIcon } from './Icons';
 import { useSlidingPill } from './motion';
 
-/** 아래에서 올라오는 시트. 상태바·내비게이션 영역을 피한다. */
-export function Sheet({ visible, onClose, children }: { visible: boolean; onClose: () => void; children: ReactNode }) {
+/** 아래에서 올라오는 시트. 상태바·내비게이션 영역을 피한다. soft: 바탕을 화면 바탕색으로(안에 흰 카드를 놓는 시트, 친구 추가 시안) */
+export function Sheet({ visible, onClose, children, soft }: { visible: boolean; onClose: () => void; children: ReactNode; soft?: boolean }) {
   const { theme, t } = useUi();
   const insets = useSafeAreaInsets();
   return (
@@ -33,7 +33,7 @@ export function Sheet({ visible, onClose, children }: { visible: boolean; onClos
           <Pressable
             style={[
               styles.sheet,
-              { backgroundColor: theme.dark ? '#18191C' : '#FFFFFF', marginBottom: insets.bottom + 10, maxHeight: '86%' },
+              { backgroundColor: theme.dark ? '#18191C' : soft ? theme.bg : '#FFFFFF', marginBottom: insets.bottom + 10, maxHeight: '86%' },
             ]}
           >
             <ScrollView keyboardShouldPersistTaps="handled" bounces={false}>

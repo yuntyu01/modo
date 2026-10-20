@@ -21,7 +21,8 @@ export function AddFriendSheet({ visible, onClose }: { visible: boolean; onClose
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { incoming, outgoing } = friends.data;
-  const cardBg = theme.dark ? '#22252A' : '#F3F5F9';
+  // 시안: 옅은 바탕 시트 위의 흰 카드
+  const cardBg = theme.dark ? '#22252A' : '#FFFFFF';
 
   const run = async (key: string, fn: () => Promise<void>) => {
     if (busy) return;
@@ -98,7 +99,7 @@ export function AddFriendSheet({ visible, onClose }: { visible: boolean; onClose
   );
 
   return (
-    <Sheet visible={visible} onClose={onClose}>
+    <Sheet visible={visible} onClose={onClose} soft>
       <View style={styles.body}>
         <View style={styles.head}>
           <View style={{ flex: 1 }}>
@@ -110,7 +111,7 @@ export function AddFriendSheet({ visible, onClose }: { visible: boolean; onClose
           </Pressable>
         </View>
 
-        <View style={[styles.search, { backgroundColor: theme.composer }]}>
+        <View style={[styles.search, { backgroundColor: theme.dark ? cardBg : mix(theme.bg, '#C8D2E2', 0.32) }]}>
           <TextInput
             value={email}
             onChangeText={(v) => {

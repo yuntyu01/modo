@@ -1,13 +1,13 @@
 import { Platform, type TextStyle } from 'react-native';
 
-import { BRAND } from '../brand';
+import { BRAND, LOGO_BLUE } from '../brand';
 import type { Prefs, SurfaceTheme } from '../state/prefs';
 import { contrast, ensureContrast, hexToRgb, hsvToRgb, luminance, mix, rgbToHex, rgbToHsv, withAlpha } from './color';
 
 export type Theme = {
   dark: boolean;
   accent: string;
-  /** 로고 심볼 색: '로고도 테마색으로'(기본 켬)면 테마색(흰색·검정처럼 바탕에 묻히는 색만 조금 보정), 끄면 대표색 */
+  /** 기본은 원본 심볼색. '로고도 테마색으로'를 켜고 직접 고른 색은 대비를 보정해 적용한다. */
   mark: string;
   /** 테마색 위 글자/아이콘 색 */
   onAccent: string;
@@ -126,8 +126,8 @@ export function makeTheme(p: Prefs, systemDark: boolean, surface?: SurfaceTheme)
   return {
     dark,
     accent,
-    // 로고 심볼: 테마색과 똑같이(아이콘·선택 표시와 같은 값). 끄면 대표색
-    mark: p.logoAccent === false ? BRAND : accent,
+    // 기본 로고는 원본 심볼색. 직접 고른 테마색은 기존 설정대로 적용한다.
+    mark: p.logoAccent === false || rawAccent.toUpperCase() === BRAND.toUpperCase() ? LOGO_BLUE : accent,
     bg,
     // 테마색 위 체크·화살표: 대표색처럼 중간 밝기는 흰색(시안), 아주 밝은 색만 검정
     onAccent: luminance(accent) > 0.45 ? '#0B0C0E' : '#FFFFFF',

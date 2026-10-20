@@ -16,7 +16,7 @@ export type Pkce = { verifier: string; challenge: string };
 export const SERVICE_ORIGIN = 'https://modo.kodeploy.com';
 export const AUTH_REDIRECT = 'modo://auth';
 /** 서버가 켜 둔 로그인 수단(/api/auth/providers) */
-export type ServerApi = { kakao: boolean; google: boolean; password: boolean };
+export type ServerApi = { kakao: boolean; google: boolean; password: boolean; storeReview?: boolean };
 
 /** 'a=1&b=2' 꼴 쿼리(RN의 URL 구현에 기대지 않는다) */
 export function queryOf(url: string): Record<string, string> {
@@ -149,8 +149,9 @@ export class SyncEngine {
     return this.repo.getKv<Account | null>('account', null);
   }
 
-  async login(server: string, email: string, password: string, register: boolean) {
-    const r = await api<AuthResponse>(this.fetchFn, server, register ? '/api/auth/register' : '/api/auth/login', {
+  async login(server: string, email: string, password: string, register: boolean, storeReview = false) {
+    if (storeReview && register) throw new Error('Review accounts cannot be registered in the app');
+    const r = await api<AuthResponse>(this.fetchFn, server, storeReview ? '/api/auth/review' : register ? '/api/auth/register' : '/api/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password, device: this.device }),
     });
@@ -159,7 +160,7 @@ export class SyncEngine {
 
   /** 서버가 켜 둔 로그인 수단 */
   async providers(server: string) {
-    return api<{ password: boolean; kakao: boolean; google?: boolean }>(this.fetchFn, server, '/api/auth/providers');
+    return api<{ password: boolean; kakao: boolean; google?: boolean; storeReview?: boolean }>(this.fetchFn, server, '/api/auth/providers');
   }
 
   /**

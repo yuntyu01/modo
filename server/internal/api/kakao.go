@@ -53,6 +53,8 @@ type Config struct {
 	// 이메일 가입·로그인을 끈다. 로그인은 Google·카카오만 쓴다(앱에서 이메일 로그인을 없앴다).
 	// 실제 서버는 PASSWORD_LOGIN=1일 때만 켜 둔다(테스트·E2E 서버가 계정을 만들 때). 0값(켬)은 테스트용 Config{}를 위해서
 	PasswordLoginOff bool
+	// Existing store-review account only. Empty disables review login; never permits registration.
+	StoreReviewEmail string
 }
 
 func (c *Config) defaults() {
@@ -85,7 +87,7 @@ func (s *Server) kakaoCallbackURL() string { return s.cfg.PublicURL + "/api/auth
 
 func (s *Server) providers(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	writeJSON(w, http.StatusOK, map[string]bool{"password": !s.cfg.PasswordLoginOff, "kakao": s.kakaoEnabled(), "google": s.googleEnabled()})
+	writeJSON(w, http.StatusOK, map[string]bool{"password": !s.cfg.PasswordLoginOff, "kakao": s.kakaoEnabled(), "google": s.googleEnabled(), "storeReview": s.storeReviewEnabled()})
 }
 
 var challengeRe = regexp.MustCompile(`^[A-Za-z0-9_-]{43,128}$`)

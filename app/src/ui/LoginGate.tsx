@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AuthCancelled } from '../core/sync';
@@ -9,6 +9,7 @@ import { desktop } from '../native/bridge';
 import { useApp } from '../state/AppContext';
 import { GoogleLoginButton, KakaoLoginButton } from './LoginButtons';
 import { Logo } from './Logo';
+import { Sheet, SheetButton, SheetTitle } from './primitives';
 
 /**
  * 로그인 화면: 로그인하지 않았으면 무조건 이 화면부터(Google·카카오. 이메일 로그인과 '나중에'는 없앴다, 사용자 요청 2026-10-19).
@@ -22,6 +23,9 @@ export function LoginGate({ expired = false }: { expired?: boolean }) {
   const [busy, setBusy] = useState(false);
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [reviewEmail, setReviewEmail] = useState('');
+  const [reviewPassword, setReviewPassword] = useState('');
   const server = account?.server ?? prefs.server;
   const external = async (provider: 'kakao' | 'google') => {
     setBusy(true);
@@ -41,6 +45,22 @@ export function LoginGate({ expired = false }: { expired?: boolean }) {
     setChecking(true);
     await recheckServer();
     setChecking(false);
+  };
+  const reviewLogin = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await sync.login(server, reviewEmail, reviewPassword, false, true);
+      setReviewPassword('');
+      setReviewOpen(false);
+      const snapshot = await repo.snapshot();
+      if (snapshot.todos.length || snapshot.paragraphs.length) setPrefs({ onboarded: true });
+      await refreshAccount();
+    } catch (e) {
+      setError(errorText(e, t));
+    } finally {
+      setBusy(false);
+    }
   };
   const canLogin = !!serverApi && (serverApi.google || serverApi.kakao);
   return (
@@ -73,7 +93,21 @@ export function LoginGate({ expired = false }: { expired?: boolean }) {
             </Pressable>
           </>
         )}
+        {Platform.OS === 'android' && serverApi?.storeReview ? (
+          <Pressable accessibilityRole="button" onPress={() => { setError(null); setReviewOpen(true); }} disabled={busy} style={styles.retry}>
+            <Text style={theme.font(12, { color: theme.muted })}>Store review account</Text>
+          </Pressable>
+        ) : null}
       </View>
+      <Sheet visible={reviewOpen} onClose={() => { if (!busy) { setReviewOpen(false); setReviewPassword(''); } }}>
+        <SheetTitle title="Store review account" subtitle="For the existing store-review account only. Other users should choose Google or Kakao." />
+        <View style={{ paddingHorizontal: 22, gap: 12 }}>
+          <TextInput accessibilityLabel="Review account email" placeholder="Email" placeholderTextColor={theme.muted} autoCapitalize="none" autoCorrect={false} keyboardType="email-address" value={reviewEmail} onChangeText={setReviewEmail} editable={!busy} style={[theme.font(16, { color: theme.text }), { padding: 12, borderWidth: 1, borderColor: theme.muted, borderRadius: 12 }]} />
+          <TextInput accessibilityLabel="Review account password" placeholder="Password" placeholderTextColor={theme.muted} secureTextEntry autoCapitalize="none" autoCorrect={false} value={reviewPassword} onChangeText={setReviewPassword} editable={!busy} style={[theme.font(16, { color: theme.text }), { padding: 12, borderWidth: 1, borderColor: theme.muted, borderRadius: 12 }]} />
+          {error ? <Text style={theme.font(14, { color: theme.danger })}>{error}</Text> : null}
+        </View>
+        <SheetButton label={busy ? 'Signing in…' : 'Sign in'} disabled={busy || !reviewEmail.trim() || !reviewPassword} onPress={reviewLogin} />
+      </Sheet>
     </View>
   );
 }

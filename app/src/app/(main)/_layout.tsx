@@ -6,6 +6,7 @@ import { AppState, Keyboard, KeyboardAvoidingView, Platform, StyleSheet, View } 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useApp, useSyncStatus } from '../../state/AppContext';
+import { FriendsProvider } from '../../state/friends';
 import { desktop } from '../../native/bridge';
 import { BottomNav, NAV_HEIGHT } from '../../ui/BottomNav';
 import { BlurTargetContext } from '../../ui/glass';
@@ -62,6 +63,8 @@ export default function MainLayout() {
     desktop?.setTitleBarDark?.(theme.dark);
   }, [theme.dark]);
   return (
+    // 친구 목록(함께 탭·하단바의 받은 요청 점)은 로그인한 화면에서만 받는다
+    <FriendsProvider>
     <View style={[styles.root, { backgroundColor: theme.bg }]}>
       <LinearGradient
         pointerEvents="none"
@@ -112,6 +115,7 @@ export default function MainLayout() {
       ) : null}
       <CoachOverlay />
     </View>
+    </FriendsProvider>
   );
 }
 

@@ -18,7 +18,7 @@ module.exports = {
     languages: ['ko-KR', 'en-US', 'ja-JP', 'zh-CN'],
     minVersion: '10.0.19041.0',
     maxVersionTested: '10.0.26100.0',
-    backgroundColor: '#171717',
+    backgroundColor: 'transparent',
     capabilities: ['runFullTrust'],
     addAutoLaunchExtension: false,
     artifactName: 'modo-${version}-store-${arch}.${ext}',

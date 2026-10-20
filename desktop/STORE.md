@@ -33,17 +33,17 @@ $env:MODO_STORE_PUBLISHER_NAME = '<Package/Properties/PublisherDisplayName from 
 npm run dist:store
 ```
 
-This creates a single x64 `.appx` (a Microsoft-supported Store submission format) with package version 1.0.0.0, Windows.Desktop minimum 10.0.19041.0, four actual UI languages, modo tile assets and only the required `runFullTrust` restricted capability. The build refuses missing identity values. Never submit a development identity as the real product identity. Free Store signing is performed by Microsoft after certification; an external paid EXE signing certificate is not part of this path.
+This creates a single x64 `.appx` with the current desktop package version (1.0.1.0), Windows.Desktop minimum 10.0.19041.0, four actual UI languages, and only the required `runFullTrust` capability. The official Windows SDK MakePri indexes the scale/target-size icon assets and MakeAppx validates the package. The build refuses missing identity values. Microsoft signs the package after certification; no external paid EXE certificate is required.
 
 The initial Store package does not register a login startup task and hides the portable app's registry-based auto-start option. Pinning, opacity and the tray remain available. The custom manifest uses the reserved Store title for package metadata and `modo` for the installed launcher. Its literal ampersand is XML-escaped.
 
-If electron-builder generates `dist/__appx-x64/` but its bundled MakeAppx binary cannot run, use the installed official Windows SDK with the same generated manifest and mapping:
+After an unpacked Electron build, the SDK packaging stage can also be run directly:
 
 ```powershell
-pwsh -NoProfile -File scripts/pack-store-sdk.ps1
+pwsh -NoProfile -File scripts/pack-store-sdk.ps1 -Prepare
 ```
 
-The script verifies the actual Partner Center identity and retains MakeAppx validation. It does not create a test certificate, disable validation or change Windows security settings.
+The script verifies the actual Partner Center identity and retains MakeAppx validation. It does not create a test certificate, disable validation or change Windows security settings. Windows icon generation preserves the approved artwork's RGB pixels, rounds only the outer plate with transparent corners, and provides light/dark unplated target sizes to prevent a square system backplate. Run `node scripts/generate-icons.cjs` to regenerate Windows assets without touching mobile icons.
 
 Before submission, run the Windows App Certification Kit on the identity-matched package, verify installed package startup/uninstall, and test local editing, offline restart, login, sync and authenticated deletion using isolated data. A successful portable build or unit test does not establish that a Store package passed certification. Store-managed installation, startup integration and updates require separate installed-package testing.
 

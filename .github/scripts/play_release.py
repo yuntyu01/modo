@@ -19,15 +19,31 @@ from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaFileUpload
 
 PACKAGE = os.environ.get('PLAY_PACKAGE', 'com.yuntyu01.naegirok')
+EXPECTED_PACKAGE = 'com.yuntyu01.naegirok'
+
+
+def require_closed_test(track='alpha'):
+    if PACKAGE != EXPECTED_PACKAGE or track != 'alpha':
+        raise ValueError('This workflow only supports modo com.yuntyu01.naegirok on closed-test track alpha')
+
+
+def report(message):
+    print(message)
+    summary = os.environ.get('GITHUB_STEP_SUMMARY')
+    if summary:
+        with open(summary, 'a', encoding='utf-8') as stream:
+            stream.write(message + '\n')
 
 
 def edits():
+    require_closed_test()
     info = json.loads(os.environ['PLAY_SERVICE_ACCOUNT_JSON'])
     creds = service_account.Credentials.from_service_account_info(info, scopes=['https://www.googleapis.com/auth/androidpublisher'])
     return build('androidpublisher', 'v3', credentials=creds, cache_discovery=False).edits()
 
 
 def next_version_code(api):
+    require_closed_test()
     edit = api.insert(packageName=PACKAGE, body={}).execute()['id']
     try:
         tracks = api.tracks().list(packageName=PACKAGE, editId=edit).execute().get('tracks', [])
@@ -40,25 +56,36 @@ def next_version_code(api):
 
 
 def upload(api, aab, track):
+    require_closed_test(track)
     edit = api.insert(packageName=PACKAGE, body={}).execute()['id']
-    media = MediaFileUpload(aab, mimetype='application/octet-stream', resumable=True)
-    code = str(api.bundles().upload(packageName=PACKAGE, editId=edit, media_body=media).execute()['versionCode'])
-    # 이전 출시의 국가 제한이 있으면 그대로 잇는다(트랙의 출시 하나를 새 번들로 바꾼다)
-    current = api.tracks().get(packageName=PACKAGE, editId=edit, track=track).execute()
-    prev = next((r for r in current.get('releases', []) if r.get('countryTargeting')), None)
-    release = {'versionCodes': [code], 'status': 'completed'}
-    if prev:
-        release['countryTargeting'] = prev['countryTargeting']
-    api.tracks().update(packageName=PACKAGE, editId=edit, track=track, body={'track': track, 'releases': [release]}).execute()
+    committed = False
     try:
-        api.commit(packageName=PACKAGE, editId=edit).execute()
-        print(f'versionCode {code} → {track} 출시(검토가 필요하면 Google이 검토 후 테스터에게)')
-    except HttpError as e:
-        # 앱 상태에 따라(거부된 변경 등) 자동으로 검토에 보낼 수 없다고 하면, 올려 두고 Console에서 검토 보내기를 누르게 한다
-        if 'changesNotSentForReview' not in str(e):
-            raise
-        api.commit(packageName=PACKAGE, editId=edit, changesNotSentForReview=True).execute()
-        print(f'::warning::versionCode {code}를 {track}에 올렸지만 자동으로 검토에 보내지 못했습니다. Play Console → 게시 개요에서 "검토를 위해 변경사항 보내기"를 누르세요.')
+        media = MediaFileUpload(aab, mimetype='application/octet-stream', resumable=True)
+        code = str(api.bundles().upload(packageName=PACKAGE, editId=edit, media_body=media).execute()['versionCode'])
+        current = api.tracks().get(packageName=PACKAGE, editId=edit, track=track).execute()
+        prev = next((r for r in current.get('releases', []) if r.get('countryTargeting')), None)
+        release = {'versionCodes': [code], 'status': 'completed'}
+        sha = os.environ.get('GITHUB_SHA', '')[:12]
+        release['name'] = f'modo ({code})' + (f' - {sha}' if sha else '')
+        if prev:
+            release['countryTargeting'] = prev['countryTargeting']
+        api.tracks().update(packageName=PACKAGE, editId=edit, track=track, body={'track': track, 'releases': [release]}).execute()
+        try:
+            api.commit(packageName=PACKAGE, editId=edit).execute()
+            committed = True
+            report(f'Uploaded versionCode {code} to alpha and committed the edit. This is not proof of review approval or tester availability; confirm those states in Play Console.')
+        except HttpError as error:
+            if 'changesNotSentForReview' not in str(error):
+                raise
+            api.commit(packageName=PACKAGE, editId=edit, changesNotSentForReview=True).execute()
+            committed = True
+            report(f'::warning::Uploaded versionCode {code} to alpha, but changes were NOT sent for review. Send changes for review from Play Console publishing overview. Not yet approved or available to testers.')
+    finally:
+        if not committed:
+            try:
+                api.delete(packageName=PACKAGE, editId=edit).execute()
+            except HttpError:
+                print('::warning::Could not discard the uncommitted edit; inspect Play Console before retrying.')
 
 
 def main():

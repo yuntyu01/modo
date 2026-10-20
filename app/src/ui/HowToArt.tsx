@@ -84,11 +84,7 @@ export function HowToArt({ kind, step, width = 104 }: { kind: HowToKind; step: n
       <Path
         d={MARK_PATH.d}
         transform={`translate(${x - MARK_PATH.x * s} ${y - MARK_PATH.y * s}) scale(${s})`}
-        fill="none"
-        stroke={color}
-        strokeWidth={MARK_PATH.stroke}
-        strokeLinecap="round"
-        strokeLinejoin="round"
+        fill={color}
       />
     );
   };

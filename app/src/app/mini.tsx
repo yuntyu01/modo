@@ -1,22 +1,21 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import type { Paragraph } from '../core/types';
+import type { FolderFilter, Paragraph } from '../core/types';
 import { desktop } from '../native/bridge';
-import { useApp, useDrafts } from '../state/AppContext';
+import { useApp, useDrafts, useSyncStatus, useUi } from '../state/AppContext';
 import { withAlpha } from '../ui/color';
 import { EditableText } from '../ui/EditableText';
 import { MINI_CARD_GAP, MINI_RADIUS, TodoCard, type Editing } from '../ui/home/Cards';
 import { Composer } from '../ui/home/Composer';
-import { homeFolder, isRepeatDone, liveFolderIds, splitDone, trimTrailingBlank } from '../ui/home/model';
+import { homeFolder, isRepeatDone, liveFolderIds, splitDone, trimTrailingBlank, countTrash, liveFolders } from '../ui/home/model';
 import { useWebReorder } from '../ui/home/webReorder';
 import { useTabScroller } from '../ui/home/tabScroller';
 import { CloseIcon, CollapseIcon, DotsIcon, ExpandIcon, PinIcon, PlusIcon } from '../ui/Icons';
 import { IconButton } from '../ui/IconButton';
 import { ItemSheets, type SheetState } from '../ui/ItemSheets';
 import { Logo, Mark } from '../ui/Logo';
-import { makeTheme } from '../ui/theme';
 
 const drag = Platform.OS === 'web' ? ({ WebkitAppRegion: 'drag' } as object) : null;
 const noDrag = Platform.OS === 'web' ? ({ WebkitAppRegion: 'no-drag' } as object) : null;
@@ -29,10 +28,36 @@ const noDrag = Platform.OS === 'web' ? ({ WebkitAppRegion: 'no-drag' } as object
  * 내용 높이를 메인 프로세스에 알려 창 높이를 맞추고, 최대 높이를 넘으면 할 일 영역만 스크롤한다.
  */
 export default function Mini() {
+  const { account } = useApp();
+  const status = useSyncStatus();
+  return !account || status.state === 'expired' ? <MiniLogin /> : <MiniWindow />;
+}
+
+/** 로그인하지 않았거나 만료됐으면 미니창은 안내만: 누르면 큰 창(로그인 화면)이 열린다 */
+function MiniLogin() {
+  const { theme, t } = useUi();
+  useEffect(() => {
+    if (Platform.OS === 'web') document.body.style.background = 'transparent';
+    desktop?.setContentHeight(150);
+  }, []);
+  return (
+    <View style={styles.root}>
+      <View style={[styles.frame, styles.login, { backgroundColor: theme.bg }, drag]}>
+        <Logo height={16} color={theme.text} markColor={theme.mark} />
+        <Text style={theme.font(14, { color: theme.muted, marginTop: 14, textAlign: 'center' })}>{t('err_login_required')}</Text>
+        <Pressable onPress={() => desktop?.openSettings()} accessibilityRole="button" hitSlop={8} style={[styles.loginBtn, noDrag]}>
+          <Text style={theme.font(14, { color: theme.accent, fontWeight: '600' })}>{t('openMain')}</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+function MiniWindow() {
   const app = useApp();
   const { snap, repo, prefs, t, filter, setFilter, canWrite } = app;
-  const systemDark = useColorScheme() !== 'light';
-  const theme = useMemo(() => makeTheme(prefs, systemDark, prefs.mini), [prefs, systemDark]);
+  // 미니창 테마는 AppContext가 미니창 설정으로 만든다(안의 카드·입력창과 같은 테마)
+  const theme = app.theme;
   const opacity = prefs.mini.opacity;
   const [editing, setEditing] = useState<Editing>(null);
   const [sheet, setSheet] = useState<SheetState>(null);
@@ -50,15 +75,8 @@ export default function Mini() {
   const [adding, setAdding] = useState(false);
   // 평소엔 위젯처럼 남은 할 일만, ⋯에서 켜면 완료한 것도 아래에(최근 완료 순)
   const [showDone, setShowDone] = useState(false);
-  const draft = useDrafts().draftOf(filter, todoMode);
-  // 입력칸에서 나가면 잠깐 기다렸다 +로 접는다(그 사이 토글을 누르거나 다시 들어오면 그대로)
-  const collapse = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(
-    () => () => {
-      if (collapse.current) clearTimeout(collapse.current);
-    },
-    [],
-  );
+  // 입력 중인지(+를 눌렀거나 초안이 있음). 초안 글자는 아래 MiniComposerSlot만 읽는다: 글자를 칠 때마다 미니창 전체(문단·카드)가 다시 그려졌다
+  const [composing, setComposing] = useState(false);
   const topH = useRef(0);
   const listH = useRef(0);
 
@@ -67,7 +85,7 @@ export default function Mini() {
     desktop?.isPinned().then(setPinned);
   }, []);
 
-  const folders = snap.folders.filter((f) => !f.deleted_at);
+  const folders = liveFolders(snap.folders);
   // 선택한 폴더의 메모 하나와 그 폴더의 할 일(null = 기본)
   const live = liveFolderIds(snap.folders);
   const inView = (id: string | null) => homeFolder(id, live) === filter;
@@ -143,7 +161,7 @@ export default function Mini() {
     } catch {}
   };
   // 바탕 아래 여백: 줄인 모양은 아래 + 없이 카드(아래 간격 6)로 끝나서, 그만큼 빼 옆 여백(12)과 같게
-  const frameBottom = collapsed && !(adding || draft) ? FRAME_BOTTOM - MINI_CARD_GAP : FRAME_BOTTOM;
+  const frameBottom = collapsed && !composing ? FRAME_BOTTOM - MINI_CARD_GAP : FRAME_BOTTOM;
   // 창 높이 = 위(머리·탭) + 목록 내용 + 바탕 아래 여백. 바탕 크기가 아니라 내용으로 재야 창이 늘어난다.
   const report = () => {
     desktop?.setContentHeight(topH.current + listH.current + frameBottom);
@@ -176,7 +194,7 @@ export default function Mini() {
       window.localStorage.removeItem(MEMO_KEY);
     } catch {}
   };
-  const trashCount = snap.todos.filter((x) => x.deleted_at).length + snap.paragraphs.filter((x) => x.deleted_at).length;
+  const trashCount = countTrash(snap);
   const writable = canWrite(filter);
   // 색은 휴대폰 앱과 같다(사용자 요청): 바탕은 위쪽 테마색 그라데이션에서 바탕색으로(뒤가 살짝 비친다), 블록(메모·할 일 같은 재질)은 카드색,
   // '+' 바와 입력칸은 입력창 색. 투명도 설정(기본 80%)이 바탕과 블록을 함께 움직인다: 기본값에서 바탕 80%(뒤가 비친다), 블록은 덜 투명하게 90%.
@@ -188,6 +206,22 @@ export default function Mini() {
   const idleTab = theme.tab;
   const memoFont = theme.font(15, { color: theme.text, lineHeight: 21.5 });
 
+  // 카드마다 같은 함수를 유지한다(카드는 memo라 함수가 바뀌면 다시 그려진다). 예전엔 그릴 때마다 새로 만들어
+  // 입력칸에 글자를 칠 때마다(초안이 바뀌어 미니창이 다시 그려질 때마다) 모든 카드가 다시 그려졌다
+  const startDrag = reorder.start;
+  const [handlers] = useState(() => new Map<string, { long: () => void; repeat: () => void }>());
+  useEffect(() => {
+    const live = new Set(snap.todos.map((x) => x.id));
+    for (const k of handlers.keys()) if (!live.has(k)) handlers.delete(k);
+  }, [snap.todos, handlers]);
+  const handlersFor = (id: string) => {
+    let h = handlers.get(id);
+    if (!h) {
+      h = { long: () => startDrag(id), repeat: () => setSheet({ type: 'repeat', id }) };
+      handlers.set(id, h);
+    }
+    return h;
+  };
   const card = (todo: (typeof openTodos)[number]) => (
     <TodoCard
       key={todo.id}
@@ -195,8 +229,8 @@ export default function Mini() {
       editing={editing}
       setEditing={setEditing}
       readOnly={!canWrite(todo.folder_id)}
-      onLongPress={() => reorder.start(todo.id)}
-      onRepeatPress={() => setSheet({ type: 'repeat', id: todo.id })}
+      onLongPress={handlersFor(todo.id).long}
+      onRepeatPress={handlersFor(todo.id).repeat}
       surface={block}
     />
   );
@@ -476,31 +510,18 @@ export default function Mini() {
           {shownDone.slice(0, Math.max(0, todoCount - reorder.ordered.length)).map(card)}
 
           {/* +를 누르면 그 자리가 입력칸(쓰던 글이 있으면 계속 입력칸). 줄인 모양에선 아래 + 없이(머리의 +로 입력칸을 연다) */}
-          {adding || draft ? (
-            <Composer
-              variant="card"
-              surface={addPill}
-              autoFocus
-              todoMode={todoMode}
-              setTodoMode={setTodoMode}
-              draftFolder={filter}
-              disabledReason={writable ? undefined : t('readOnly')}
-              onFocusChange={(f) => {
-                if (collapse.current) clearTimeout(collapse.current);
-                collapse.current = f ? null : setTimeout(() => setAdding(false), 1200);
-              }}
-              onSubmit={async (asTodo, text) => {
-                if (!writable) return false;
-                if (asTodo) await repo.addTodo(text, filter, prefs.newTodoAt);
-                else await repo.appendParagraphs(text, filter);
-                return true;
-              }}
-            />
-          ) : writable && !collapsed ? (
-            <Pressable accessibilityRole="button" accessibilityLabel={t('add')} onPress={() => setAdding(true)} style={[styles.add, noDrag, { backgroundColor: addPill }]}>
-              <PlusIcon color={idleTab} size={19} strokeWidth={1.6} />
-            </Pressable>
-          ) : null}
+          <MiniComposerSlot
+            adding={adding}
+            setAdding={setAdding}
+            filter={filter}
+            todoMode={todoMode}
+            setTodoMode={setTodoMode}
+            writable={writable}
+            collapsed={collapsed}
+            addPill={addPill}
+            idleTab={idleTab}
+            onComposing={setComposing}
+          />
           </View>
         </ScrollView>
       </View>
@@ -550,8 +571,79 @@ const MEMO_MAX = Math.min(420, Math.max(160, (typeof window !== 'undefined' ? wi
 const FRAME_RADIUS = 18;
 
 // 수치는 시안(150% 화면)에서 잰 px ÷ 1.5
+/** 아래 입력칸 또는 +. 초안(글자마다 바뀐다)은 여기만 읽어서 글자를 칠 때 미니창 전체가 다시 그려지지 않는다 */
+function MiniComposerSlot({
+  adding,
+  setAdding,
+  filter,
+  todoMode,
+  setTodoMode,
+  writable,
+  collapsed,
+  addPill,
+  idleTab,
+  onComposing,
+}: {
+  adding: boolean;
+  setAdding: (v: boolean) => void;
+  filter: FolderFilter;
+  todoMode: boolean;
+  setTodoMode: Dispatch<SetStateAction<boolean>>;
+  writable: boolean;
+  collapsed: boolean;
+  addPill: string;
+  idleTab: string;
+  onComposing: (v: boolean) => void;
+}) {
+  const { repo, prefs, t } = useUi();
+  const draft = useDrafts().draftOf(filter, todoMode);
+  const composing = adding || !!draft;
+  useEffect(() => onComposing(composing), [composing, onComposing]);
+  // 입력칸에서 나가면 잠깐 기다렸다 +로 접는다(그 사이 토글을 누르거나 다시 들어오면 그대로)
+  const collapse = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (collapse.current) clearTimeout(collapse.current);
+    },
+    [],
+  );
+  if (composing) {
+    return (
+      <Composer
+        variant="card"
+        surface={addPill}
+        autoFocus
+        todoMode={todoMode}
+        setTodoMode={setTodoMode}
+        draftFolder={filter}
+        disabledReason={writable ? undefined : t('readOnly')}
+        onFocusChange={(f) => {
+          if (collapse.current) clearTimeout(collapse.current);
+          collapse.current = f ? null : setTimeout(() => setAdding(false), 1200);
+        }}
+        onSubmit={async (asTodo, text) => {
+          if (!writable) return false;
+          if (asTodo) await repo.addTodo(text, filter, prefs.newTodoAt);
+          else await repo.appendParagraphs(text, filter);
+          return true;
+        }}
+      />
+    );
+  }
+  if (writable && !collapsed) {
+    return (
+      <Pressable accessibilityRole="button" accessibilityLabel={t('add')} onPress={() => setAdding(true)} style={[styles.add, noDrag, { backgroundColor: addPill }]}>
+        <PlusIcon color={idleTab} size={19} strokeWidth={1.6} />
+      </Pressable>
+    );
+  }
+  return null;
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: 'transparent' },
+  login: { alignItems: 'center', justifyContent: 'center', paddingTop: 12 },
+  loginBtn: { marginTop: 10, paddingVertical: 6, paddingHorizontal: 12 },
   // 창 = 바탕(둘레 투명 여백 없음): 창 가장자리, 곧 크기 조절 손잡이가 보이는 바탕 끝에 있다. 바깥 모서리 18(부드럽게), 안쪽 좌우 12·아래 12
   frame: {
     flex: 1,

@@ -38,7 +38,14 @@ export function installThinScrollbars() {
     }
     return null;
   };
+  let pending: Element | null = null;
+  let raf = 0;
   const hide = () => {
+    if (raf) {
+      cancelAnimationFrame(raf);
+      raf = 0;
+      pending = null;
+    }
     if (dragging) return;
     thumb.style.opacity = '0';
     thumb.style.pointerEvents = 'none';
@@ -56,12 +63,21 @@ export function installThinScrollbars() {
     thumb.style.opacity = '1';
     thumb.style.pointerEvents = 'auto';
   };
+  // 마우스가 지나는 요소마다 오는 mouseover를 프레임당 한 번으로 모은다(요소마다 조상을 거슬러 getComputedStyle을 불렀다)
+  const flushHover = () => {
+    raf = 0;
+    const el = pending;
+    pending = null;
+    if (dragging || !el) return;
+    target = scrollableOf(el);
+    place();
+  };
   window.addEventListener(
     'mouseover',
     (e) => {
       if (dragging || e.target === thumb) return;
-      target = scrollableOf(e.target as Element);
-      place();
+      pending = e.target as Element;
+      if (!raf) raf = requestAnimationFrame(flushHover);
     },
     true,
   );

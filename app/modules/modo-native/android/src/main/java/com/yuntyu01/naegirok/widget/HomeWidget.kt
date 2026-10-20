@@ -45,8 +45,8 @@ object HomeWidget {
   // widget_home.xml·widget_home_todo.xml의 여백(dp). 쪽 계산이 이 값에 기대므로 함께 바꿀 것
   private const val PAD_START = 22f
   private const val PAD_END = 12f
-  private const val PAD_TOP = 4f
-  private const val PAD_BOTTOM = 34f
+  private const val PAD_TOP = 2f
+  private const val PAD_BOTTOM = 36f
   /** 머리 한 줄: 맨 왼쪽 로고 + 폴더 탭(앱과 같이 메모 바로 위) */
   private const val HEADER = 36f
   /** 로고(높이 15, naegirok_mark 비율)와 탭 사이(widget_brand paddingEnd) */
@@ -77,7 +77,6 @@ object HomeWidget {
   const val KIND_BASE = "base"
   const val KIND_READ = "read"
 
-  // 다크 바탕은 파란 기 없는 차콜(꾸미기에서 카드색을 직접 고르면 그 색). 글자·보조 글자·동그라미도 같은 회색 계열
   private val CHARCOAL = Color.rgb(42, 42, 44)
   private val NEUTRAL_TEXT = Color.rgb(245, 245, 247)
   private val NEUTRAL_MUTED = Color.rgb(161, 161, 166)
@@ -87,9 +86,44 @@ object HomeWidget {
 
   /** memo = 읽기 모드 본문(문단 사이 빈 줄 그대로), preview = 메모 쪽 미리보기(빈 문단을 빼고 이어서) */
   private data class Data(
-    val theme: SurfaceTheme, val folderId: String?, val memo: String, val preview: String, val todos: List<NotesDb.Todo>,
-    val folders: List<NotesDb.Folder>,
+    val colors: Colors, val folderId: String?, val memo: String, val preview: String, val todos: List<NotesDb.Todo>,
+    val folders: List<NotesDb.Folder>, val signedIn: Boolean = true,
   )
+
+  /** 위젯 색 한 벌(라이트 또는 다크) */
+  private class Pal(t: SurfaceTheme) {
+    // 다크 바탕은 파란 기 없는 차콜(꾸미기에서 카드색을 직접 고르면 그 색). 글자·보조 글자·동그라미도 같은 회색 계열
+    private val neutral = t.dark && !t.tinted
+    val card = if (neutral) CHARCOAL else t.card
+    val text = if (neutral) NEUTRAL_TEXT else t.text
+    val muted = if (neutral) NEUTRAL_MUTED else t.muted
+    val circle = if (neutral) NEUTRAL_CIRCLE else t.circle
+    val dotOff = SurfaceTheme.mixInt(text, card, 0.62)
+    val mark = t.mark
+    val opacity = t.opacity
+  }
+
+  /**
+   * 라이트·다크 두 벌. 앱 화면 설정이 '시스템'이면 Android 12+에서는 두 색을 함께 넣어 두어, 기기가 다크 모드로 바뀌면
+   * 다시 그리지 않아도 위젯이 따라간다(예전엔 위젯을 누르거나 앱이 바꿀 때까지 옛 색으로 남았다). 그 아래 버전은 지금 색만.
+   */
+  private class Colors(private val day: Pal, private val night: Pal, private val isNight: Boolean) {
+    val now get() = if (isNight) night else day
+
+    fun set(v: RemoteViews, id: Int, method: String, pick: (Pal) -> Int) {
+      val d = pick(day)
+      val n = pick(night)
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && d != n) v.setColorInt(id, method, d, n) else v.setInt(id, method, pick(now))
+    }
+
+    companion object {
+      fun of(ctx: Context, prefs: org.json.JSONObject): Colors {
+        val cur = SurfaceTheme.from(ctx, prefs)
+        if (!SurfaceTheme.followsSystem(prefs)) return Pal(cur).let { Colors(it, it, cur.dark) }
+        return Colors(Pal(SurfaceTheme.from(ctx, prefs, dark = false)), Pal(SurfaceTheme.from(ctx, prefs, dark = true)), cur.dark)
+      }
+    }
+  }
 
   /** 메모 문단을 한 글로. 앞뒤의 빈 문단은 빼고(앱 미니창과 같다) */
   private fun memoText(paragraphs: List<String>): String = paragraphs.dropWhile { it.isBlank() }.dropLastWhile { it.isBlank() }.joinToString("\n")
@@ -107,19 +141,21 @@ object HomeWidget {
   fun render(ctx: Context, mgr: AppWidgetManager, id: Int): RemoteViews {
     val saved = WidgetPrefs.load(ctx, id)
     val data = NotesDb.use(ctx) { db ->
+      // 로그인하지 않았으면 내용 없이 안내만(누르면 앱의 로그인 화면)
+      if (!NotesDb.signedIn(db)) return@use Data(Colors.of(ctx, NotesDb.prefs(db)), null, "", "", emptyList(), emptyList(), signedIn = false)
       val name = NotesDb.folderName(db, saved.folderId)
       // 지워졌거나 공유 권한이 사라진 폴더(앱이 지운 것으로 남긴다)는 기본 폴더로
       val fid = if (name != null) saved.folderId else null
       val memo = NotesDb.memo(db, fid)
       Data(
-        SurfaceTheme.from(ctx, NotesDb.prefs(db)),
+        Colors.of(ctx, NotesDb.prefs(db)),
         fid,
         memo.let(::memoText),
         memo.flatMap { it.split('\n') }.filter { it.isNotBlank() }.joinToString("\n"),
-        NotesDb.todos(db, fid, includeDone = false, limit = 500),
+        NotesDb.todos(db, fid, limit = 500),
         NotesDb.folders(db),
       )
-    } ?: Data(SurfaceTheme.from(ctx, org.json.JSONObject()), null, "", "", emptyList(), emptyList())
+    } ?: Data(Colors.of(ctx, org.json.JSONObject()), null, "", "", emptyList(), emptyList(), signedIn = false)
     var wp = saved.withFolder(data.folderId)
 
     // 크기: 세로 화면에서 위젯 폭 = 최소 폭, 높이 = 최대 높이(AppWidgetManager 옵션 설명)
@@ -150,11 +186,12 @@ object HomeWidget {
       // 쪽마다 글줄만(빈 줄만 남는 쪽은 뺀다 — 빈 줄은 문단 사이 구분이라 빠지는 내용이 없다)
       return WidgetPages.splitLines(tops, memoAvail).mapNotNull { textLines(l, body, it) }.ifEmpty { listOf(0..0) }
     }
-    val memoLayout = if (hasMemo) layout(data.memo, memoPaint, textW, LINE_MULT) else null
-    val memoPages = memoLayout?.let { pagesOf(it, data.memo) } ?: listOf(0 until 0)
+    // 메모 전체를 재는 일은 메모 쪽·읽기 모드를 그릴 때만(할 일 쪽만 보일 때는 긴 메모를 두 번 배치하지 않는다)
+    val memoLayout by lazy { if (hasMemo) layout(data.memo, memoPaint, textW, LINE_MULT) else null }
+    val memoPages by lazy { memoLayout?.let { pagesOf(it, data.memo) } ?: listOf(0 until 0) }
     // 메모 쪽(기본 모드)은 빈 문단 없이 이어 보인 미리보기: 처음부터 들어가는 줄까지, 넘치면 마지막 줄 …
-    val previewLines = if (hasMemo) pagesOf(layout(data.preview, memoPaint, textW, LINE_MULT), data.preview)[0].last + 1 else 0
-    val pageStarts = IntArray(memoPages.size) { i -> memoLayout?.getLineStart(memoPages[i].first) ?: 0 }
+    val previewLines by lazy { if (hasMemo) pagesOf(layout(data.preview, memoPaint, textW, LINE_MULT), data.preview)[0].last + 1 else 0 }
+    val pageStarts by lazy { IntArray(memoPages.size) { i -> memoLayout?.getLineStart(memoPages[i].first) ?: 0 } }
 
     // 할 일 한 줄 높이: 보조 줄이 있든 없든 같게(제목 + 2 + 보조 줄, 동그라미 44보다 작으면 44)
     val titlePaint = paint(sp(titleSp), -0.02f)
@@ -186,20 +223,13 @@ object HomeWidget {
     // 크기·완료·삭제·동기화로 바뀐 쪽, 없어진 폴더를 고친 상태로 남긴다
     if (wp != saved) wp.save(ctx, id)
 
-    val t = data.theme
-    val neutral = t.dark && !t.tinted
-    val card = if (neutral) CHARCOAL else t.card
-    val text = if (neutral) NEUTRAL_TEXT else t.text
-    val muted = if (neutral) NEUTRAL_MUTED else t.muted
-    val circle = if (neutral) NEUTRAL_CIRCLE else t.circle
-    val dotOff = SurfaceTheme.mixInt(text, card, 0.62)
-
+    val c = data.colors
     val v = RemoteViews(ctx.packageName, R.layout.widget_home)
-    v.setInt(R.id.widget_bg, "setColorFilter", card)
-    v.setInt(R.id.widget_bg, "setImageAlpha", ((wp.opacity ?: t.opacity) * 255).roundToInt())
+    c.set(v, R.id.widget_bg, "setColorFilter") { it.card }
+    v.setInt(R.id.widget_bg, "setImageAlpha", ((wp.opacity ?: c.now.opacity) * 255).roundToInt())
 
     // 머리 왼쪽 로고(글자 없이) → 앱의 그 폴더. 쪽을 바꿔도 그대로
-    v.setInt(R.id.widget_mark, "setColorFilter", t.mark)
+    c.set(v, R.id.widget_mark, "setColorFilter") { it.mark }
     v.setOnClickPendingIntent(R.id.widget_brand, activity(ctx, id, openApp(ctx, data.folderId, id)))
     v.setContentDescription(R.id.widget_brand, ctx.getString(R.string.widget_open_app))
 
@@ -242,7 +272,7 @@ object HomeWidget {
       val tab = RemoteViews(ctx.packageName, layout)
       val sel = i == curTab
       tab.setTextViewText(R.id.tab, if (sel) SpannableString(name).apply { setSpan(StyleSpan(Typeface.BOLD), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) } else name)
-      tab.setTextColor(R.id.tab, if (sel) text else muted)
+      c.set(tab, R.id.tab, "setTextColor") { if (sel) it.text else it.muted }
       val go = Intent(ctx, NotesWidgetProvider::class.java).setAction(NotesWidgetProvider.ACTION_FOLDER)
         .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id)
         .putExtra(NotesWidgetProvider.EXTRA_FOLDER, fid ?: "")
@@ -259,14 +289,23 @@ object HomeWidget {
     val todoPage = if (!reading && showTodos && wp.page >= memoFirst) wp.page - memoFirst else -1
 
     // 메모(쪽 하나): 기본 모드는 처음부터 들어가는 줄까지(넘치면 마지막 줄 …), 읽기 모드는 그 쪽 본문. 누르면 읽기 모드 켜기/끄기
-    if (memoLayout != null && (onMemoPage || reading)) {
-      val r = memoPages[wp.readPage.coerceIn(0, memoPages.size - 1)]
-      val body = if (reading) data.memo.substring(memoLayout.getLineStart(r.first), memoLayout.getLineEnd(r.last)).trimEnd('\n') else data.preview
+    if (hasMemo && (onMemoPage || reading)) {
+      val body: String
+      val lines: Int
+      if (reading) {
+        val ml = memoLayout!!
+        val r = memoPages[wp.readPage.coerceIn(0, memoPages.size - 1)]
+        body = data.memo.substring(ml.getLineStart(r.first), ml.getLineEnd(r.last)).trimEnd('\n')
+        lines = r.last - r.first + 1
+      } else {
+        body = data.preview
+        lines = previewLines
+      }
       v.setViewVisibility(R.id.widget_memo, View.VISIBLE)
       v.setTextViewText(R.id.widget_memo, body)
       v.setTextViewTextSize(R.id.widget_memo, TypedValue.COMPLEX_UNIT_SP, memoSp)
-      v.setTextColor(R.id.widget_memo, text)
-      v.setInt(R.id.widget_memo, "setMaxLines", if (reading) r.last - r.first + 1 else previewLines)
+      c.set(v, R.id.widget_memo, "setTextColor") { it.text }
+      v.setInt(R.id.widget_memo, "setMaxLines", lines)
       if (showTodos) {
         val tap = Intent(ctx, NotesWidgetProvider::class.java).setAction(NotesWidgetProvider.ACTION_MEMO)
           .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id).setData(Uri.parse("naegirok://widget-memo/$id"))
@@ -282,12 +321,16 @@ object HomeWidget {
     val lang = ctx.resources.configuration.locales[0].language
     val slice = if (todoPage >= 0) data.todos.drop(todoPage * perPage).take(perPage) else emptyList()
     v.setViewVisibility(R.id.widget_rows, if (slice.isNotEmpty()) View.VISIBLE else View.GONE)
-    for (todo in slice) v.addView(R.id.widget_rows, todoRow(ctx, id, todo, lang, text, muted, circle, titleSp, metaSp, titleH, metaH, blockH, plainLines, rowPad))
+    for (todo in slice) v.addView(R.id.widget_rows, todoRow(ctx, id, todo, lang, c, titleSp, metaSp, titleH, metaH, blockH, plainLines, rowPad))
     // 빈 할 일 쪽(메모만 있을 때 둘째 쪽, 또는 둘 다 없을 때)
     val empty = (todoPage >= 0 && slice.isEmpty()) || (!hasMemo && !showTodos)
     v.setViewVisibility(R.id.widget_empty, if (empty) View.VISIBLE else View.GONE)
-    v.setTextViewText(R.id.widget_empty, ctx.getString(if (hasMemo) R.string.lock_empty else R.string.widget_empty))
-    v.setTextColor(R.id.widget_empty, muted)
+    v.setTextViewText(
+      R.id.widget_empty,
+      ctx.getString(when { !data.signedIn -> R.string.login_first; hasMemo -> R.string.lock_empty; else -> R.string.widget_empty }),
+    )
+    c.set(v, R.id.widget_empty, "setTextColor") { it.muted }
+    if (!data.signedIn) v.setOnClickPendingIntent(R.id.widget_empty, activity(ctx, id, openApp(ctx, null, id)))
 
     // 쪽 점: 기본 모드 = 메모 쪽 + 할 일 쪽, 읽기 모드 = 메모 쪽만. 한 쪽뿐이면 숨긴다.
     // 점은 시안처럼 20dp 간격으로 모으고 누르는 곳도 20×40dp(겹치지 않음), 양 끝 점은 바깥으로 32dp.
@@ -309,7 +352,7 @@ object HomeWidget {
             else -> R.layout.widget_home_dot
           },
         )
-        d.setInt(R.id.dot, "setColorFilter", if (i == cur) text else dotOff)
+        c.set(d, R.id.dot, "setColorFilter") { if (i == cur) it.text else it.dotOff }
         if ((i == win.first && i > 0) || (i == win.last && i < pages - 1)) d.setViewPadding(R.id.dot, small, small, small, small)
         val label = when {
           reading -> ctx.getString(R.string.widget_page_memo, i + 1, pages)
@@ -328,13 +371,15 @@ object HomeWidget {
     }
 
     // +: 할 일 쪽에서만(이 폴더의 할 일 입력). 메모 쪽·읽기 모드에서는 숨긴다
-    val showAdd = todoPage >= 0 || (!hasMemo && !showTodos)
+    val showAdd = data.signedIn && (todoPage >= 0 || (!hasMemo && !showTodos))
     v.setViewVisibility(R.id.widget_add, if (showAdd) View.VISIBLE else View.GONE)
     // 레이아웃에 적힌 글은 런처 언어로 풀려서, 앱 언어로 다시 넣는다
     v.setContentDescription(R.id.widget_add, ctx.getString(R.string.add))
-    v.setInt(R.id.widget_add, "setColorFilter", text)
+    c.set(v, R.id.widget_add, "setColorFilter") { it.text }
     val add = Intent(ctx, QuickAddActivity::class.java)
       .putExtra(QuickAddActivity.EXTRA_FOLDER, data.folderId)
+      // 할 일 쪽이면 할 일, 메모만 보이는 위젯(메모가 비었을 때)이면 메모 이어 쓰기로
+      .putExtra(QuickAddActivity.EXTRA_MODE, if (showTodos) QuickAddActivity.MODE_TODO else QuickAddActivity.MODE_MEMO)
       .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
       .setData(Uri.parse("naegirok://quickadd/$id"))
     v.setOnClickPendingIntent(R.id.widget_add, activity(ctx, id, add))
@@ -342,14 +387,14 @@ object HomeWidget {
   }
 
   private fun todoRow(
-    ctx: Context, widgetId: Int, t: NotesDb.Todo, lang: String, text: Int, muted: Int, circle: Int,
+    ctx: Context, widgetId: Int, t: NotesDb.Todo, lang: String, c: Colors,
     titleSp: Float, metaSp: Float, titleH: Int, metaH: Int, blockH: Int, plainLines: Int, rowPad: Int,
   ) = RemoteViews(ctx.packageName, R.layout.widget_home_todo).apply {
     setViewPadding(R.id.item_row, 0, rowPad, 0, rowPad)
     setTextViewText(R.id.item_text, t.text)
     setTextViewTextSize(R.id.item_text, TypedValue.COMPLEX_UNIT_SP, titleSp)
-    setTextColor(R.id.item_text, text)
-    val parts = CardMeta.parts(t.due, t.remindAt, t.repeatFreq, t.repeatDays, t.done, lang)
+    c.set(this, R.id.item_text, "setTextColor") { it.text }
+    val parts = CardMeta.parts(t.due, t.remindAt, t.repeatFreq, t.repeatDays, false, lang)
     if (parts.isEmpty()) {
       // 제목만: 보조 줄 자리까지 같은 높이에 세로 가운데, plainLines줄까지 …
       // (setHeight가 최대 줄 수를 픽셀 높이로 덮어써 …없이 잘리므로 줄 수는 그 뒤에 다시 준다)
@@ -357,17 +402,10 @@ object HomeWidget {
       setInt(R.id.item_text, "setHeight", blockH)
       setInt(R.id.item_text, "setMaxLines", plainLines)
     } else {
-      val line = SpannableStringBuilder()
-      parts.forEachIndexed { i, p ->
-        if (i > 0) line.append("  ·  ")
-        val start = line.length
-        line.append(p.text)
-        if (p.late) line.setSpan(ForegroundColorSpan(LATE), start, line.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-      }
       setViewVisibility(R.id.item_meta, View.VISIBLE)
-      setTextViewText(R.id.item_meta, line)
+      setTextViewText(R.id.item_meta, metaLine(parts))
       setTextViewTextSize(R.id.item_meta, TypedValue.COMPLEX_UNIT_SP, metaSp)
-      setTextColor(R.id.item_meta, muted)
+      c.set(this, R.id.item_meta, "setTextColor") { it.muted }
       setInt(R.id.item_text, "setHeight", titleH)
       setInt(R.id.item_text, "setMaxLines", 1)
       setInt(R.id.item_meta, "setHeight", metaH)
@@ -375,12 +413,12 @@ object HomeWidget {
     }
     // 일반은 빈 원, 반복은 원 테두리가 두 곡선 화살표(앱 카드와 같은 모양)
     setImageViewResource(R.id.item_check, if (t.repeatFreq != null) R.drawable.naegirok_check_repeat else R.drawable.naegirok_check_off)
-    setInt(R.id.item_check, "setColorFilter", circle)
+    c.set(this, R.id.item_check, "setColorFilter") { it.circle }
     setContentDescription(R.id.item_check, ctx.getString(R.string.mark_done, t.text))
     // 동그라미 = 완료(반복은 이번 회차만, 앱과 같은 저장·동기화 경로), 글자 = 그 할 일 고치기
     val toggle = Intent(ctx, NotesWidgetProvider::class.java).setAction(NotesWidgetProvider.ACTION_TOGGLE)
-      .putExtra(NotesWidgetProvider.EXTRA_TODO, t.id).putExtra(NotesWidgetProvider.EXTRA_DONE, false)
-      .setData(Uri.parse("naegirok://toggle/$widgetId/${t.id}/false"))
+      .putExtra(NotesWidgetProvider.EXTRA_TODO, t.id)
+      .setData(Uri.parse("naegirok://toggle/$widgetId/${t.id}"))
     setOnClickPendingIntent(R.id.item_check, broadcast(ctx, widgetId, toggle))
     val edit = Intent(ctx, WidgetEditActivity::class.java)
       .putExtra(WidgetEditActivity.EXTRA_TODO, t.id)
@@ -388,6 +426,18 @@ object HomeWidget {
       .setData(Uri.parse("naegirok://edit/todo/${t.id}/$widgetId"))
     setOnClickPendingIntent(R.id.item_body, activity(ctx, widgetId, edit))
     setContentDescription(R.id.item_body, ctx.getString(R.string.edit_todo) + ": " + t.text)
+  }
+
+  /** 할 일 아래 줄: 조각을 '  ·  '로 잇고 기한이 지난 조각은 빨간색(잠금화면 위젯도 같은 줄을 쓴다) */
+  internal fun metaLine(parts: List<CardMeta.Part>): CharSequence {
+    val line = SpannableStringBuilder()
+    parts.forEachIndexed { i, p ->
+      if (i > 0) line.append("  ·  ")
+      val start = line.length
+      line.append(p.text)
+      if (p.late) line.setSpan(ForegroundColorSpan(LATE), start, line.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+    }
+    return line
   }
 
   private fun paint(px: Float, letterSpacing: Float) = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {

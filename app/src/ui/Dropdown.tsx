@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
-import { useApp } from '../state/AppContext';
+import { useUi } from '../state/AppContext';
 import { withAlpha } from './color';
 
 export type MenuItem = { label: string; onPress: () => void; icon?: ReactNode; danger?: boolean };
@@ -25,7 +25,7 @@ export function Dropdown({
   title?: string;
   items: (MenuItem | null | false)[];
 }) {
-  const { theme, t } = useApp();
+  const { theme, t } = useUi();
   const { width } = useWindowDimensions();
   const [measured, setMeasured] = useState<{ top: number; right: number } | null>(null);
   useEffect(() => {

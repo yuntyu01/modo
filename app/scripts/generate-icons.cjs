@@ -3,13 +3,11 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const Jimp = require('jimp-compact');
-const { generateFaviconAsync } = require('@expo/image-utils');
+const { generateWindowsIcons } = require('../../desktop/scripts/generate-icons.cjs');
 
 const root = path.resolve(__dirname, '../..');
 const assets = path.join(root, 'app/assets');
-const desktop = path.join(root, 'desktop');
 const source = path.join(assets, 'brand/app-icon-source.png');
-const sizes = [16, 20, 24, 32, 40, 48, 64, 96, 128, 256];
 const resize = (image, w, h = w) => image.clone().resize(w, h, Jimp.RESIZE_BICUBIC);
 const png = image => image.getBufferAsync(Jimp.MIME_PNG);
 const write = async (file, image) => fs.writeFile(file, await png(image));
@@ -47,14 +45,7 @@ async function main() {
   const monochrome = new Jimp(1024, 1024, 0x00000000);
   monochrome.composite(resize(mono, contentSize), offset, offset);
   await write(path.join(assets, 'android-icon-monochrome.png'), monochrome);
-  await fs.writeFile(path.join(desktop, 'assets/icon.png'), bytes);
-  await fs.writeFile(path.join(desktop, 'assets/icon.ico'), await generateFaviconAsync(bytes, sizes));
-  const tiles = path.join(desktop, 'build/appx');
-  await fs.mkdir(tiles, { recursive: true });
-  for (const [name, size] of [['Square44x44Logo', 44], ['Square150x150Logo', 150], ['StoreLogo', 50]]) {
-    await write(path.join(tiles, name + '.png'), resize(image, size));
-  }
-  await write(path.join(tiles, 'Wide310x150Logo.png'), resize(image, 310).crop(0, 80, 310, 150));
+  await generateWindowsIcons();
   console.log('Generated mobile, adaptive, themed, web, Windows ICO and Store tile icons from app-icon-source.png.');
 }
 main().catch(error => { console.error(error.message); process.exitCode = 1; });

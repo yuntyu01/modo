@@ -1,9 +1,9 @@
 import type { Repo } from '../core/repo';
-import { AuthCancelled, HttpError, type Account, type SyncApi, type SyncStatus } from '../core/sync';
+import { AuthCancelled, HttpError, type Account, type SyncApi, type SyncStatus, type ServerApi } from '../core/sync';
 import { CodedError } from '../core/errors';
 
 type CallResult = { ok: true; value?: unknown } | { ok: false; error: { kind: 'cancelled' | 'http' | 'error'; status?: number; code?: string; message?: string } };
-export type ServerState = { api: { kakao: boolean; google: boolean; password: boolean } | null; gate: boolean; at: number };
+export type ServerState = { api: ServerApi | null; at: number };
 type Bridge = {
   call(method: string, args?: unknown[]): Promise<CallResult>;
   onStatus(fn: (s: SyncStatus) => void): () => void;

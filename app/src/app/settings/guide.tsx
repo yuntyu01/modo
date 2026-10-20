@@ -1,18 +1,19 @@
 import Constants from 'expo-constants';
-import { Linking, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 
 import type { StringKey } from '../../i18n';
-import { useApp } from '../../state/AppContext';
+import { useUi } from '../../state/AppContext';
 import { DELETION_URL, POLICY_URL, SUPPORT_URL } from '../../policies';
 import { Group, Row } from '../../ui/primitives';
 import { Logo } from '../../ui/Logo';
 import { Note, SubScreen } from '../../ui/SubScreen';
+import { useOpenUrl } from '../../ui/openUrl';
 
 const STEPS = [1, 2, 3, 4, 5, 6, 7].map((n) => [`guide${n}t`, `guide${n}b`] as [StringKey, StringKey]);
 
 export default function Guide() {
-  const { theme, t, showToast } = useApp();
-  const open = (url: string) => Linking.openURL(url).catch(() => showToast({ message: t('linkOpenFailed') }));
+  const { theme, t } = useUi();
+  const open = useOpenUrl();
   return (
     <SubScreen title={t('help')}>
       {/* 앱 소개: 로고 + 한 줄 소개 + 이름 뜻 */}

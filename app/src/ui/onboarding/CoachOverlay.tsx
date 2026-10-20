@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { useApp } from '../../state/AppContext';
+import { useUi } from '../../state/AppContext';
 import { coachComposerRef, coachStore, coachTodoRef, measure, useCoach, type Rect } from './coach';
 
 /** 강조 테두리와 대상 사이 여백 */
@@ -16,7 +16,7 @@ const COVER = 3000;
  */
 export function CoachOverlay() {
   const coach = useCoach();
-  const { theme, t } = useApp();
+  const { theme, t } = useUi();
   const [step, setStep] = useState(0);
   const [target, setTarget] = useState<Rect | null>(null);
   const [screenH, setScreenH] = useState(0);

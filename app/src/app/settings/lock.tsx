@@ -3,17 +3,17 @@ import { useEffect, useState } from 'react';
 import { Platform, View } from 'react-native';
 
 import { native } from '../../native/bridge';
-import { useApp } from '../../state/AppContext';
+import { useUi } from '../../state/AppContext';
 import type { Prefs } from '../../state/prefs';
 import { Group, Row, Segmented, Switch } from '../../ui/primitives';
 import { Note, SubScreen } from '../../ui/SubScreen';
 
 /**
- * 잠금화면: 기기가 잠금화면 위젯을 지원하면 안내하고, 아니면 잠금화면 알림을 대안으로 쓴다.
+ * 잠금화면 알림(메뉴 이름도 '잠금화면'에서 바꿨다, 사용자 요청 2026-10-19): 기기가 잠금화면 위젯을 지원하면 안내하고, 아니면 잠금화면 알림을 대안으로 쓴다.
  * 공개 범위는 사용자가 고르고, 알림의 작업(완료·추가)은 시스템 잠금 해제를 거친다.
  */
 export default function Lock() {
-  const { t, prefs, setPrefs } = useApp();
+  const { t, prefs, setPrefs } = useUi();
   const [support, setSupport] = useState<{ supported: boolean; maybe?: boolean; reason: string } | null>(null);
   const [perm, setPerm] = useState<string>('undetermined');
   useEffect(() => {
@@ -31,7 +31,7 @@ export default function Lock() {
   };
 
   return (
-    <SubScreen title={t('lockScreen')}>
+    <SubScreen title={t('lockNotification')}>
       {Platform.OS === 'ios' ? (
         <Note>{t('lockIos')}</Note>
       ) : (

@@ -1,7 +1,7 @@
 import { Image, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
-import { BRAND } from '../brand';
+import { LOGO_BLUE } from '../brand';
 import symbol from '../../assets/brand/symbol-path.json';
 
 /**
@@ -14,7 +14,7 @@ const VB = `${MARK_PATH.x} ${MARK_PATH.y} ${MARK_PATH.width} ${MARK_PATH.height}
 const ASPECT = MARK_PATH.width / MARK_PATH.height;
 const WORD_ASPECT = 894 / 278;
 
-export function Mark({ height, color = BRAND }: { height: number; color?: string }) {
+export function Mark({ height, color = LOGO_BLUE }: { height: number; color?: string }) {
   return (
     <Svg width={height * ASPECT} height={height} viewBox={VB}>
       <Path d={MARK_PATH.d} fill={color} />

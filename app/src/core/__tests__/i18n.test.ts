@@ -28,7 +28,7 @@ test('서버·앱 오류 code는 사용자 언어로, 모르는 code는 받은 �
   const ja = translator('ja');
   expect(errorText(new HttpError(409, '이미 가입된 이메일입니다', 'email_taken'), ja)).toBe(ja('err_email_taken'));
   expect(errorText(new HttpError(0, 'x', 'network'), translator('en'))).toBe("Can't reach the server");
-  expect(errorText(new CodedError('kakao_unavailable', 'x'), translator('zh'))).toBe(translator('zh')('err_kakao_unavailable'));
+  expect(errorText(new CodedError('auth_unavailable', 'x'), translator('zh'))).toBe(translator('zh')('err_auth_unavailable'));
   expect(codeText('something_new', '서버가 보낸 문구', ja)).toBe('서버가 보낸 문구');
   // code가 없던 예전 서버 응답도 상태 코드로 대신 정해 번역된다
   expect(errorText(new HttpError(500, 'boom'), translator('en'))).toBe(translator('en')('err_server'));

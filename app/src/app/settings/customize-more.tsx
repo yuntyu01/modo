@@ -2,7 +2,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { useApp } from '../../state/AppContext';
+import { useUi } from '../../state/AppContext';
 import { ACCENTS, CARD_SWATCHES, type SurfaceTheme } from '../../state/prefs';
 import { contrast, hexToRgb, hsvToRgb, isHex, rgbToHex, rgbToHsv } from '../../ui/color';
 import { CheckIcon } from '../../ui/Icons';
@@ -22,7 +22,7 @@ function Swatches({
   onChange: (c: string | null) => void;
   withDefault?: boolean;
 }) {
-  const { theme, t } = useApp();
+  const { theme, t } = useUi();
   const [custom, setCustom] = useState(false);
   const isCustom = !!value && !colors.includes(value);
   const dot = (c: string | null, key: string, label: string) => {
@@ -67,7 +67,7 @@ function Swatches({
 
 /** 사용자 지정 색: 색상 슬라이더 + 밝기 슬라이더 + HEX 입력 */
 function CustomColor({ value, onChange }: { value: string; onChange: (c: string) => void }) {
-  const { theme, t } = useApp();
+  const { theme, t } = useUi();
   const [h, s, v] = rgbToHsv(hexToRgb(value));
   const [hex, setHex] = useState(value);
   const set = (c: string) => {
@@ -107,7 +107,7 @@ function CustomColor({ value, onChange }: { value: string; onChange: (c: string)
 }
 
 function SurfaceSettings({ title, value, onChange }: { title: string; value: SurfaceTheme; onChange: (v: SurfaceTheme) => void }) {
-  const { theme, t } = useApp();
+  const { theme, t } = useUi();
   return (
     <Group title={title}>
       <Row label={t('followApp')} right={<Switch label={t('followApp')} value={value.linked} onChange={(linked) => onChange({ ...value, linked })} />} />
@@ -131,7 +131,7 @@ function SurfaceSettings({ title, value, onChange }: { title: string; value: Sur
 
 /** 더 많은 꾸미기: 첫 화면(시안)에 없는 세부 설정. 직접 고르는 테마색, 그라데이션 세기, 카드색, 서체·굵기, 위젯·미니창 개별 테마. */
 export default function CustomizeMore() {
-  const { theme, t, prefs, setPrefs } = useApp();
+  const { theme, t, prefs, setPrefs } = useUi();
   return (
     <SubScreen title={t('moreCustomize')}>
       {/* 맨 위 예시: 꾸미기 첫 화면과 같은 할 일 + 입력창. 여기서 바꾸는 테마색·카드색·서체·굵기가 바로 보인다 */}
@@ -187,9 +187,5 @@ const styles = StyleSheet.create({
   customInner: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: '#FFF' },
   hueBar: { height: 8, borderRadius: 4, overflow: 'hidden', marginBottom: 2 },
   hex: { borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, marginTop: 8, width: 140 },
-  sides: { flexDirection: 'row', gap: 12, padding: 16 },
-  sideCard: { flex: 1, height: 58, borderRadius: 16, borderWidth: 1.5, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, gap: 10 },
-  miniCircle: { width: 22, height: 22, borderRadius: 11, borderWidth: 2 },
-  miniLine: { flex: 1, height: 8, borderRadius: 4 },
   seg: { paddingHorizontal: 16, paddingTop: 12 },
 });

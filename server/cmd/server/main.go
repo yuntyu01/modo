@@ -60,6 +60,9 @@ func main() {
 		PublicURL:      env("PUBLIC_URL", "http://127.0.0.1:"+env("PORT", "8080")),
 		TrustProxy:     os.Getenv("TRUST_PROXY") == "1",
 		RateLimit:      atoi(os.Getenv("RATE_LIMIT")),
+
+		// 이메일 로그인은 없앴다. 테스트·E2E 서버만 PASSWORD_LOGIN=1로 켠다(계정을 만들 때)
+		PasswordLoginOff: os.Getenv("PASSWORD_LOGIN") != "1",
 	})
 	if err := waitAndMigrate(ctx, srvAPI); err != nil {
 		log.Fatal("database_migration_failed")

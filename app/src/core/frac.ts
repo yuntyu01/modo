@@ -141,7 +141,3 @@ export function keyBetween(a: string | null, b: string | null): string {
 
 export const compareKey = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
-/** position, id 순 정렬(같은 키가 두 기기에서 동시에 생겨도 순서가 고정된다). */
-export function byPosition<T extends { position: string; id: string }>(x: T, y: T) {
-  return compareKey(x.position, y.position) || compareKey(x.id, y.id);
-}

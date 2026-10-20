@@ -33,9 +33,19 @@ $env:MODO_STORE_PUBLISHER_NAME = '<Package/Properties/PublisherDisplayName from 
 npm run dist:store
 ```
 
-This creates a single x64 `.appx` (a Microsoft-supported Store submission format) with package version 1.0.0.0, Windows.Desktop minimum 10.0.19041.0, four actual UI languages, modo tile assets and only the required `runFullTrust` restricted capability. The build refuses missing identity values. Never submit a development identity as the real product identity. Free Store signing is performed by Microsoft after certification; an external paid EXE signing certificate is not part of this path.
+This creates a single x64 `.appx` with the current desktop package version (1.0.3.0), Windows.Desktop minimum 10.0.19041.0, four actual UI languages, and only the required `runFullTrust` capability. The official Windows SDK MakePri indexes the scale/target-size icon assets and MakeAppx validates the package. The build refuses missing identity values. Microsoft signs the package after certification; no external paid EXE certificate is required.
 
-The initial Store package does not register a login startup task and hides the portable app's registry-based auto-start option. Pinning, opacity and the tray remain available.
+Version 1.0.3 includes the `login-cleanup` changes through `fb4f66f`: Google/Kakao-only required sign-in, completion grouping, the Together/friends UI and supporting server APIs. Previously signed-in users can continue offline. New users need an online social sign-in before using the app. Store descriptions and reviewer instructions must reflect this behavior; the older optional-login copy does not describe this version. Keep the approved logo blue and rounded Windows icon assets when merging later changes.
+
+The initial Store package does not register a login startup task and hides the portable app's registry-based auto-start option. Pinning, opacity and the tray remain available. The custom manifest uses the reserved Store title for package metadata and `modo` for the installed launcher. Its literal ampersand is XML-escaped.
+
+After an unpacked Electron build, the SDK packaging stage can also be run directly:
+
+```powershell
+pwsh -NoProfile -File scripts/pack-store-sdk.ps1 -Prepare
+```
+
+The script verifies the actual Partner Center identity and retains MakeAppx validation. It does not create a test certificate, disable validation or change Windows security settings. Windows icon generation preserves the approved artwork's RGB pixels, rounds only the outer plate with transparent corners, and provides light/dark unplated target sizes to prevent a square system backplate. Run `node scripts/generate-icons.cjs` to regenerate Windows assets without touching mobile icons.
 
 Before submission, run the Windows App Certification Kit on the identity-matched package, verify installed package startup/uninstall, and test local editing, offline restart, login, sync and authenticated deletion using isolated data. A successful portable build or unit test does not establish that a Store package passed certification. Store-managed installation, startup integration and updates require separate installed-package testing.
 
@@ -51,6 +61,6 @@ Before submission, run the Windows App Certification Kit on the identity-matched
 
 The local SQLite DB enables secure deletion. Accepted account erasure clears shared core records, removes modo-managed migration backups and checkpoints the WAL; a persisted cleanup flag retries interrupted backup/checkpoint work at next launch. User-created JSON exports and other people's copies are managed separately.
 
-## Current external blocker
+## Current Store identity
 
-On 2026-10-18 the existing Microsoft account login reached a device passkey/Windows security prompt. The operator must complete authentication on the device. No Partner Center product identity has been retrieved, and no Microsoft Store submission or certification is claimed. Do not send passwords/passkeys/identity documents in chat.
+The free individual developer account was created and verified on 2026-10-20 after owner identity verification and explicit developer-agreement approval. Product `9P8SSJ8GBB1X` reserves `modo - Simple Memo & ToDo`. Its package identity is `yuntyu01.modo-SimpleMemoToDo`, publisher `CN=8C166C00-D40B-41A4-A2F6-68E632355E49`, and publisher display name `yuntyu01`. Product creation and package generation are separate from certification and publication. Do not send passwords/passkeys/identity documents in chat.

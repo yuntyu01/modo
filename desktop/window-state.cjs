@@ -5,7 +5,7 @@ const { screen } = require('electron');
 
 // 창 = 보이는 바탕 그대로(둘레 투명 여백 없음, framePad 0). 폭 280(시안 320은 작은 메모 창으로 쓰기엔 넓어 12% 줄임, 사용자 요청)
 // maxHeight: null = 내용(맨 아래 '+'까지)을 따라 늘어난다(화면 높이까지). 숫자 = 사용자가 그 높이로 줄여 둔 것(목록 스크롤)
-const DEFAULTS = { width: 280, maxHeight: null, x: undefined, y: undefined, pinned: true, opacity: 1, framePad: 0, heightMode: 2 };
+const DEFAULTS = { width: 280, maxHeight: null, x: undefined, y: undefined, pinned: true, framePad: 0, heightMode: 2 };
 // 예전에는 그림자 자리로 바탕 둘레에 14씩 투명 여백이 있었다(창 가장자리, 곧 크기 조절 손잡이가 투명한 곳에 있었다).
 const OLD_PAD = 14;
 

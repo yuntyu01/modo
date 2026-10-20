@@ -20,9 +20,6 @@ import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
-import com.yuntyu01.naegirok.notify.LockNotifier
-import com.yuntyu01.naegirok.notify.Reminders
-import com.yuntyu01.naegirok.widget.NotesWidgetProvider
 
 /**
  * '빠른 추가' 앱 아이콘(별도 런처 항목)·위젯 +·빠른 설정 타일이 여는 작은 입력창.
@@ -47,24 +44,35 @@ class QuickAddActivity : Activity() {
     window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE or WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
     folderId = intent.getStringExtra(EXTRA_FOLDER)
     val prefs = getSharedPreferences("naegirok_quickadd", Context.MODE_PRIVATE)
-    todoMode = savedInstanceState?.getBoolean("todo") ?: prefs.getBoolean("todo", true)
+    // 위젯 할 일 쪽의 +는 늘 할 일로(예전엔 마지막에 쓴 모드를 따라 메모 이어 쓰기로 열리기도 했다). 앱 아이콘·타일은 마지막 모드
+    todoMode = savedInstanceState?.getBoolean("todo") ?: intent.getStringExtra(EXTRA_MODE)?.let { it == MODE_TODO } ?: prefs.getBoolean("todo", true)
 
-    val (t, top) = NotesDb.use(this) { db ->
+    // DB는 한 번만 연다(예전엔 설정·보기 전용·폴더 이름을 따로 열어, 첫 화면 전에 세 번 열었다)
+    // null(앱 아이콘·타일) = 기본 폴더. 보기 전용으로 공유받은 폴더(넣으면 서버가 거절한다)나 지워진 폴더를 가리키는 위젯도 기본으로
+    data class Start(val theme: SurfaceTheme, val top: Boolean, val name: String?, val signedIn: Boolean)
+    val start = NotesDb.use(this) { db ->
       val p = NotesDb.prefs(db)
-      SurfaceTheme.from(this, p, "widget") to (p.optString("newTodoAt", "bottom") == "top")
-    } ?: (SurfaceTheme.from(this, org.json.JSONObject()) to false)
-    theme = t
-    newTodoTop = top
+      val name = folderId?.takeIf { !NotesDb.viewOnly(db, it) }?.let { NotesDb.folderName(db, it) }
+      Start(SurfaceTheme.from(this, p, "widget"), p.optString("newTodoAt", "bottom") == "top", name, NotesDb.signedIn(db))
+    } ?: Start(SurfaceTheme.from(this, org.json.JSONObject()), false, null, false)
+    // 로그인해야 쓸 수 있다: 로그인하지 않았으면(앱을 한 번도 안 열었어도) 앱의 로그인 화면으로(앱 아이콘·타일·위젯 + 모두 여기로 온다)
+    if (!start.signedIn) {
+      Toast.makeText(this, R.string.login_first, Toast.LENGTH_SHORT).show()
+      ModoEvents.openApp(this)
+      finish()
+      return
+    }
+    theme = start.theme
+    newTodoTop = start.top
+    if (start.name == null) folderId = null
+    // 어디에 저장되는지 항상 보여 준다(입력칸 안내)
+    folderName = start.name ?: getString(R.string.base_folder)
 
     val dp = resources.displayMetrics.density
     findViewById<View>(R.id.qa_bar).background = GradientDrawable().apply {
       setColor(theme.card)
       cornerRadius = 32 * dp
     }
-    // null(앱 아이콘·타일) = 기본 폴더. 어디에 저장되는지 항상 보여 준다.
-    val name = NotesDb.use(this) { NotesDb.folderName(it, folderId) }
-    if (name == null) folderId = null // 지워진 폴더를 가리키는 위젯이면 기본으로
-    folderName = name ?: getString(R.string.base_folder)
     input = findViewById(R.id.qa_input)
     toggle = findViewById(R.id.qa_toggle)
     send = findViewById(R.id.qa_send)
@@ -166,14 +174,13 @@ class QuickAddActivity : Activity() {
     if (text.isBlank() || submitting) return
     submitting = true
     val asTodo = todoMode
-    Thread {
-      val ok = NotesDb.write(this) { db ->
-        if (asTodo) NotesDb.addTodo(db, text.replace('\n', ' '), folderId, newTodoTop) else NotesDb.appendMemo(db, text, folderId)
+    val folder = folderId
+    val app = applicationContext
+    Work.run {
+      val ok = NotesDb.write(app) { db ->
+        if (asTodo) NotesDb.addTodo(db, text.replace('\n', ' '), folder, newTodoTop) else NotesDb.appendMemo(db, text, folder)
       } != null
-      NotesWidgetProvider.refreshAll(this)
-      LockNotifier.refresh(this)
-      Reminders.scheduleAll(this)
-      if (ok) ModoEvents.dataChanged(this)
+      // 창은 저장되자마자 닫고, 위젯·알림은 그 뒤에 맞춘다(예전엔 위젯을 다 그릴 때까지 창이 남아 있었다)
       runOnUiThread {
         if (ok) {
           Toast.makeText(this, if (asTodo) R.string.added_todo else R.string.added_memo, Toast.LENGTH_SHORT).show()
@@ -183,10 +190,14 @@ class QuickAddActivity : Activity() {
           Toast.makeText(this, R.string.open_app_first, Toast.LENGTH_LONG).show()
         }
       }
-    }.start()
+      if (ok) ModoEvents.afterWrite(app, if (asTodo) "todos" else "paragraphs")
+    }
   }
 
   companion object {
     const val EXTRA_FOLDER = "folder_id"
+    const val EXTRA_MODE = "mode"
+    const val MODE_TODO = "todo"
+    const val MODE_MEMO = "memo"
   }
 }

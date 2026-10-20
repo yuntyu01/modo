@@ -674,6 +674,8 @@ type sharedFolder struct {
 	FolderID uuid.UUID `json:"folder_id"`
 	Role     string    `json:"role"`
 	Owner    person    `json:"owner"`
+	// 내 홈(목록 탭)에도 보일지(참여자 각자의 설정). 예전 앱은 이 필드를 모른다(늘 보인다)
+	Home bool `json:"home"`
 }
 
 type person struct {
@@ -703,7 +705,7 @@ func (s *Server) pull(w http.ResponseWriter, r *http.Request) {
 
 	shared := []sharedFolder{}
 	rows, err := tx.Query(ctx, `
-		SELECT m.folder_id, m.role, o.id, COALESCE(o.email, ''), o.name FROM folder_members m
+		SELECT m.folder_id, m.role, o.id, COALESCE(o.email, ''), o.name, m.home FROM folder_members m
 		JOIN folders f ON f.id = m.folder_id JOIN users o ON o.id = f.owner_id
 		WHERE m.user_id = $1`, u.ID)
 	if err != nil {
@@ -712,7 +714,7 @@ func (s *Server) pull(w http.ResponseWriter, r *http.Request) {
 	}
 	for rows.Next() {
 		var sf sharedFolder
-		rows.Scan(&sf.FolderID, &sf.Role, &sf.Owner.ID, &sf.Owner.Email, &sf.Owner.Name)
+		rows.Scan(&sf.FolderID, &sf.Role, &sf.Owner.ID, &sf.Owner.Email, &sf.Owner.Name, &sf.Home)
 		shared = append(shared, sf)
 	}
 	rows.Close()
@@ -830,6 +832,18 @@ func (s *Server) pull(w http.ResponseWriter, r *http.Request) {
 			resp["foreign_same"] = true
 		} else {
 			resp["foreign_ids"] = ids
+		}
+		// 친구·받은/보낸 요청·친구별 함께 쓰는 폴더도 같은 동기화로(창마다 따로 묻지 않게). 요약(friends_digest)이
+		// 클라이언트가 보낸 것(ffd)과 같으면 목록은 뺀다. 예전 앱은 ffd를 보내지 않고 이 필드를 무시한다
+		fr, err := friendsOf(ctx, tx, u.ID)
+		if err != nil {
+			serverError(w, err)
+			return
+		}
+		fdg := friendsDigest(fr)
+		resp["friends_digest"] = fdg
+		if r.URL.Query().Get("ffd") != fdg {
+			resp["friends"] = fr
 		}
 	}
 	// 응답을 쓰기 전에 트랜잭션을 끝내 전역 잠금을 푼다: 느린 클라이언트가 응답을 받는 동안 모든 사용자의 push·pull이 멈추지 않게.

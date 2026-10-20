@@ -1,16 +1,12 @@
-import type { RepeatRule } from '../core/repeat';
+import { ALL_DAYS, dayBit, fmt, parse, type RepeatRule } from '../core/repeat';
 import type { Lang } from '../i18n';
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
-export function localDate(d: Date) {
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
-export function parseLocalDate(s: string) {
-  const [y, m, d] = s.split('-').map(Number);
-  return new Date(y, m - 1, d);
-}
+/** 현지 날짜 'YYYY-MM-DD'(코어 repeat.ts와 같은 것) */
+export const localDate = fmt;
+/** 'YYYY-MM-DD' → 그날 0시(현지) */
+export const parseLocalDate = parse;
 
 // 날짜 표기는 언어마다 직접 정한다(Hermes의 Intl은 기기·버전마다 지원이 달라 기대지 않는다).
 type DateWords = {
@@ -146,14 +142,15 @@ export function formatDateTime(ms: number, lang: Lang) {
 }
 
 /** 오늘·내일은 말로, 그 밖에는 '10월 16일 (금)' */
-export function formatDue(date: string, lang: Lang) {
+export function formatDue(date: string, lang: Lang, now = new Date()) {
   const w = words(lang);
-  if (date === localDate(new Date())) return w.today;
-  if (date === localDate(new Date(Date.now() + 86400000))) return w.tomorrow;
+  if (date === localDate(now)) return w.today;
+  // 내일은 달력으로 하루 뒤(예전엔 24시간 뒤라 서머타임이 바뀌는 날 자정 무렵엔 모레·오늘이 되었다)
+  if (date === localDate(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1))) return w.tomorrow;
   return formatDate(date, lang);
 }
 
-export function formatTime(ms: number) {
+function formatTime(ms: number) {
   const d = new Date(ms);
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
@@ -196,16 +193,21 @@ export const weekNamesMonFirst = (lang: Lang) => {
  * - 없는 정보는 빼서 빈 구분점이 남지 않는다
  */
 export function repeatShort(rule: RepeatRule, lang: Lang, anchor: string | null) {
+  return repeatText(rule, lang, anchor, true);
+}
+
+/** 반복 표시의 공통 부분(짧은 꼴: '평일'·'주말'·'월·수·금', 긴 꼴: '매주 월·수·금') */
+function repeatText(rule: RepeatRule, lang: Lang, anchor: string | null, short: boolean) {
   const w = words(lang);
-  if (rule.freq === 'daily' || (rule.freq === 'weekly' && rule.days === 127)) return w.daily;
+  if (rule.freq === 'daily' || (rule.freq === 'weekly' && rule.days === ALL_DAYS)) return w.daily;
   if (rule.freq === 'monthly') return w.monthly(anchor ? parseLocalDate(anchor).getDate() : 1);
-  const mask = rule.days || (anchor ? 1 << ((parseLocalDate(anchor).getDay() + 6) % 7) : 1);
-  if (mask === 31) return w.weekdays; // 월~금
-  if (mask === 96) return w.weekends; // 토·일
+  const mask = rule.days || (anchor ? dayBit(anchor) : 1);
+  if (short && mask === 31) return w.weekdays; // 월~금
+  if (short && mask === 96) return w.weekends; // 토·일
   const names = weekNamesMonFirst(lang);
   const picked = names.map((_, i) => i).filter((i) => mask & (1 << i)); // 월요일 = 0
   if (picked.length === 1) return w.weeklyOne((picked[0] + 1) % 7);
-  return w.daysShort(picked.map((i) => names[i]));
+  return short ? w.daysShort(picked.map((i) => names[i])) : w.weeklyMany(picked.map((i) => names[i]));
 }
 
 /** 카드 날짜: 오늘·내일 / 10월 19일 / 2027년 1월 3일(요일은 빼고) */
@@ -253,12 +255,5 @@ export function cardWhen(t: { due_date: string | null; remind_at: number | null 
 
 /** 반복 표시(정보 시트 등 긴 꼴): '매일' · '매주 월·수·금' · '매주 목요일' · '매월 16일' */
 export function describeRepeat(rule: RepeatRule, lang: Lang, anchor: string | null) {
-  const w = words(lang);
-  if (rule.freq === 'daily' || (rule.freq === 'weekly' && rule.days === 127)) return w.daily;
-  if (rule.freq === 'monthly') return w.monthly(anchor ? parseLocalDate(anchor).getDate() : 1);
-  const names = weekNamesMonFirst(lang);
-  const mask = rule.days || (anchor ? 1 << ((parseLocalDate(anchor).getDay() + 6) % 7) : 1);
-  const picked = names.map((_, i) => i).filter((i) => mask & (1 << i)); // 월요일 = 0
-  if (picked.length === 1) return w.weeklyOne((picked[0] + 1) % 7);
-  return w.weeklyMany(picked.map((i) => names[i]));
+  return repeatText(rule, lang, anchor, false);
 }

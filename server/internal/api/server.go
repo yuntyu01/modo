@@ -50,6 +50,7 @@ func (s *Server) Cleanup(ctx context.Context) error {
 		`DELETE FROM sessions WHERE last_used_at < now() - interval '180 days'`,
 		`DELETE FROM oauth_states WHERE expires_at < now()`,
 		`DELETE FROM login_codes WHERE expires_at < now()`,
+		`DELETE FROM friend_requests WHERE status <> 'pending' AND responded_at < now() - interval '30 days'`,
 	} {
 		if _, err := s.db.Exec(ctx, q); err != nil {
 			return err
@@ -87,6 +88,17 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/folders/{id}/links", s.auth(s.createLink))
 	mux.HandleFunc("DELETE /api/folders/{id}/links/{token}", s.auth(s.deleteLink))
 	mux.HandleFunc("GET /s/{token}", s.publicLink)
+
+	mux.HandleFunc("POST /api/folders/{id}/leave", s.auth(s.leaveFolder))
+	mux.HandleFunc("PUT /api/folders/{id}/home", s.auth(s.setFolderHome))
+
+	mux.HandleFunc("GET /api/friends", s.auth(s.listFriends))
+	mux.HandleFunc("GET /api/friends/search", s.auth(s.searchFriend))
+	mux.HandleFunc("POST /api/friends/requests", s.auth(s.requestFriend))
+	mux.HandleFunc("POST /api/friends/requests/{id}/accept", s.auth(s.acceptFriend))
+	mux.HandleFunc("POST /api/friends/requests/{id}/decline", s.auth(s.declineFriend))
+	mux.HandleFunc("DELETE /api/friends/requests/{id}", s.auth(s.cancelFriendRequest))
+	mux.HandleFunc("DELETE /api/friends/{user}", s.auth(s.removeFriend))
 }
 
 func decode(w http.ResponseWriter, r *http.Request, v any) bool {

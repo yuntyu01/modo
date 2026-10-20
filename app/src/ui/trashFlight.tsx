@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withDelay, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
-import { useApp } from '../state/AppContext';
+import { useUi } from '../state/AppContext';
 import { TrashIcon } from './Icons';
 
 /**
@@ -50,7 +50,7 @@ export async function flyToTrash(card: View | null, ghost: { text: string; color
  * priority: 머리의 ⋯(2)가 하단바 ⋯ 탭(1)보다 먼저.
  */
 export function TrashTargetIcon({ priority, size, children }: { priority: number; size: number; children: ReactNode }) {
-  const { theme } = useApp();
+  const { theme } = useUi();
   const ref = useRef<View>(null);
   const morph = useSharedValue(0); // 0 = ⋯, 1 = 휴지통
   const pop = useSharedValue(1);
@@ -95,6 +95,8 @@ export function TrashFlightHost() {
       launch = null;
     };
   }, []);
+  // 늘 같은 함수: 다른 카드를 또 지우거나 층이 다시 재일 때 날아가던 카드의 애니메이션이 처음부터 다시 시작되지 않게
+  const finish = useCallback((id: number) => setFlights((cur) => cur.filter((x) => x.id !== id)), []);
   return (
     <View
       ref={origin}
@@ -104,15 +106,7 @@ export function TrashFlightHost() {
       onLayout={() => origin.current?.measureInWindow((x, y) => setOffset({ x, y }))}
     >
       {flights.map((f) => (
-        <Ghost
-          key={f.id}
-          flight={f}
-          offset={offset}
-          onDone={() => {
-            f.target.bump();
-            setFlights((cur) => cur.filter((x) => x.id !== f.id));
-          }}
-        />
+        <Ghost key={f.id} flight={f} offset={offset} onDone={finish} />
       ))}
     </View>
   );
@@ -120,8 +114,8 @@ export function TrashFlightHost() {
 
 const DURATION = 520;
 
-function Ghost({ flight, offset, onDone }: { flight: Flight; offset: { x: number; y: number }; onDone: () => void }) {
-  const { theme } = useApp();
+function Ghost({ flight, offset, onDone }: { flight: Flight; offset: { x: number; y: number }; onDone: (id: number) => void }) {
+  const { theme } = useUi();
   const p = useSharedValue(0);
   // UI 스레드 함수(useAnimatedStyle)에는 숫자만 넘긴다: flight에는 과녁(⋯ 버튼 화면 요소)이 들어 있어
   // 통째로 쓰면 복사하지 못해 앱이 멈췄다('Cannot copy value of type ReactNativeElement', 2026-10-18)
@@ -132,12 +126,16 @@ function Ghost({ flight, offset, onDone }: { flight: Flight; offset: { x: number
   const ex = to.x + to.width / 2 - offset.x;
   const ey = to.y + to.height / 2 - offset.y;
   useEffect(() => {
+    const fire = () => {
+      flight.target.bump();
+      onDone(flight.id);
+    };
     p.set(
       withTiming(1, { duration: DURATION, easing: Easing.inOut(Easing.cubic) }, (finished) => {
-        if (finished) scheduleOnRN(onDone);
+        if (finished) scheduleOnRN(fire);
       }),
     );
-  }, [p, onDone]);
+  }, [p, flight, onDone]);
   // 처음엔 납작한 알약으로 빠르게 줄고(세로가 먼저), 날아가며 점이 되어 ⋯ 속으로 빨려 들어간다.
   const style = useAnimatedStyle(() => {
     const t = p.get();

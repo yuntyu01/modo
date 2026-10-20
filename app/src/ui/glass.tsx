@@ -3,7 +3,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { createContext, useContext, type RefObject } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 
-import { useApp } from '../state/AppContext';
+import { useUi } from '../state/AppContext';
 import { withAlpha } from './color';
 
 /**
@@ -17,7 +17,7 @@ export const BlurTargetContext = createContext<RefObject<View | null> | null>(nu
 
 /** 둥근 블록 안쪽을 채우는 바탕. 부모는 overflow: 'hidden'과 같은 모서리를 가져야 한다. */
 export function GlassBackground({ color }: { color: string }) {
-  const { theme } = useApp();
+  const { theme } = useUi();
   const target = useContext(BlurTargetContext);
   return (
     <>
@@ -36,7 +36,7 @@ export function GlassBackground({ color }: { color: string }) {
 
 /** 화면 아래쪽에서 목록이 점점 희미해지는 막. 하단바·입력창보다 아래 층에, 목록보다 위 층에 둔다. */
 export function BottomFade({ height }: { height: number }) {
-  const { theme } = useApp();
+  const { theme } = useUi();
   return (
     <LinearGradient
       pointerEvents="none"

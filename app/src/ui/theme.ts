@@ -96,6 +96,9 @@ function glassTint(card: string, accent: string) {
 const onDesktop = () => Platform.OS === 'web' && typeof window !== 'undefined' && !!(window as { desktop?: unknown }).desktop;
 
 
+/** 지금 창이 PC 미니창인지(미니창은 창(웹 문서)이 따로라 주소로 가른다) */
+export const isMiniWindow = () => onDesktop() && window.location.pathname.startsWith('/mini');
+
 export function makeTheme(p: Prefs, systemDark: boolean, surface?: SurfaceTheme): Theme {
   const dark = p.themeMode === 'system' ? systemDark : p.themeMode === 'dark';
   const rawAccent = surface && !surface.linked ? surface.accent : p.accent;
@@ -157,7 +160,7 @@ export function makeTheme(p: Prefs, systemDark: boolean, surface?: SurfaceTheme)
     zoom: ZOOM,
     // 미니창은 창(웹 문서)이 따로라 주소로 가른다
     desk,
-    mini: onDesktop() && window.location.pathname.startsWith('/mini'),
+    mini: isMiniWindow(),
     font: (size, extra) => ({
       fontSize: Math.round(size * scale * 10) / 10,
       fontWeight: weight,

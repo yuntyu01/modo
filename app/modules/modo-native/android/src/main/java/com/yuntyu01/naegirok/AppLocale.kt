@@ -4,6 +4,7 @@ import android.app.LocaleManager
 import android.content.Context
 import android.content.res.Configuration
 import android.os.Build
+import org.json.JSONObject
 import java.util.Locale
 
 /**
@@ -14,8 +15,9 @@ object AppLocale {
   /** 앱(app/src/i18n.ts LANGS)과 같은 지원 언어. 그 밖의 언어 기기는 앱처럼 영어로(기본 values는 한국어라서 직접 고른다) */
   private val SUPPORTED = setOf("ko", "en", "ja", "zh")
 
-  fun locale(ctx: Context): Locale {
-    val pref = NotesDb.use(ctx) { NotesDb.prefs(it).optString("language", "system") } ?: "system"
+  /** prefs: 이미 읽은 앱 설정(있으면 DB를 다시 열지 않는다) */
+  fun locale(ctx: Context, prefs: JSONObject? = null): Locale {
+    val pref = (prefs ?: NotesDb.use(ctx) { NotesDb.prefs(it) })?.optString("language", "system") ?: "system"
     if (pref in SUPPORTED) return Locale.forLanguageTag(pref)
     val candidates = buildList {
       if (Build.VERSION.SDK_INT >= 33) {
@@ -28,9 +30,9 @@ object AppLocale {
     return candidates.firstOrNull { it.language in SUPPORTED }?.let { Locale.forLanguageTag(it.language) } ?: Locale.ENGLISH
   }
 
-  fun wrap(ctx: Context): Context {
+  fun wrap(ctx: Context, prefs: JSONObject? = null): Context {
     val config = Configuration(ctx.resources.configuration)
-    config.setLocale(locale(ctx))
+    config.setLocale(locale(ctx, prefs))
     return ctx.createConfigurationContext(config)
   }
 }

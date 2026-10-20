@@ -1,6 +1,6 @@
 import Svg, { Circle, G, Path, Rect, Text as SvgText } from 'react-native-svg';
 
-import { useApp } from '../state/AppContext';
+import { useUi } from '../state/AppContext';
 import { MARK_PATH } from './Logo';
 
 /**
@@ -18,7 +18,7 @@ const H = 220;
 const WIDGET_BG = '#2A2A2C';
 
 export function HowToArt({ kind, step, width = 104 }: { kind: HowToKind; step: number; width?: number }) {
-  const { theme, t } = useApp();
+  const { theme, t } = useUi();
   const c = {
     screen: theme.dark ? '#121316' : '#EEF1F5',
     frame: theme.dark ? '#3A3D44' : '#C5CBD4',

@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 
 import { BRAND } from '../brand';
 import type { Lang } from '../i18n';
+import { SERVICE_ORIGIN } from '../core/sync';
 
 export type SurfaceTheme = {
   /** true면 앱 테마를 그대로 따른다 */
@@ -37,6 +38,8 @@ export type Prefs = {
   /** 첫 실행 화면(테마색 + 첫 할 일)을 마쳤는지. 휴대폰만 */
   onboarded: boolean;
   server: string;
+  /** 설정 고치기(mergePrefs)를 어디까지 했는지. 2 = 옛 기본값(투명도·테마색)을 새 기본값으로 바꾼 뒤 */
+  prefsVersion: number;
 };
 
 // 맨 앞은 대표색(src/brand.ts). 화이트·블랙·그레이 같은 무채색도 포함. 배경과 대비가 모자라면 theme.ts가 보이게 보정한다.
@@ -65,7 +68,7 @@ export const CARD_SWATCHES = [
   '#B4467E',
 ];
 
-export const DEFAULT_SERVER = process.env.EXPO_PUBLIC_API_URL ?? 'https://modo.kodeploy.com';
+export const DEFAULT_SERVER = process.env.EXPO_PUBLIC_API_URL ?? SERVICE_ORIGIN;
 
 export const DEFAULT_PREFS: Prefs = {
   themeMode: 'system',
@@ -82,7 +85,6 @@ export const DEFAULT_PREFS: Prefs = {
   logoAccent: true,
   accentAt: 0,
   language: 'system',
-  // 위젯 배경: 반투명(불투명도 65%)
   // 위젯·미니창 배경: 시안의 '투명도 80%'(불투명도 80%)
   widget: { linked: true, accent: ACCENTS[0], card: null, opacity: 0.8 },
   mini: { linked: true, accent: ACCENTS[0], card: null, opacity: 0.8 },
@@ -90,6 +92,7 @@ export const DEFAULT_PREFS: Prefs = {
   hintSeen: false,
   onboarded: false,
   server: DEFAULT_SERVER,
+  prefsVersion: 2,
 };
 
 // 예전에 기본색이었던 색들(대표색을 바꿨다 되돌려도 지금 대표색은 빼고)
@@ -100,14 +103,20 @@ export function mergePrefs(saved: Partial<Prefs> | null): Prefs {
   // 첫 실행 화면이 생기기 전부터 쓰던 사람(설정이 이미 저장돼 있으면)은 마친 것으로
   if (saved && saved.onboarded === undefined) p.onboarded = true;
   p.widget = { ...DEFAULT_PREFS.widget, ...(saved?.widget ?? {}) };
-  // 예전 기본값(92%, 70%, 45%)을 그대로 두고 있던 경우는 새 기본값으로
-  if ([0.92, 0.7, 0.45, 0.65].includes(saved?.widget?.opacity ?? -1)) p.widget.opacity = DEFAULT_PREFS.widget.opacity;
-  if (saved?.mini?.opacity === 0.96) p.mini.opacity = DEFAULT_PREFS.mini.opacity;
   p.mini = { ...DEFAULT_PREFS.mini, ...(saved?.mini ?? {}) };
   p.lock = { ...DEFAULT_PREFS.lock, ...(saved?.lock ?? {}) };
-  // 예전 기본 강조색을 그대로 쓰던 경우는 지금 대표색으로
-  const old = (c?: string) => !!c && OLD_DEFAULTS.includes(c.toUpperCase());
-  if (old(saved?.accent)) p.accent = DEFAULT_PREFS.accent;
-  for (const k of ['widget', 'mini'] as const) if (old(saved?.[k]?.accent)) p[k].accent = DEFAULT_PREFS.accent;
+  // 옛 기본값 고치기는 한 번만(prefsVersion < 2). 예전엔 값으로 판단해 켤 때마다 돌아서, 사용자가 직접 고른 70%·96%나
+  // 옛 기본색과 같은 색을 다시 기본값으로 되돌렸다. (위젯의 Kotlin/Swift는 옛 기본색 2개를 늘 대표색으로 바꾼다: 그 두 색을
+  // 직접 고르면 위젯에서만 대표색으로 보인다. 드물어 그대로 둔다)
+  if ((saved?.prefsVersion ?? 1) < 2) {
+    // 예전 기본값(92%, 70%, 45%, 65%, 미니창 96%)을 그대로 두고 있던 경우는 새 기본값으로
+    if ([0.92, 0.7, 0.45, 0.65].includes(saved?.widget?.opacity ?? -1)) p.widget.opacity = DEFAULT_PREFS.widget.opacity;
+    if (saved?.mini?.opacity === 0.96) p.mini.opacity = DEFAULT_PREFS.mini.opacity;
+    // 예전 기본 강조색을 그대로 쓰던 경우는 지금 대표색으로
+    const old = (c?: string) => !!c && OLD_DEFAULTS.includes(c.toUpperCase());
+    if (old(saved?.accent)) p.accent = DEFAULT_PREFS.accent;
+    for (const k of ['widget', 'mini'] as const) if (old(saved?.[k]?.accent)) p[k].accent = DEFAULT_PREFS.accent;
+  }
+  p.prefsVersion = DEFAULT_PREFS.prefsVersion;
   return p;
 }

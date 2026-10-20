@@ -1,12 +1,12 @@
 import { LANG_NAMES, LANGS } from '../../i18n';
-import { useApp } from '../../state/AppContext';
+import { useUi } from '../../state/AppContext';
 import type { Prefs } from '../../state/prefs';
 import { CheckIcon } from '../../ui/Icons';
 import { Group, Row } from '../../ui/primitives';
 import { SubScreen } from '../../ui/SubScreen';
 
 export default function Language() {
-  const { t, prefs, setPrefs, theme } = useApp();
+  const { t, prefs, setPrefs, theme } = useUi();
   const options: { value: Prefs['language']; label: string }[] = [
     { value: 'system', label: t('systemDefault') },
     ...LANGS.map((l) => ({ value: l, label: LANG_NAMES[l] })),

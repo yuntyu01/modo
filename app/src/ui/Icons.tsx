@@ -122,6 +122,18 @@ export const RepeatRingIcon = ({ color, size = 24, strokeWidth = 1.6 }: P) => {
 /** 화살 하나의 호 길이(도). 두 화살 + 두 화살촉 + 두 틈 = 360° */
 const REPEAT_ARC = 138;
 
+/**
+ * 완료한 반복 할 일의 채운 동그라미 안 표시(사용자 시안 2026-10-19): 시계 방향으로 도는 가는 두 곡선 화살표,
+ * 화살촉은 꺾쇠로 오른쪽 위·왼쪽 아래에서 끝난다(흔히 쓰는 '새로 고침' 모양). 빈 반복 동그라미(RepeatRingIcon)의
+ * 채운 삼각 화살촉은 이 크기에서 뭉개져 화살로 읽히지 않았다.
+ */
+export const RepeatGlyphIcon = ({ color, size, strokeWidth = 2.2 }: P) => (
+  <S size={size}>
+    <Path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8M21 3v5h-5" stroke={color} strokeWidth={strokeWidth} {...base} />
+    <Path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16M8 16H3v5" stroke={color} strokeWidth={strokeWidth} {...base} />
+  </S>
+);
+
 export const CheckIcon = ({ color, size, strokeWidth = 2.6 }: P) => (
   <S size={size}>
     <Path d="M5 12.5l4.5 4.5L19 7.5" stroke={color} strokeWidth={strokeWidth} {...base} />
@@ -199,43 +211,10 @@ export const BellIcon = ({ color, size, strokeWidth = 1.7 }: P) => (
   </S>
 );
 
-export const SparkleIcon = ({ color, size, strokeWidth = 1.7 }: P) => (
-  <S size={size}>
-    <Path d="M10 3.5l1.6 4.9 4.9 1.6-4.9 1.6L10 16.5 8.4 11.6 3.5 10l4.9-1.6zM17.5 14l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z" stroke={color} strokeWidth={strokeWidth} {...base} />
-  </S>
-);
-
 export const GlobeIcon = ({ color, size, strokeWidth = 1.7 }: P) => (
   <S size={size}>
     <Circle cx={12} cy={12} r={8.5} stroke={color} strokeWidth={strokeWidth} {...base} />
     <Path d="M3.5 12h17M12 3.5c2.4 2.4 3.5 5.2 3.5 8.5s-1.1 6.1-3.5 8.5c-2.4-2.4-3.5-5.2-3.5-8.5s1.1-6.1 3.5-8.5z" stroke={color} strokeWidth={strokeWidth} {...base} />
-  </S>
-);
-
-export const CloudIcon = ({ color, size, strokeWidth = 1.7 }: P) => (
-  <S size={size}>
-    <Path d="M7 18.5h10a4 4 0 0 0 .6-8 5.5 5.5 0 0 0-10.6-1A4.5 4.5 0 0 0 7 18.5z" stroke={color} strokeWidth={strokeWidth} {...base} />
-  </S>
-);
-
-export const PaletteIcon = ({ color, size, strokeWidth = 1.7 }: P) => (
-  <S size={size}>
-    <Path d="M12 3.5a8.5 8.5 0 0 0 0 17c1.2 0 1.8-.8 1.8-1.7 0-1.2-1-1.6-1-2.6 0-1 .8-1.7 1.8-1.7h2a3.9 3.9 0 0 0 3.9-3.9C20.5 6.8 16.7 3.5 12 3.5z" stroke={color} strokeWidth={strokeWidth} {...base} />
-    {[
-      [7.8, 11],
-      [9.6, 7.4],
-      [14, 7.2],
-    ].map(([x, y]) => (
-      <Circle key={x} cx={x} cy={y} r={1.1} fill={color} />
-    ))}
-  </S>
-);
-
-export const WidgetIcon = ({ color, size, strokeWidth = 1.7 }: P) => (
-  <S size={size}>
-    <Rect x={3.5} y={3.5} width={7} height={7} rx={1.8} stroke={color} strokeWidth={strokeWidth} {...base} />
-    <Rect x={13.5} y={3.5} width={7} height={7} rx={1.8} stroke={color} strokeWidth={strokeWidth} {...base} />
-    <Rect x={3.5} y={13.5} width={17} height={7} rx={1.8} stroke={color} strokeWidth={strokeWidth} {...base} />
   </S>
 );
 
@@ -347,11 +326,14 @@ export const PopOutIcon = ({ color, size, strokeWidth = 1.8 }: P) => (
   </S>
 );
 
-/** 최소화(가로줄) */
-export const MinusIcon = ({ color, size, strokeWidth = 1.8 }: P) => (
-  <S size={size}>
-    <Path d="M5 12h14" stroke={color} strokeWidth={strokeWidth} {...base} />
-  </S>
+/** Google 로그인 버튼의 네 색 G(Google 브랜딩 가이드의 표준 로고, 색을 바꾸지 않는다) */
+export const GoogleIcon = ({ size = 20 }: { size?: number }) => (
+  <Svg width={size} height={size} viewBox="0 0 48 48">
+    <Path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+    <Path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+    <Path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+    <Path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+  </Svg>
 );
 
 /** 카카오 로그인 버튼의 말풍선(카카오 디자인 가이드: 노란 바탕 위 검은 심볼) */

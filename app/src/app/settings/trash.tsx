@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { resolveLang } from '../../i18n';
 import { useApp } from '../../state/AppContext';
 import { formatDateTime } from '../../ui/format';
 import { ConfirmDialog } from '../../ui/primitives';
@@ -9,8 +8,7 @@ import { Note, SubScreen } from '../../ui/SubScreen';
 
 /** 삭제한 할 일·메모 문단. 복원하거나 영구 삭제한다. */
 export default function Trash() {
-  const { snap, theme, t, repo, prefs } = useApp();
-  const lang = resolveLang(prefs.language);
+  const { snap, theme, t, repo, lang } = useApp();
   const [confirm, setConfirm] = useState<null | { entity: 'todo' | 'paragraph'; ids: string[] } | 'all'>(null);
   const items = [
     ...snap.todos.filter((x) => x.deleted_at).map((x) => ({ entity: 'todo' as const, id: x.id, text: x.text, at: x.deleted_at! })),

@@ -1,6 +1,6 @@
 import * as Clipboard from 'expo-clipboard';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { errorText } from '../../i18n';
@@ -30,32 +30,36 @@ export default function ShareFolder() {
   const [roleSheet, setRoleSheet] = useState<{ member?: Member } | null>(null);
   const [confirmStop, setConfirmStop] = useState(false);
 
-  const load = useCallback(async () => {
-    try {
-      await sync.syncNow(); // 폴더가 서버에 먼저 올라가 있어야 한다
-      setShares(await sync.shareApi<Shares>(`/api/folders/${id}/shares`));
-      setError(null);
-    } catch (e) {
-      setError(errorText(e, t));
-    }
-  }, [id, sync, t]);
-  // 처음 열 때 불러오기(화면을 닫은 뒤 늦게 온 응답은 버린다)
+  // 화면을 닫은 뒤 늦게 온 응답은 버린다
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
+  // 처음 열 때만 동기화를 먼저(폴더가 서버에 올라가 있어야 한다). 초대·권한 바꾸기 뒤에는 목록만 다시 받는다
+  // (예전엔 그때마다 전체 동기화를 한 번 더 돌렸다)
+  const load = useCallback(
+    async (withSync = false) => {
+      try {
+        if (withSync) await sync.syncNow();
+        const s = await sync.shareApi<Shares>(`/api/folders/${id}/shares`);
+        if (!alive.current) return;
+        setShares(s);
+        setError(null);
+      } catch (e) {
+        if (alive.current) setError(errorText(e, t));
+      }
+    },
+    [id, sync, t],
+  );
   useEffect(() => {
     if (!account) return;
-    let alive = true;
-    (async () => {
-      try {
-        await sync.syncNow();
-        const s = await sync.shareApi<Shares>(`/api/folders/${id}/shares`);
-        if (alive) setShares(s);
-      } catch (e) {
-        if (alive) setError(errorText(e, t));
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [account, id, sync, t]);
+    // 상태는 서버 응답을 기다린 뒤에 바뀐다(컴파일러 규칙의 오탐)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    load(true);
+  }, [account, load]);
 
   const act = async (fn: () => Promise<unknown>) => {
     try {

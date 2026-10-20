@@ -1,13 +1,12 @@
-import { memo, useEffect, useState, type ReactNode } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { Animated, PixelRatio, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ruleOf } from '../../core/repeat';
 import type { Paragraph, Todo } from '../../core/types';
-import { resolveLang } from '../../i18n';
-import { useApp, useDrafts } from '../../state/AppContext';
+import { useApp, useDrafts, useUi } from '../../state/AppContext';
 import { EditableText } from '../EditableText';
-import { cardLate, cardWhen, formatDue, localDate, repeatShort } from '../format';
-import { CheckIcon, RepeatRingIcon, RingIcon } from '../Icons';
+import { cardLate, cardWhen, formatDue, parseLocalDate, repeatShort } from '../format';
+import { CheckIcon, RepeatGlyphIcon, RepeatRingIcon, RingIcon } from '../Icons';
 import { coachTodoRef, useCoach } from '../onboarding/coach';
 import { useWebLongPress } from '../webLongPress';
 import { trimTrailingBlank } from './model';
@@ -17,7 +16,7 @@ export type Editing = { id: string; caret: number } | null;
 
 /** 줄 간격도 앱 글자 크기 × 시스템 글자 크기를 따라가야 큰 글자에서 줄이 겹치거나 잘리지 않는다. */
 export function useCardStyles() {
-  const { theme, prefs } = useApp();
+  const { theme, prefs } = useUi();
   const fs = PixelRatio.getFontScale();
   const z = theme.zoom;
   const kind = theme.desk ? 'desk' : theme.mini ? 'mini' : 'phone';
@@ -48,8 +47,12 @@ export function useCardStyles() {
     padY,
     /** 카드 사이 간격(미니 6 · PC 8 · 휴대폰 8) */
     gap: CARD_GAP[kind],
-    /** 동그라미 지름: PC 큰 창 19, 휴대폰 22.5(예전 24·28보다 약 20% 작게: 사용자 요청 2026-10-18), 미니창은 원래 작아서 18 그대로. 반복 동그라미도 바깥 크기가 같다 */
-    circle: (theme.desk ? 19 : theme.mini ? 18 : CIRCLE) * z * theme.scale,
+    /**
+     * 동그라미 지름: 휴대폰 25.5, PC 큰 창 21.5, 미니창 20.4. 반복 동그라미도 바깥 크기가 같다.
+     * 2026-10-18에 약 20% 줄였다가(휴대폰 22.5 · PC 19 · 미니 18) 2026-10-19에 셋 다 같은 비율(×24/22.5)로, 2026-10-20에 한 번 더
+     * 같은 비율(×1.0625)로 키웠다(사용자 요청). 안의 체크도 같은 비율, 반복 표시는 지름의 0.6
+     */
+    circle: (theme.desk ? 21.5 : theme.mini ? 20.4 : CIRCLE) * z * theme.scale,
     /** 동그라미와 제목 사이 */
     circleGap: right ? 20 * z : theme.desk ? 20 : theme.mini ? 14 : 20 * z,
     /** 카드 좌우 안쪽 여백(모든 카드 같게: 제목 시작 자리·오른쪽 끝이 카드마다 같다) */
@@ -95,7 +98,8 @@ type TodoProps = {
   /** 캘린더처럼 날짜가 이미 정해진 화면: 날짜를 빼고 폴더 이름을 강조색으로 */
   hideDue?: boolean;
   /** 카드 오른쪽 끝에 붙는 작은 버튼(캘린더의 '날짜 지정') */
-  accessory?: ReactNode;
+  /** 캘린더의 날짜 없는 할 일: '날짜 지정' 버튼(카드가 그려서 memo가 깨지지 않는다) */
+  onSetDate?: () => void;
   /** 시안마다 다른 카드 높이(캘린더의 날짜 없는 할 일은 57) */
   minHeight?: number;
   /** 카드 바탕(미니창은 메모 패널과 같은 재질로 맞춘다). 없으면 앱 테마의 할 일 카드색 */
@@ -115,15 +119,14 @@ export const TodoCard = memo(function TodoCard({
   active,
   folderLabel,
   hideDue,
-  accessory,
+  onSetDate,
   minHeight,
   surface,
   onRepeatPress,
   onInfo,
 }: TodoProps) {
-  const { theme, prefs, repo, t, showToast } = useApp();
+  const { theme, prefs, repo, t, showToast, lang, today } = useUi();
   const st = useCardStyles();
-  const lang = resolveLang(prefs.language);
   const right = prefs.checkSide === 'right';
   const isEditing = editing?.id === todo.id;
   // 체크하면 잠깐 채워진 동그라미를 보여 준 뒤 완료 묶음으로 내려 보낸다.
@@ -134,7 +137,6 @@ export const TodoCard = memo(function TodoCard({
     setChecking(false);
   }
   const done = todo.done || checking;
-  const today = localDate(new Date());
   const overdue = !!todo.due_date && !done && todo.due_date < today;
   const rule = ruleOf(todo);
   const toggle = () => {
@@ -162,8 +164,9 @@ export const TodoCard = memo(function TodoCard({
   };
   // 보조 줄: 주기 · 날짜·시간 · (기한이 지났으면) N일 지남 · (캘린더) 폴더 · 충돌 사본. 반복 여부는 동그라미가 보여 준다.
   // 없는 것은 빼서 빈 구분점·빈 줄이 남지 않는다(format.ts cardWhen)
-  const when = cardWhen(todo, lang, { hideDate: hideDue });
-  const late = overdue && !hideDue ? cardLate(todo.due_date!, lang) : null;
+  const now = parseLocalDate(today);
+  const when = cardWhen(todo, lang, { hideDate: hideDue, now });
+  const late = overdue && !hideDue ? cardLate(todo.due_date!, lang, now) : null;
   const rest = [when, late, folderLabel, todo.conflict_of ? t('conflictCopy') : null].filter(Boolean);
   const hasMeta = !!rule || rest.length > 0;
 
@@ -177,7 +180,10 @@ export const TodoCard = memo(function TodoCard({
 
   // PC는 테두리 대신 그린 동그라미(브라우저가 1.7 같은 테두리를 1px로 깎아 가늘고 울퉁불퉁해 보였다)
   const circle = st.circle;
-  // 반복 할 일은 같은 크기·굵기의 동그라미를 두 곡선 화살표로(완료하면 다른 할 일처럼 테마색 + 흰 체크)
+  // 반복 할 일은 같은 크기·굵기의 동그라미를 두 곡선 화살표로. 완료하면 테마색으로 채우고 체크 대신 흰 반복 표시
+  // (완료 묶음에서 다음 회차가 오는 반복인지 바로 보이게, 사용자 시안 2026-10-19). 동그라미 크기는 다른 완료와 같게
+  // (시안처럼 1.3배로 키웠더니 완료 묶음에서 동그라미 크기가 들쭉날쭉해 보였다)
+  const repeatDone = done && !!rule;
   const repeatRing = !!rule && !done;
   const ring = (theme.desk || theme.mini) && !done && !repeatRing;
   // 테두리도 크기에 맞춰 얇게(PC 1.35 · 휴대폰 1.6), 미니창은 예전 그대로 1.5
@@ -202,7 +208,8 @@ export const TodoCard = memo(function TodoCard({
     >
       {ring ? <RingIcon color={theme.circle} size={circle} strokeWidth={stroke} /> : null}
       {repeatRing ? <RepeatRingIcon color={theme.circle} size={circle} strokeWidth={stroke} /> : null}
-      {done ? <CheckIcon color={theme.onAccent} size={(theme.desk ? 12.5 : theme.mini ? 15 : 12) * theme.zoom * theme.scale} /> : null}
+      {repeatDone ? <RepeatGlyphIcon color={theme.onAccent} size={circle * 0.6} strokeWidth={2.5} /> : null}
+      {done && !rule ? <CheckIcon color={theme.onAccent} size={(theme.desk ? 13.25 : theme.mini ? 16 : 12.75) * theme.zoom * theme.scale} /> : null}
     </Pressable>
   );
 
@@ -212,6 +219,7 @@ export const TodoCard = memo(function TodoCard({
       onDelete={remove}
       onInfo={onInfo}
       label={todo.text}
+      sweepKey={todo.id}
       radius={theme.mini ? MINI_RADIUS : theme.desk ? DESK_RADIUS : styles.card.borderRadius}
       // 카드 사이(미니 6 · PC 8 · 휴대폰 8). 카드 위·목록 쪽에는 따로 여백을 두지 않아 겹쳐 커지지 않는다
       style={{ marginBottom: st.gap }}
@@ -274,7 +282,11 @@ export const TodoCard = memo(function TodoCard({
             </View>
           ) : null}
         </View>
-        {accessory}
+        {onSetDate ? (
+          <Pressable onPress={onSetDate} hitSlop={10} accessibilityRole="button" accessibilityLabel={`${todo.text} ${t('setDate')}`} style={{ marginLeft: 10 }}>
+            <Text style={theme.kfont(13.5 * theme.zoom, { color: theme.subtle })}>{t('setDate')}</Text>
+          </Pressable>
+        ) : null}
         {right && check}
       </View>
     </SwipeToDelete>
@@ -292,7 +304,7 @@ function sameTodoCard(a: TodoProps, b: TodoProps) {
     a.active === b.active &&
     a.folderLabel === b.folderLabel &&
     a.hideDue === b.hideDue &&
-    a.accessory === b.accessory &&
+    a.onSetDate === b.onSetDate &&
     a.minHeight === b.minHeight &&
     a.surface === b.surface &&
     a.onRepeatPress === b.onRepeatPress &&
@@ -308,20 +320,27 @@ const CHECK_DELAY = 350;
 export const MINI_RADIUS = 8;
 /** PC 큰 창 블록 모서리(시안) */
 const DESK_RADIUS = 12;
-/** 완료 동그라미 지름(dp) */
-const CIRCLE = 22.5;
+/** 완료 동그라미 지름(dp). 22.5에서 아주 조금 키웠다(사용자 요청 2026-10-19) */
+const CIRCLE = 25.5;
 
-/** 완료 묶음 머리: '완료 N'과 비우기. 구분선 없이 글자 밝기로만 나눈다. */
+/**
+ * 완료 묶음 머리: 왼쪽 '완료 N', 오른쪽 '전체 지우기'(보이는 완료한 보통 할 일을 휴지통으로, 실행 취소 가능).
+ * '완료 N'은 작은 옅은 회색 글씨(보조 글자보다 옅게, 조금 굵게)로 카드 왼쪽 끝 가까이(사용자 시안 2026-10-19의 #898E97 근처.
+ * 한때 'To do 3'처럼 크고 검게 했다가 되돌림).
+ * 숨기기·보기는 머리의 펼침 표시 대신 ⋯ 메뉴에서, 지우기는 ⋯ 메뉴의 '완료한 할 일 정리' 대신 여기서 한다(사용자 요청 2026-10-19).
+ */
 export function DoneHeader({ count, onClear }: { count: number; onClear?: () => void }) {
-  const { theme, t } = useApp();
+  const { theme, t } = useUi();
   return (
     <View style={styles.doneHeader}>
-      <Text accessibilityRole="header" style={theme.font(17 * theme.zoom, { color: theme.text, fontWeight: '700' })}>
+      <Text accessibilityRole="header" style={theme.font(15 * theme.zoom, { color: theme.dark ? '#8C8E94' : '#898E97', fontWeight: '600', flex: 1 })}>
         {t('doneSection')} {count}
       </Text>
       {onClear ? (
-        <Pressable onPress={onClear} hitSlop={10} accessibilityRole="button">
-          <Text style={theme.font(15 * theme.zoom, { color: theme.muted })}>{t('clearDoneShort')}</Text>
+        <Pressable accessibilityRole="button" onPress={onClear} hitSlop={10}>
+          {({ pressed }) => (
+            <Text style={theme.font(15 * theme.zoom, { color: theme.accent, fontWeight: '600', opacity: pressed ? 0.6 : 1 })}>{t('clearAllDone')}</Text>
+          )}
         </Pressable>
       ) : null}
     </View>
@@ -333,7 +352,8 @@ type MemoProps = {
   editing: Editing;
   setEditing: (e: Editing) => void;
   onLongPressParagraph: (p: Paragraph) => void;
-  canWrite: (p: Paragraph) => boolean;
+  /** 이 폴더에 쓸 수 있는지(AppContext.canWrite 그대로: 늘 같은 함수) */
+  canWrite: (folderId: string | null) => boolean;
   /** 메모 모드로 입력 중이면 끝에 입력 위치(초안)를 보여 준다 */
   showCaret?: boolean;
   /** 빈 메모를 누르면(그 칸에서 바로 쓰게 빈 문단을 만든다) */
@@ -345,8 +365,8 @@ type MemoProps = {
  * 짧으면 내용만큼만, 길면 접어 두고 '더 보기'로 펼친다(할 일이 끝없이 밀려 내려가지 않게).
  * 접힌 상태에서 이어 쓰는 중이면 끝부분(입력 위치)이 보이게 아래쪽을 보여 준다.
  */
-export function MemoBlock({ paragraphs: all, editing, setEditing, onLongPressParagraph, canWrite, showCaret = false, onEmptyPress }: MemoProps) {
-  const { theme, repo, t } = useApp();
+export const MemoBlock = memo(function MemoBlock({ paragraphs: all, editing, setEditing, onLongPressParagraph, canWrite, showCaret = false, onEmptyPress }: MemoProps) {
+  const { theme, repo, t } = useUi();
   // 끝에 이어진 빈 줄은 그리지 않는다(model.ts trimTrailingBlank). 빈 메모 판단·빈 문단에서 쓰기는 전체로
   const paragraphs = trimTrailingBlank(all, editing?.id);
   const st = useCardStyles();
@@ -367,7 +387,7 @@ export function MemoBlock({ paragraphs: all, editing, setEditing, onLongPressPar
 
   // 비었거나 빈 문단만 남은 메모: 누르면 아래 입력창 대신 이 칸에서 바로 쓴다(빈 문단이 있으면 그 문단에서)
   const blank = !editingHere && all.every((p) => !p.text);
-  const writableBlank = all.find(canWrite);
+  const writableBlank = all.find((p) => canWrite(p.folder_id));
   if (blank && !showCaret) {
     return (
       <Pressable
@@ -382,8 +402,9 @@ export function MemoBlock({ paragraphs: all, editing, setEditing, onLongPressPar
       </Pressable>
     );
   }
+  // 빈 메모에 이어 쓰는 중이어도 평소 메모 칸 그대로(예전엔 테두리만 있는 칸으로 바꿨다. 할 일 미리보기 박스를 없애며 맞춤, 사용자 요청 2026-10-19)
   return (
-    <View style={[styles.memo, theme.desk && styles.memoDesk, pad, { backgroundColor: theme.todoCard }, empty && { backgroundColor: 'transparent', borderWidth: 1, borderColor: theme.outline }]}>
+    <View style={[styles.memo, theme.desk && styles.memoDesk, pad, { backgroundColor: theme.todoCard }]}>
       <View style={[!open && { maxHeight: limit, overflow: 'hidden', justifyContent: showCaret ? 'flex-end' : 'flex-start' }]}>
         <View onLayout={(e) => setContentH(e.nativeEvent.layout.height)}>
           {shown.map((p, i) => {
@@ -394,7 +415,7 @@ export function MemoBlock({ paragraphs: all, editing, setEditing, onLongPressPar
                   id={p.id}
                   text={p.text}
                   editing={editing?.id === p.id ? { caret: editing.caret } : null}
-                  readOnly={!canWrite(p)}
+                  readOnly={!canWrite(p.folder_id)}
                   style={st.memo}
                   onStartEdit={(caret) => setEditing({ id: p.id, caret })}
                   onEndEdit={() => setEditing(null)}
@@ -405,7 +426,7 @@ export function MemoBlock({ paragraphs: all, editing, setEditing, onLongPressPar
                     if (ids.length) setEditing({ id: ids[ids.length - 1], caret });
                   }}
                   onMergeBack={
-                    prev && canWrite(prev)
+                    prev && canWrite(prev.folder_id)
                       ? async (text) => {
                           const caret = prev.text.length;
                           await repo.setParagraphText(p.id, text);
@@ -435,7 +456,7 @@ export function MemoBlock({ paragraphs: all, editing, setEditing, onLongPressPar
       ) : null}
     </View>
   );
-}
+});
 
 /** 접혔을 때 보이는 메모 줄 수 */
 const MEMO_LINES = 7;
@@ -470,48 +491,10 @@ function InsertCaret({ placeholder }: { placeholder: string }) {
   );
 }
 
-/** 할 일 모드에서 새 할 일이 들어갈 자리. 저장되지 않는 미리보기. */
-export function PreviewCard() {
-  const { theme, t, filter } = useApp();
-  const draft = useDrafts().draftOf(filter, true);
-  const st = useCardStyles();
-  const right = useApp().prefs.checkSide === 'right';
-  const d = st.circle;
-  const circle = (
-    <View
-      style={[
-        styles.circle,
-        { borderColor: theme.outline, width: d, height: d, borderRadius: d / 2 },
-        right ? { marginLeft: st.circleGap } : { marginRight: st.circleGap },
-      ]}
-    />
-  );
-  return (
-    <View
-      pointerEvents="none"
-      importantForAccessibility="no-hide-descendants"
-      style={[
-        styles.card,
-        styles.preview,
-        // 할 일 카드와 같은 최소 높이·간격·좌우 여백(테두리 1만큼 안쪽 여백을 빼서 동그라미·제목 자리가 같다)
-        { borderColor: theme.outline, minHeight: st.minH, marginBottom: st.gap, paddingLeft: st.padL - 1, paddingRight: st.padR - 1 },
-        (theme.mini || theme.desk) && { borderRadius: theme.desk ? DESK_RADIUS : MINI_RADIUS },
-      ]}
-    >
-      {!right && circle}
-      <Text style={[st.text, { flex: 1, paddingVertical: st.padY - 1, color: draft ? theme.text : theme.subtle, opacity: draft ? 0.75 : 1 }]}>
-        {draft || t('newTodo')}
-      </Text>
-      {right && circle}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   // 모서리는 시안에서 잰 값(할 일 14.5, 메모 16)
   // 카드 사이 간격은 바깥(SwipeToDelete)이 맡는다: 밀 때 드러나는 빨간 바탕이 간격까지 덮지 않게
   card: { borderRadius: 14.5, flexDirection: 'row', alignItems: 'center' },
-  preview: { backgroundColor: 'transparent', borderWidth: 1 },
   circle: { borderWidth: 1.6, alignItems: 'center', justifyContent: 'center' },
   // 보조 줄: 한 줄이 기본, 좁은 창·큰 글자에서는 잘리거나 겹치지 않게 그 안에서 줄바꿈
   metaRow: { flexDirection: 'row', alignItems: 'flex-start' },
@@ -523,5 +506,5 @@ const styles = StyleSheet.create({
   more: { alignSelf: 'flex-start', marginTop: 8, paddingVertical: 4 },
   caretRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' },
   caret: { width: 2, borderRadius: 1, marginLeft: -2 },
-  doneHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 8, paddingTop: 22, paddingBottom: 12 },
+  doneHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 6, paddingTop: 22, paddingBottom: 12 },
 });

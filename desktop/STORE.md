@@ -33,7 +33,9 @@ $env:MODO_STORE_PUBLISHER_NAME = '<Package/Properties/PublisherDisplayName from 
 npm run dist:store
 ```
 
-This creates a single x64 `.appx` with the current desktop package version (1.0.2.0), Windows.Desktop minimum 10.0.19041.0, four actual UI languages, and only the required `runFullTrust` capability. The official Windows SDK MakePri indexes the scale/target-size icon assets and MakeAppx validates the package. The build refuses missing identity values. Microsoft signs the package after certification; no external paid EXE certificate is required.
+This creates a single x64 `.appx` with the current desktop package version (1.0.3.0), Windows.Desktop minimum 10.0.19041.0, four actual UI languages, and only the required `runFullTrust` capability. The official Windows SDK MakePri indexes the scale/target-size icon assets and MakeAppx validates the package. The build refuses missing identity values. Microsoft signs the package after certification; no external paid EXE certificate is required.
+
+Version 1.0.3 includes the `login-cleanup` changes through `fb4f66f`: Google/Kakao-only required sign-in, completion grouping, the Together/friends UI and supporting server APIs. Previously signed-in users can continue offline. New users need an online social sign-in before using the app. Store descriptions and reviewer instructions must reflect this behavior; the older optional-login copy does not describe this version. Keep the approved logo blue and rounded Windows icon assets when merging later changes.
 
 The initial Store package does not register a login startup task and hides the portable app's registry-based auto-start option. Pinning, opacity and the tray remain available. The custom manifest uses the reserved Store title for package metadata and `modo` for the installed launcher. Its literal ampersand is XML-escaped.
 

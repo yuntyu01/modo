@@ -13,14 +13,14 @@ import { inputColors } from '../theme';
 import type { Rect } from './coach';
 
 /** 첫 실행 화면의 테마색 6개(시안: 파랑·라벤더·초록·살구·코랄·회색). 전체 팔레트(prefs.ts ACCENTS)에 있는 색이라 꾸미기에서도 선택이 이어진다 */
-export const WELCOME_ACCENTS = [BRAND, '#B79CFF', '#5FD38D', '#FFA45B', '#FF7F6B', '#A7B0BE'];
+const WELCOME_ACCENTS = [BRAND, '#B79CFF', '#5FD38D', '#FFA45B', '#FF7F6B', '#A7B0BE'];
 
 /**
- * 첫 실행 화면(휴대폰): 테마색을 고르면 바로 위쪽 그라데이션과 로고 색이 바뀌고, 첫 할 일을 적어야 시작할 수 있다.
+ * 첫 실행 화면(휴대폰, 새 계정으로 처음 로그인한 뒤): 테마색을 고르면 바로 위쪽 그라데이션과 로고 색이 바뀌고, 첫 할 일을 적어야 시작할 수 있다.
  * 비워 두고 '시작하기'를 누르면 첫 할 일 칸이 흔들리고 입력이 열린다. 적고 누르면 그 할 일을 저장하고(onStart),
  * 이 화면은 흐려지며 사라진다(onHidden). 홈의 안내(CoachOverlay)가 그 할 일과 입력창을 짚어 준다.
  */
-export function Welcome({ onStart, onHidden, onLogin }: { onStart: (todoId: string, from: Rect | null) => void; onHidden: () => void; onLogin?: () => void }) {
+export function Welcome({ onStart, onHidden }: { onStart: (todoId: string, from: Rect | null) => void; onHidden: () => void }) {
   const { theme, t, prefs, setPrefs, repo, filter } = useApp();
   const insets = useSafeAreaInsets();
   const [text, setText] = useState('');
@@ -107,7 +107,7 @@ export function Welcome({ onStart, onHidden, onLogin }: { onStart: (todoId: stri
             </Text>
           </View>
 
-          <Text style={theme.kfont(14.5, { color: theme.subtle, marginTop: 28 })}>{t('welcomeTheme')}</Text>
+          <Text style={theme.kfont(14.5, { color: theme.subtle, marginTop: 28 })}>{t('accentColor')}</Text>
           <View style={styles.swatches}>
             {WELCOME_ACCENTS.map((c, i) => {
               const on = prefs.accent.toUpperCase() === c.toUpperCase();
@@ -117,7 +117,7 @@ export function Welcome({ onStart, onHidden, onLogin }: { onStart: (todoId: stri
                   onPress={() => setPrefs({ accent: c })}
                   accessibilityRole="radio"
                   accessibilityState={{ selected: on }}
-                  accessibilityLabel={`${t('welcomeTheme')} ${i + 1}`}
+                  accessibilityLabel={`${t('accentColor')} ${i + 1}`}
                   hitSlop={4}
                   style={[styles.swatchRing, { borderColor: on ? theme.text : 'transparent' }]}
                 >
@@ -166,11 +166,6 @@ export function Welcome({ onStart, onHidden, onLogin }: { onStart: (todoId: stri
           >
             <Text style={theme.kfont(17, { color: theme.onAccent, fontWeight: '700' })}>{t('welcomeStart')}</Text>
           </Pressable>
-          {onLogin ? (
-            <Pressable onPress={onLogin} accessibilityRole="button" hitSlop={8} style={styles.login}>
-              <Text style={theme.kfont(13.5, { color: theme.subtle })}>{t('welcomeHaveAccount')}</Text>
-            </Pressable>
-          ) : null}
         </ScrollView>
       </KeyboardAvoidingView>
     </Animated.View>
@@ -187,5 +182,4 @@ const styles = StyleSheet.create({
   field: { borderRadius: 18, minHeight: 62, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', marginTop: 10, borderWidth: 1 },
   input: { flex: 1, paddingVertical: 14, paddingHorizontal: 0 },
   start: { height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
-  login: { alignSelf: 'center', paddingTop: 12 },
 });

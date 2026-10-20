@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /** 넓은 화면(태블릿·가로·데스크톱)에서 본문 최대 너비. 그 이상은 가운데 정렬. */
 // PC 큰 창(시안)은 가운데 좁은 단(약 446), 태블릿은 넓게
-export const CONTENT_MAX = Platform.OS === 'web' ? 481 : 680;
+const CONTENT_MAX = Platform.OS === 'web' ? 481 : 680;
 
 export function useWide() {
   const { width, height } = useWindowDimensions();
@@ -26,7 +26,7 @@ export const contentColumn = { width: '100%', maxWidth: CONTENT_MAX, alignSelf: 
  * 화면 위쪽 기준선. 시안(아이폰, 위쪽 안전 영역 59dp)과 같은 자리에서 내용이 시작되게
  * 상태바가 낮은 기기(Android 24~48dp)도 59dp까지 띄운다. 가로로 눕힌 낮은 화면은 실제 상태바만.
  */
-export const DESIGN_TOP = 59;
+const DESIGN_TOP = 59;
 export function useTop() {
   const insets = useSafeAreaInsets();
   const { compact } = useWide();

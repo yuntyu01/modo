@@ -21,22 +21,32 @@ object LockNotifier {
   private const val CHANNEL = "lock_todos"
   private const val ID = 4100
 
+  /** 보이는 줄 수(나머지는 '+N개 더') */
+  private const val LINES = 6
+
+  private class Data(val prefs: org.json.JSONObject, val visibility: String, val todos: List<NotesDb.Todo>, val count: Int)
+
   fun refresh(base: Context) {
-    val ctx = com.yuntyu01.naegirok.AppLocale.wrap(base)
-    val data = NotesDb.use(ctx) { db ->
+    // 설정·할 일을 한 번에 읽는다. 꺼 두었으면 언어도 맞추지 않는다(예전엔 언어를 읽느라 DB를 따로 한 번 더 열었다)
+    val data = NotesDb.use(base) { db ->
       val prefs = NotesDb.prefs(db)
       val lock = prefs.optJSONObject("lock")
-      if (lock?.optBoolean("enabled") != true) return@use null
-      Triple(lock.optString("visibility", "private"), NotesDb.todos(db, null, includeDone = false, limit = 30, all = true), SurfaceTheme.from(ctx, prefs))
+      // 꺼 두었거나 로그인하지 않았으면 알림을 내린다
+      if (lock?.optBoolean("enabled") != true || !NotesDb.signedIn(db)) return@use null
+      Data(prefs, lock.optString("visibility", "private"), NotesDb.todos(db, null, limit = LINES, all = true), NotesDb.countTodos(db, null, all = true))
     }
-    val mgr = NotificationManagerCompat.from(ctx)
+    val mgr = NotificationManagerCompat.from(base)
     if (data == null || !mgr.areNotificationsEnabled()) {
       mgr.cancel(ID)
       return
     }
-    val (visibility, todos, theme) = data
+    val ctx = com.yuntyu01.naegirok.AppLocale.wrap(base, data.prefs)
+    val theme = SurfaceTheme.from(ctx, data.prefs)
+    val visibility = data.visibility
+    val todos = data.todos
     ensureChannel(ctx)
-    val title = ctx.getString(R.string.lock_title, todos.size)
+    // 할 일 수는 다 센다(예전엔 30개까지만 읽어 '할 일 30개'에서 멈췄다)
+    val title = ctx.getString(R.string.lock_title, data.count)
     val open = ctx.packageManager.getLaunchIntentForPackage(ctx.packageName)?.let {
       PendingIntent.getActivity(ctx, ID, it, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
     }
@@ -46,8 +56,8 @@ object LockNotifier {
       PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
     val style = NotificationCompat.InboxStyle().setBigContentTitle(title)
-    todos.take(6).forEach { style.addLine("○  ${it.text}") }
-    if (todos.size > 6) style.setSummaryText(ctx.getString(R.string.lock_more, todos.size - 6))
+    todos.forEach { style.addLine("○  ${it.text}") }
+    if (data.count > todos.size) style.setSummaryText(ctx.getString(R.string.lock_more, data.count - todos.size))
 
     val builder = NotificationCompat.Builder(ctx, CHANNEL)
       .setSmallIcon(R.drawable.naegirok_tile)

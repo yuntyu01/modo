@@ -31,10 +31,15 @@ data class SurfaceTheme(
     /** 예전 기본색은 앱처럼 대표색으로(prefs.ts mergePrefs) */
     private fun brandAccent(hex: String) = if (hex.uppercase() in listOf("#72CDF4", "#96D3FD", "#85ADE2") - BRAND) BRAND else hex
 
-    fun from(ctx: Context, prefs: JSONObject, surfaceKey: String = "widget"): SurfaceTheme {
+    /** 앱 화면 설정이 '시스템'이면(라이트·다크가 기기를 따른다) true */
+    fun followsSystem(prefs: JSONObject) = prefs.optString("themeMode", "system") == "system"
+
+    /** dark: 라이트·다크를 정해서 만든다(홈 위젯이 두 벌을 미리 넣어 둘 때). null이면 설정·기기를 따른다 */
+    fun from(ctx: Context, prefs: JSONObject, surfaceKey: String = "widget", dark: Boolean? = null): SurfaceTheme {
       val mode = prefs.optString("themeMode", "system")
       val systemDark = (ctx.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
-      val dark = if (mode == "system") systemDark else mode == "dark"
+      @Suppress("NAME_SHADOWING")
+      val dark = dark ?: if (mode == "system") systemDark else mode == "dark"
       val surface = prefs.optJSONObject(surfaceKey)
       val linked = surface?.optBoolean("linked", true) ?: true
       val accentHex = brandAccent(if (!linked) surface!!.optString("accent", BRAND) else prefs.optString("accent", BRAND))

@@ -54,16 +54,45 @@ func (s *Server) ownedFolder(w http.ResponseWriter, r *http.Request) (uuid.UUID,
 	return id, true
 }
 
+// 폴더의 참여자 보기: 소유자는 참여자·링크와 함께 바꿀 수 있고(can_manage), 참여자는 누가 함께 쓰는지만 본다(링크는 소유자만).
 func (s *Server) listShares(w http.ResponseWriter, r *http.Request) {
-	folder, ok := s.ownedFolder(w, r)
-	if !ok {
+	u := userFrom(r.Context())
+	ctx := r.Context()
+	folder, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		badRequest(w, "id가 잘못됐습니다")
 		return
 	}
-	ctx := r.Context()
+	var owner person
+	var myRole *string
+	err = s.db.QueryRow(ctx, `
+		SELECT o.id, COALESCE(o.email, ''), o.name, m.role FROM folders f JOIN users o ON o.id = f.owner_id
+		LEFT JOIN folder_members m ON m.folder_id = f.id AND m.user_id = $2
+		WHERE f.id = $1 AND f.deleted_at IS NULL`, folder, u.ID).Scan(&owner.ID, &owner.Email, &owner.Name, &myRole)
+	if errors.Is(err, pgx.ErrNoRows) {
+		errJSON(w, http.StatusNotFound, "folder_not_synced", "폴더가 아직 서버에 없습니다. 동기화 후 다시 시도해 주세요")
+		return
+	}
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+	manage := owner.ID == u.ID
+	if !manage && myRole == nil {
+		// 접근할 수 없는 폴더는 있는지조차 알리지 않는다
+		errJSON(w, http.StatusNotFound, "folder_not_synced", "폴더가 아직 서버에 없습니다. 동기화 후 다시 시도해 주세요")
+		return
+	}
 	out := struct {
-		Members []member `json:"members"`
-		Links   []link   `json:"links"`
-	}{Members: []member{}, Links: []link{}}
+		Owner     person   `json:"owner"`
+		CanManage bool     `json:"can_manage"`
+		MyRole    string   `json:"my_role"`
+		Members   []member `json:"members"`
+		Links     []link   `json:"links"`
+	}{Owner: owner, CanManage: manage, MyRole: "owner", Members: []member{}, Links: []link{}}
+	if myRole != nil {
+		out.MyRole = *myRole
+	}
 	rows, err := s.db.Query(ctx, `
 		SELECT m.user_id, COALESCE(u.email, ''), u.name, m.role, m.created_at FROM folder_members m JOIN users u ON u.id = m.user_id
 		WHERE m.folder_id = $1 ORDER BY m.created_at`, folder)
@@ -77,6 +106,10 @@ func (s *Server) listShares(w http.ResponseWriter, r *http.Request) {
 		out.Members = append(out.Members, m)
 	}
 	rows.Close()
+	if !manage {
+		writeJSON(w, http.StatusOK, out)
+		return
+	}
 	rows, err = s.db.Query(ctx, `SELECT token, created_at FROM share_links WHERE folder_id = $1 ORDER BY created_at`, folder)
 	if err != nil {
 		serverError(w, err)
@@ -107,13 +140,28 @@ func (s *Server) addMember(w http.ResponseWriter, r *http.Request) {
 	}
 	var b struct {
 		Email string `json:"email"`
-		Role  string `json:"role"`
+		// 친구에게는 사용자 id로도 공유한다(이메일이 없는 카카오 계정도). 친구가 아니면 id로는 찾지 않는다
+		UserID string `json:"user_id"`
+		Role   string `json:"role"`
 	}
 	if !decode(w, r, &b) || !validRole(w, b.Role) {
 		return
 	}
 	var m member
-	err := s.db.QueryRow(r.Context(), `SELECT id, email, name FROM users WHERE email = $1`, strings.ToLower(strings.TrimSpace(b.Email))).Scan(&m.UserID, &m.Email, &m.Name)
+	var err error
+	if b.UserID != "" {
+		other, perr := uuid.Parse(b.UserID)
+		if perr != nil {
+			badRequest(w, "user_id가 잘못됐습니다")
+			return
+		}
+		a, bb := friendPair(userFrom(r.Context()).ID, other)
+		err = s.db.QueryRow(r.Context(), `
+			SELECT u.id, COALESCE(u.email, ''), u.name FROM friendships f JOIN users u ON u.id = $3
+			WHERE f.a = $1 AND f.b = $2`, a, bb, other).Scan(&m.UserID, &m.Email, &m.Name)
+	} else {
+		err = s.db.QueryRow(r.Context(), `SELECT id, email, name FROM users WHERE email = $1`, strings.ToLower(strings.TrimSpace(b.Email))).Scan(&m.UserID, &m.Email, &m.Name)
+	}
 	if errors.Is(err, pgx.ErrNoRows) {
 		errJSON(w, http.StatusNotFound, "user_not_found", "그 이메일로 가입한 사용자가 없습니다")
 		return
@@ -200,6 +248,52 @@ func (s *Server) removeMember(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		serverError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// 공유 폴더 나가기(참여자만). 소유자는 나갈 수 없다(폴더 삭제·공유 해제로). 폴더와 내용은 남는다.
+func (s *Server) leaveFolder(w http.ResponseWriter, r *http.Request) {
+	u := userFrom(r.Context())
+	folder, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		badRequest(w, "id가 잘못됐습니다")
+		return
+	}
+	tag, err := s.db.Exec(r.Context(), `DELETE FROM folder_members WHERE folder_id = $1 AND user_id = $2`, folder, u.ID)
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+	if tag.RowsAffected() == 0 {
+		errJSON(w, http.StatusNotFound, "share_not_found", "공유를 찾을 수 없습니다")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// 공유받은 폴더를 내 홈에도 보일지(내 설정만 바뀐다. 다른 참여자와 공유 관계는 그대로)
+func (s *Server) setFolderHome(w http.ResponseWriter, r *http.Request) {
+	u := userFrom(r.Context())
+	folder, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		badRequest(w, "id가 잘못됐습니다")
+		return
+	}
+	var b struct {
+		Home bool `json:"home"`
+	}
+	if !decode(w, r, &b) {
+		return
+	}
+	tag, err := s.db.Exec(r.Context(), `UPDATE folder_members SET home = $3 WHERE folder_id = $1 AND user_id = $2`, folder, u.ID, b.Home)
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+	if tag.RowsAffected() == 0 {
+		errJSON(w, http.StatusNotFound, "share_not_found", "공유를 찾을 수 없습니다")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

@@ -1,6 +1,7 @@
 package com.yuntyu01.naegirok
 
 import android.content.Context
+import android.database.DatabaseErrorHandler
 import android.database.sqlite.SQLiteDatabase
 import org.json.JSONObject
 import java.io.File
@@ -13,12 +14,11 @@ import java.util.UUID
  */
 object NotesDb {
   data class Folder(val id: String, val name: String)
+  /** 위젯·알림이 보이는 남은 할 일(완료한 것은 앱에서 본다) */
   data class Todo(
-    val id: String, val text: String, val doneAt: Long?, val due: String?, val folderId: String?, val remindAt: Long? = null,
+    val id: String, val text: String, val due: String?, val folderId: String?, val remindAt: Long? = null,
     val repeatFreq: String? = null, val repeatDays: Int? = null,
-  ) {
-    val done get() = doneAt != null
-  }
+  )
 
   fun file(ctx: Context) = File(ctx.filesDir, "SQLite/naegirok.db")
 
@@ -26,8 +26,9 @@ object NotesDb {
   fun <T> use(ctx: Context, block: (SQLiteDatabase) -> T): T? {
     val f = file(ctx)
     if (!f.exists()) return null
+    // 기본 오류 처리기는 손상됐다고 보면 파일을 지운다. 앱·위젯이 같이 쓰는 파일이라 여기서는 지우지 않는다(앱이 열어서 판단)
     val db = SQLiteDatabase.openDatabase(
-      f.path, null, SQLiteDatabase.OPEN_READWRITE or SQLiteDatabase.ENABLE_WRITE_AHEAD_LOGGING,
+      f.path, null, SQLiteDatabase.OPEN_READWRITE or SQLiteDatabase.ENABLE_WRITE_AHEAD_LOGGING, DatabaseErrorHandler { },
     )
     return try {
       db.rawQuery("PRAGMA busy_timeout = 3000", null).use { it.moveToFirst() }
@@ -75,6 +76,15 @@ object NotesDb {
     }
   }
 
+  /**
+   * 이 기기에 로그인해 있는지(앱 kv 'account'에 토큰이 있는지). 로그인해야 쓸 수 있어서(사용자 요청 2026-10-19)
+   * 로그인하지 않았으면 위젯·빠른 추가·잠금화면 알림·할 일 알림도 내용을 보이거나 바꾸지 않고 앱(로그인 화면)으로 보낸다.
+   */
+  fun signedIn(db: SQLiteDatabase): Boolean =
+    db.rawQuery("SELECT value FROM kv WHERE key = 'account'", null).use { c ->
+      c.moveToFirst() && runCatching { JSONObject(c.getString(0)).optString("token").isNotEmpty() }.getOrDefault(false)
+    }
+
   fun prefs(db: SQLiteDatabase): JSONObject =
     db.rawQuery("SELECT value FROM kv WHERE key = 'prefs'", null).use { c ->
       if (c.moveToFirst()) runCatching { JSONObject(c.getString(0)) }.getOrDefault(JSONObject()) else JSONObject()
@@ -98,37 +108,42 @@ object NotesDb {
     if (folderId != null) " AND folder_id = ?" to listOf(folderId)
     else " AND (folder_id IS NULL OR folder_id NOT IN (SELECT id FROM folders WHERE deleted_at IS NULL))" to emptyList()
 
-  /** 한 폴더의 할 일(all = true면 모든 폴더: 잠금화면 알림용) */
-  fun todos(db: SQLiteDatabase, folderId: String?, includeDone: Boolean, limit: Int = 50, all: Boolean = false): List<Todo> {
-    val where = StringBuilder("deleted_at IS NULL$live")
-    val args = mutableListOf<String>()
-    if (!all) {
-      val (w, a) = folderWhere(folderId)
-      where.append(w)
-      args.addAll(a)
-    }
-    val today = java.time.LocalDate.now().toString()
-    if (!includeDone) {
-      where.append(" AND NOT $DONE_NOW")
-      args.add(today)
-    }
+  /** 한 폴더의 남은 할 일(all = true면 모든 폴더: 잠금화면 알림용) */
+  fun todos(db: SQLiteDatabase, folderId: String?, limit: Int = 50, all: Boolean = false): List<Todo> {
+    val (where, args) = undoneWhere(folderId, all)
     // 앞날에 시작하는 반복도 보인다(아래 줄에 '매월 20일 · 10월 20일'). 그날까지 숨기던 규칙은 뺐다(앱과 같다, 사용자 요청 2026-10-18)
     return db.rawQuery(
-      "SELECT id, text, CASE WHEN $DONE_NOW THEN done_at END AS done_now, due_date, folder_id, remind_at, repeat_freq, repeat_days " +
-        "FROM todos WHERE $where ORDER BY done_now IS NOT NULL, done_now DESC, position, id LIMIT $limit",
-      (listOf(today) + args).toTypedArray(),
+      "SELECT id, text, due_date, folder_id, remind_at, repeat_freq, repeat_days FROM todos WHERE $where ORDER BY position, id LIMIT $limit",
+      args.toTypedArray(),
     ).use { c ->
       buildList {
         while (c.moveToNext()) {
           add(
             Todo(
-              c.getString(0), c.getString(1), if (c.isNull(2)) null else c.getLong(2), c.getString(3), c.getString(4),
-              if (c.isNull(5)) null else c.getLong(5), c.getString(6), if (c.isNull(7)) null else c.getInt(7),
+              c.getString(0), c.getString(1), c.getString(2), c.getString(3),
+              if (c.isNull(4)) null else c.getLong(4), c.getString(5), if (c.isNull(6)) null else c.getInt(6),
             ),
           )
         }
       }
     }
+  }
+
+  /** 남은 할 일 수. 목록은 LIMIT으로 자르지만 '할 일 N개'는 다 센다(예전엔 50·30에서 멈췄다) */
+  fun countTodos(db: SQLiteDatabase, folderId: String?, all: Boolean = false): Int {
+    val (where, args) = undoneWhere(folderId, all)
+    return db.rawQuery("SELECT COUNT(*) FROM todos WHERE $where", args.toTypedArray()).use { c -> if (c.moveToFirst()) c.getInt(0) else 0 }
+  }
+
+  private fun undoneWhere(folderId: String?, all: Boolean): Pair<String, List<String>> {
+    val where = StringBuilder("deleted_at IS NULL$live AND NOT $DONE_NOW")
+    val args = mutableListOf(java.time.LocalDate.now().toString())
+    if (!all) {
+      val (w, a) = folderWhere(folderId)
+      where.append(w)
+      args.addAll(a)
+    }
+    return where.toString() to args
   }
 
   /** 그 폴더의 메모 문서(문단들) */
@@ -146,26 +161,20 @@ object NotesDb {
    */
   private const val DONE_NOW = "(done_at IS NOT NULL AND NOT (repeat_freq IS NOT NULL AND due_date IS NOT NULL AND due_date <= ?))"
 
-  /** 위젯에서 체크를 풀 때. 반복이면 오늘 할 일로 되돌리고(알림도 같은 날만큼), 아니면 완료 취소(앱 Cards와 같다). */
-  fun uncheck(db: SQLiteDatabase, id: String, now: Long = System.currentTimeMillis()) {
-    data class Cur(val freq: String?, val due: String?, val remind: Long?, val doneAt: Long?, val log: String?)
-    val cur = db.rawQuery("SELECT repeat_freq, due_date, remind_at, done_at, done_log FROM todos WHERE id = ?", arrayOf(id)).use { c ->
-      if (!c.moveToFirst()) return
-      Cur(c.getString(0), c.getString(1), if (c.isNull(2)) null else c.getLong(2), if (c.isNull(3)) null else c.getLong(3), c.getString(4))
-    }
-    if (cur.freq == null) return setDone(db, id, false, now)
-    val today = Repeat.localDate(now)
-    val due = cur.due?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() } ?: today
-    val remind = cur.remind?.let { Repeat.shift(it, due, today) }
-    val log = doneLog(cur.log, today.toString(), add = false)
-    db.execSQL("UPDATE todos SET done_at = NULL, due_date = ?, remind_at = ?, done_log = ? WHERE id = ?", arrayOf(today.toString(), remind, log, id))
-    val fields = JSONObject().put("done_at", change(cur.doneAt, null)).put("due_date", change(cur.due, today.toString())).put("done_log", change(cur.log, log))
-    if (remind != cur.remind) fields.put("remind_at", change(cur.remind, remind))
-    enqueue(db, "todo", id, false, fields, now)
-  }
+  /**
+   * 보기 전용으로 공유받은 폴더인지(앱 canWrite와 같은 규칙). 위젯·알림·빠른 추가가 이런 폴더의 항목을 바꾸면 서버가 거절하고,
+   * 그 거절 때문에 앱이 모든 항목을 처음부터 다시 받았다. 공유 표가 아직 없으면(앱을 한 번도 안 켠 새 설치) 보기 전용도 없다.
+   */
+  fun viewOnly(db: SQLiteDatabase, folderId: String?): Boolean = folderId != null && runCatching {
+    db.rawQuery("SELECT 1 FROM shared_folders WHERE folder_id = ? AND role = 'view' LIMIT 1", arrayOf(folderId)).use { it.moveToFirst() }
+  }.getOrDefault(false)
+
+  private fun todoViewOnly(db: SQLiteDatabase, id: String): Boolean =
+    db.rawQuery("SELECT folder_id FROM todos WHERE id = ?", arrayOf(id)).use { c -> c.moveToFirst() && !c.isNull(0) && viewOnly(db, c.getString(0)) }
 
   /** 완료/완료 취소. 완료 시각만 바꾸고 '마지막 수정'은 그대로(JS Repo와 같은 규칙). */
   fun setDone(db: SQLiteDatabase, id: String, done: Boolean, now: Long = System.currentTimeMillis()) {
+    if (todoViewOnly(db, id)) return
     val cur = db.rawQuery("SELECT done_at FROM todos WHERE id = ?", arrayOf(id)).use { c ->
       if (!c.moveToFirst()) return
       if (c.isNull(0)) null else c.getLong(0)
@@ -180,6 +189,7 @@ object NotesDb {
    * 동그라미를 눌렀을 때. 반복이 아니면 완료, 반복이면 다음 예정일로 넘기고 알림도 같은 날만큼 옮긴다(JS Repo.complete와 같다).
    */
   fun complete(db: SQLiteDatabase, id: String, now: Long = System.currentTimeMillis()) {
+    if (todoViewOnly(db, id)) return
     data class Cur(val freq: String?, val days: Int?, val due: String?, val remind: Long?, val updated: Long, val doneAt: Long?, val log: String?)
     val cur = db.rawQuery("SELECT repeat_freq, repeat_days, due_date, remind_at, updated_at, done_at, done_log FROM todos WHERE id = ?", arrayOf(id)).use { c ->
       if (!c.moveToFirst()) return
@@ -190,6 +200,8 @@ object NotesDb {
     }
     val freq = cur.freq ?: return setDone(db, id, true, now)
     val due = cur.due?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() }
+    // 이번 회차를 이미 끝냈으면(다음 예정일 전) 그대로: 위젯이 옛 화면을 보여 주다 눌리면 다음 회차까지 한 번 더 넘겼다
+    if (cur.doneAt != null && due != null && due > Repeat.localDate(now)) return
     val next = Repeat.nextDue(freq, if (freq == "weekly") cur.days else null, due, Repeat.localDate(now))
     val remind = cur.remind?.let { Repeat.shift(it, due ?: Repeat.localDate(it), next) }
     // 이번 회차 완료: 다음 예정일까지는 완료로 남고(DONE_NOW), 오늘을 '한 날'로 남긴다(앱 core/doneLog.ts와 같은 모양)
@@ -204,7 +216,9 @@ object NotesDb {
     enqueue(db, "todo", id, false, fields, now)
   }
 
-  fun addTodo(db: SQLiteDatabase, text: String, folderId: String?, top: Boolean, now: Long = System.currentTimeMillis()): String {
+  fun addTodo(db: SQLiteDatabase, text: String, target: String?, top: Boolean, now: Long = System.currentTimeMillis()): String {
+    // 보기 전용 폴더에는 넣지 못하니 기본 폴더로(빠른 추가가 이미 그렇게 고르지만, 그 사이 권한이 바뀌었을 수 있다)
+    val folderId = if (viewOnly(db, target)) null else target
     val edge = db.rawQuery(
       "SELECT ${if (top) "MIN" else "MAX"}(position) FROM todos WHERE 1 = 1$live", null,
     ).use { c -> if (c.moveToFirst() && !c.isNull(0)) c.getString(0) else null }
@@ -228,27 +242,32 @@ object NotesDb {
   }
 
   /** 메모 끝에 이어 쓰기(줄마다 문단 하나). 새 메모 문서를 만들지 않는다. */
-  fun appendMemo(db: SQLiteDatabase, text: String, folderId: String?, now: Long = System.currentTimeMillis()) {
+  fun appendMemo(db: SQLiteDatabase, text: String, target: String?, now: Long = System.currentTimeMillis()) {
+    val folderId = if (viewOnly(db, target)) null else target
     var last = db.rawQuery("SELECT MAX(position) FROM paragraphs WHERE 1 = 1$live", null)
       .use { c -> if (c.moveToFirst() && !c.isNull(0)) c.getString(0) else null }
     for (line in text.split("\n")) {
-      val id = UUID.randomUUID().toString()
       last = Frac.between(last, null)
-      db.execSQL(
-        "INSERT INTO paragraphs (id, folder_id, text, position, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-        arrayOf(id, folderId, line, last, now, now),
-      )
-      enqueue(
-        db, "paragraph", id, true,
-        JSONObject()
-          .put("folder_id", change(null, folderId))
-          .put("text", change(null, line))
-          .put("position", change(null, last))
-          .put("created_at", change(null, now))
-          .put("updated_at", change(null, now)),
-        now,
-      )
+      insertParagraph(db, folderId, line, last, now)
     }
+  }
+
+  private fun insertParagraph(db: SQLiteDatabase, folderId: String?, text: String, position: String, now: Long) {
+    val id = UUID.randomUUID().toString()
+    db.execSQL(
+      "INSERT INTO paragraphs (id, folder_id, text, position, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+      arrayOf(id, folderId, text, position, now, now),
+    )
+    enqueue(
+      db, "paragraph", id, true,
+      JSONObject()
+        .put("folder_id", change(null, folderId))
+        .put("text", change(null, text))
+        .put("position", change(null, position))
+        .put("created_at", change(null, now))
+        .put("updated_at", change(null, now)),
+      now,
+    )
   }
 
   fun todoText(db: SQLiteDatabase, id: String): String? =
@@ -257,6 +276,7 @@ object NotesDb {
 
   /** 할 일 글 고치기(위젯에서 글자를 눌렀을 때). JS Repo처럼 글이 바뀔 때만 '마지막 수정'을 바꾼다. */
   fun setTodoText(db: SQLiteDatabase, id: String, text: String, now: Long = System.currentTimeMillis()) {
+    if (todoViewOnly(db, id)) return
     val (old, oldUpdated) = db.rawQuery("SELECT text, updated_at FROM todos WHERE id = ?", arrayOf(id)).use { c ->
       if (!c.moveToFirst()) return
       c.getString(0) to c.getLong(1)
@@ -266,31 +286,49 @@ object NotesDb {
     enqueue(db, "todo", id, false, JSONObject().put("text", change(old, text)).put("updated_at", change(oldUpdated, now)), now)
   }
 
-  data class Para(val id: String, val text: String, val updatedAt: Long)
+  data class Para(val id: String, val text: String, val updatedAt: Long, val position: String)
 
   private fun memoRows(db: SQLiteDatabase, folderId: String?): List<Para> {
     val (where, args) = folderWhere(folderId)
     return db.rawQuery(
-      "SELECT id, text, updated_at FROM paragraphs WHERE deleted_at IS NULL$live$where ORDER BY position, id",
+      "SELECT id, text, updated_at, position FROM paragraphs WHERE deleted_at IS NULL$live$where ORDER BY position, id",
       args.toTypedArray(),
-    ).use { c -> buildList { while (c.moveToNext()) add(Para(c.getString(0), c.getString(1), c.getLong(2))) } }
+    ).use { c -> buildList { while (c.moveToNext()) add(Para(c.getString(0), c.getString(1), c.getLong(2), c.getString(3))) } }
   }
 
   /**
-   * 위젯에서 메모 전체를 고친 결과를 문단에 반영한다. 줄 순서대로 기존 문단을 맞춰 바뀐 줄만 고치고(ID 유지),
-   * 늘어난 줄은 끝에 새 문단으로, 줄어든 만큼은 휴지통으로 보낸다(되돌릴 수 있게).
+   * 위젯에서 메모 전체를 고친 결과를 문단에 반영한다. 앞뒤로 같은 줄은 그대로 두고, 가운데 바뀐 줄만 차례로 기존 문단에 맞춰
+   * 고치고(ID 유지), 늘어난 줄은 그 자리에 새 문단으로 끼우고, 줄어든 만큼은 휴지통으로 보낸다(되돌릴 수 있게).
+   * 예전엔 줄 번호로만 맞춰, 위에 한 줄을 넣으면 그 아래 문단을 모두 고쳐 쓰고 마지막 줄을 새 문단으로 붙였다(다른 기기 편집과 부딪쳤다).
    */
   fun saveMemo(db: SQLiteDatabase, folderId: String?, text: String, now: Long = System.currentTimeMillis()) {
+    if (viewOnly(db, folderId)) return
     val rows = memoRows(db, folderId)
-    val lines = if (text.isEmpty()) emptyList() else text.split("\n")
-    for (i in 0 until minOf(rows.size, lines.size)) {
-      val r = rows[i]
-      if (r.text == lines[i]) continue
-      db.execSQL("UPDATE paragraphs SET text = ?, updated_at = ? WHERE id = ?", arrayOf(lines[i], now, r.id))
-      enqueue(db, "paragraph", r.id, false, JSONObject().put("text", change(r.text, lines[i])).put("updated_at", change(r.updatedAt, now)), now)
+    val edit = MemoEdit.of(rows.map { it.text }, if (text.isEmpty()) emptyList() else text.split("\n"))
+    val mid = rows.subList(edit.from, edit.to)
+    val kept = minOf(mid.size, edit.lines.size)
+    for (i in 0 until kept) {
+      val r = mid[i]
+      val line = edit.lines[i]
+      if (r.text == line) continue
+      db.execSQL("UPDATE paragraphs SET text = ?, updated_at = ? WHERE id = ?", arrayOf(line, now, r.id))
+      enqueue(db, "paragraph", r.id, false, JSONObject().put("text", change(r.text, line)).put("updated_at", change(r.updatedAt, now)), now)
     }
-    if (lines.size > rows.size) appendMemo(db, lines.drop(rows.size).joinToString("\n"), folderId, now)
-    for (r in rows.drop(lines.size)) {
+    val added = edit.lines.drop(kept)
+    if (added.isNotEmpty()) {
+      var prev = rows.getOrNull(edit.from + kept - 1)?.position
+      val next = rows.getOrNull(edit.to)?.position
+      // 끝에 붙이거나, 앞뒤 문단의 자리가 같아(다른 기기와 동시에 넣은 경우) 사이에 끼울 수 없으면 맨 끝에
+      if (next == null || (prev != null && prev >= next)) {
+        appendMemo(db, added.joinToString("\n"), folderId, now)
+      } else {
+        for (line in added) {
+          prev = Frac.between(prev, next)
+          insertParagraph(db, folderId, line, prev, now)
+        }
+      }
+    }
+    for (r in mid.drop(kept)) {
       db.execSQL("UPDATE paragraphs SET deleted_at = ? WHERE id = ?", arrayOf(now, r.id))
       enqueue(db, "paragraph", r.id, false, JSONObject().put("deleted_at", change(null, now)), now)
     }
@@ -299,14 +337,22 @@ object NotesDb {
   /** 알림을 예약할 할 일(완료·삭제되지 않았고 알림 시각이 since 이후). 반복은 알림이 다음 회차 것이라 완료 표시와 상관없이 */
   fun pendingReminders(db: SQLiteDatabase, since: Long): List<Pair<Todo, Long>> =
     db.rawQuery(
-      "SELECT id, text, done_at, due_date, folder_id, remind_at FROM todos " +
-        "WHERE remind_at > ? AND (done_at IS NULL OR repeat_freq IS NOT NULL) AND deleted_at IS NULL$live",
+      "SELECT id, text, due_date, folder_id, remind_at FROM todos WHERE remind_at > ? AND $REMINDABLE$live",
       arrayOf(since.toString()),
     ).use { c ->
       buildList {
-        while (c.moveToNext()) add(Todo(c.getString(0), c.getString(1), null, c.getString(3), c.getString(4)) to c.getLong(5))
+        while (c.moveToNext()) add(Todo(c.getString(0), c.getString(1), c.getString(2), c.getString(3)) to c.getLong(4))
       }
     }
+
+  /** 한 할 일의 알림(울리는 순간 다시 확인할 때). 그 사이 완료·삭제됐거나 알림을 뺐으면 null */
+  fun reminder(db: SQLiteDatabase, id: String): Pair<Todo, Long>? =
+    db.rawQuery(
+      "SELECT id, text, due_date, folder_id, remind_at FROM todos WHERE id = ? AND remind_at > 0 AND $REMINDABLE$live",
+      arrayOf(id),
+    ).use { c -> if (c.moveToFirst()) Todo(c.getString(0), c.getString(1), c.getString(2), c.getString(3)) to c.getLong(4) else null }
+
+  private const val REMINDABLE = "(done_at IS NULL OR repeat_freq IS NOT NULL) AND deleted_at IS NULL"
 
   /** 루틴을 한 날 기록에 오늘을 더하거나 뺀다: 'YYYY-MM-DD,…' 정렬·중복 없이 최근 400개(앱 core/doneLog.ts와 같다) */
   private fun doneLog(log: String?, day: String, add: Boolean): String? {

@@ -44,3 +44,10 @@ test('rejected server credential does not produce a successful app callback', as
   const request = jest.fn().mockResolvedValue(new Response('{}', { status: 401 }));
   await expect(kakaoTalkAuth(start, redirect, async () => 'invalid', request)).rejects.toMatchObject({ code: 'kakao_failed' });
 });
+
+test('non-JSON error bodies and network failures become coded errors the UI can translate', async () => {
+  const html = jest.fn().mockResolvedValue(new Response('<html>502 Bad Gateway</html>', { status: 502 }));
+  await expect(kakaoTalkAuth(start, redirect, async () => 'provider-credential', html)).rejects.toMatchObject({ code: 'kakao_failed', status: 502 });
+  const down = jest.fn().mockRejectedValue(new TypeError('Network request failed'));
+  await expect(kakaoTalkAuth(start, redirect, async () => 'provider-credential', down)).rejects.toMatchObject({ code: 'network' });
+});

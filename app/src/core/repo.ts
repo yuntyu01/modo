@@ -1,7 +1,7 @@
 import type { Db, Params } from './db';
 import { Mutex } from './db';
 import { keyBetween } from './frac';
-import { daysBetween, firstOnOrAfter, nextDue, ruleOf, shiftTime, type RepeatRule } from './repeat';
+import { daysBetween, firstOnOrAfter, fmt, nextDue, ruleOf, shiftTime, type RepeatRule } from './repeat';
 import { addDoneDay, removeDoneDay } from './doneLog';
 import { MIGRATE_V2, MIGRATE_V3, MIGRATE_V5, SCHEMA, SCHEMA_SHARED, SCHEMA_VERSION } from './schema';
 import type { EntityName, Folder, Paragraph, SharedFolder, Snapshot, Todo } from './types';
@@ -45,10 +45,7 @@ function clean(values: Row): Row {
 }
 
 /** 현지 날짜 'YYYY-MM-DD' */
-function localDay(ms: number) {
-  const d = new Date(ms);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
+const localDay = (ms: number) => fmt(new Date(ms));
 
 /**
  * 완료 여부. 반복 할 일은 체크하면 done_at을 남기고 다음 예정일로 넘어가, 그날이 오기 전까지만 완료(맨 아래에 체크된 채)이고
@@ -168,30 +165,46 @@ export class Repo {
   }
 
   /**
-   * 스키마 만들기·고치기. owner=false: 이 연결은 동기화를 하지 않는다(PC 창들. 동기화는 Electron 메인 프로세스가 맡고
-   * 창보다 먼저 init을 마친다). 그때는 outbox를 건드리지 않는다: 메인이 보내는 중인 op의 inflight를 창이 풀어 버리면
-   * 그 op에 새 변경이 합쳐져(이미 보낸 op라 서버가 버린다) 고친 내용이 사라질 수 있다.
+   * 스키마 만들기·고치기. owner=false: 이 연결은 동기화를 하지 않아 outbox를 건드리지 않는다(메인이 보내는 중인 op의 inflight를
+   * 풀어 버리면 그 op에 새 변경이 합쳐져 사라질 수 있다). 실제 앱에서는 늘 owner=true다: PC 창은 init을 아예 부르지 않고
+   * (AppContext, 메인이 db:ready 전에 마친다) 테스트만 owner=false를 쓴다.
    */
   async init({ owner = true }: { owner?: boolean } = {}) {
     await this.db.exec(SCHEMA);
     const cols = new Set((await this.db.all<{ name: string }>(`PRAGMA table_info(todos)`)).map((c) => c.name));
     if (cols.has('done')) await this.db.exec(MIGRATE_V2);
-    if (!cols.has('repeat_freq')) await this.db.exec(MIGRATE_V3);
-    if (!cols.has('done_log')) await this.db.exec(MIGRATE_V5);
+    // 열 추가는 문장마다 따로, 이미 있으면 넘어간다: 위젯(Kotlin/Swift)이 PRAGMA와 ALTER 사이에 같은 열을 먼저 더했을 수 있다
+    // (그러면 'duplicate column'으로 앱이 켜지지 않았다)
+    if (!cols.has('repeat_freq')) await this.addColumns(MIGRATE_V3);
+    if (!cols.has('done_log')) await this.addColumns(MIGRATE_V5);
     await this.migrateV4();
     await this.db.exec(SCHEMA_SHARED);
     // 예전 버전이 받은 행에는 새 열(반복 등)이 비어 있다. 버전이 오르면 한 번 처음부터 다시 받아 채운다.
     // (위젯이 앱보다 먼저 열을 추가했을 수도 있어 열 유무가 아니라 저장된 버전으로 판단한다)
     const prev = await this.getKv<number>('schema_version', 0);
     if (prev && prev < SCHEMA_VERSION) await this.setKv('sync_cursor', 0);
-    await this.db.run(`INSERT INTO kv (key, value) VALUES ('schema_version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`, [
-      String(SCHEMA_VERSION),
-    ]);
+    // 켤 때마다 쓰지 않고 바뀔 때만(파일 쓰기 잠금을 위젯과 다툰다)
+    if (prev !== SCHEMA_VERSION) await this.setKv('schema_version', SCHEMA_VERSION);
     if (!owner) return;
     // 보내는 도중 앱이 죽었으면 다시 보낸다. op_id가 같아 서버가 중복 적용하지 않는다.
     // 서버는 이미 적용했을 수 있으니 '보낸 적 있음'(attempts)도 올린다: 안 올리면 새 편집이 이 op에 합쳐져 버려진다.
-    await this.db.run(`UPDATE outbox SET inflight = 0, attempts = attempts + 1 WHERE inflight = 1`);
+    await this.releaseInflight();
     await this.rekeyLongPositions();
+  }
+
+  /** 보내는 중이던 op를 다시 보낼 수 있게 되돌린다. 서버가 이미 적용했을 수 있으니 '보낸 적 있음'(attempts)도 올린다(새 편집이 합쳐져 버려지지 않게) */
+  private releaseInflight() {
+    return this.db.run(`UPDATE outbox SET inflight = 0, attempts = attempts + 1 WHERE inflight = 1`);
+  }
+
+  private async addColumns(sql: string) {
+    for (const stmt of sql.split(';').map((s) => s.trim()).filter(Boolean)) {
+      try {
+        await this.db.exec(stmt);
+      } catch (e) {
+        if (!/duplicate column/i.test(e instanceof Error ? e.message : String(e))) throw e;
+      }
+    }
   }
 
   /**
@@ -267,7 +280,7 @@ export class Repo {
     return () => this.listeners.delete(fn);
   }
   /** tables가 없으면 전부 바뀐 것으로 본다(다른 프로세스·창이 바꿨을 때) */
-  emit(source: 'local' | 'remote', tables: Touched = new Set(['*'])) {
+  private emit(source: 'local' | 'remote', tables: Touched = new Set(['*'])) {
     for (const fn of this.listeners) fn(source, tables);
   }
 
@@ -409,7 +422,14 @@ export class Repo {
     )[0];
     let mergeable = !!prev;
     if (prev && fields.folder_id?.new != null) {
-      mergeable = !(await this.db.all(`SELECT 1 FROM outbox WHERE seq > ? LIMIT 1`, [prev.seq])).length;
+      // 그 뒤에 '그 폴더 만들기' op가 있을 때만 합치지 않는다(예전엔 어떤 op든 뒤에 있으면 안 합쳐, 폴더 삭제 + 되돌리기가
+      // 항목마다 상쇄되는 op 둘을 남겼다)
+      mergeable = !(
+        await this.db.all(`SELECT 1 FROM outbox WHERE entity = 'folder' AND entity_id = ? AND is_create = 1 AND seq > ? LIMIT 1`, [
+          fields.folder_id.new as string,
+          prev.seq,
+        ])
+      ).length;
     }
     if (prev && mergeable) {
       if (prev.is_create && fields.purged) {
@@ -449,9 +469,6 @@ export class Repo {
   }
   renameFolder(id: string, name: string) {
     return this.write(() => this.patch('folder', id, { name: name.trim() }));
-  }
-  moveFolder(id: string, prevKey: string | null, nextKey: string | null) {
-    return this.write(() => this.patch('folder', id, { position: keyBetween(prevKey, nextKey) }));
   }
   /** 폴더만 지우고 내용은 기본 폴더(폴더 없음)로 옮긴다. 실행 취소용으로 옮긴 항목을 돌려준다. */
   deleteFolder(id: string) {
@@ -663,8 +680,10 @@ export class Repo {
 
   // ---------- 동기화 지원 ----------
   async takeOutbox(limit: number): Promise<OutboxOp[]> {
-    return this.mutex.run(() =>
-      this.db.transaction(async () => {
+    return this.mutex.run(async () => {
+      // 비어 있으면 쓰기 트랜잭션을 열지 않는다(30초마다 도는 빈 동기화가 매번 파일 쓰기 잠금을 잡아, 그 사이 위젯·빠른 추가의 쓰기가 기다렸다)
+      if (!(await this.db.all(`SELECT 1 FROM outbox LIMIT 1`)).length) return [];
+      return this.db.transaction(async () => {
         const rows = await this.db.all<Row>(`SELECT * FROM outbox ORDER BY seq LIMIT ?`, [limit]);
         if (rows.length) {
           await this.db.run(`UPDATE outbox SET inflight = 1 WHERE seq <= ?`, [rows[rows.length - 1].seq as number]);
@@ -677,11 +696,11 @@ export class Repo {
           is_create: !!r.is_create,
           fields: JSON.parse(r.fields as string),
         }));
-      }),
-    );
+      });
+    });
   }
   releaseOutbox() {
-    return this.mutex.run(() => this.db.run(`UPDATE outbox SET inflight = 0, attempts = attempts + 1 WHERE inflight = 1`));
+    return this.mutex.run(() => this.releaseInflight());
   }
   ackOutbox(opIds: string[]) {
     return this.mutex.run(() =>
@@ -712,10 +731,12 @@ export class Repo {
     return pending;
   }
 
-  private async existingIds(table: string, ids: string[]) {
-    const out = new Set<string>();
+  /** 이미 있는 행의 지금 값(받은 값과 같은 칸은 다시 쓰지 않으려고) */
+  private async existingRows(table: string, ids: string[], columns: string[]) {
+    const out = new Map<string, Row>();
     for (const part of chunks(ids)) {
-      for (const r of await this.db.all<{ id: string }>(`SELECT id FROM ${table} WHERE id IN (${marks(part.length)})`, part)) out.add(r.id);
+      const rows = await this.db.all<Row>(`SELECT id, ${columns.join(', ')} FROM ${table} WHERE id IN (${marks(part.length)})`, part);
+      for (const r of rows) out.set(r.id as string, r);
     }
     return out;
   }
@@ -725,6 +746,8 @@ export class Repo {
    * - 아직 안 보낸 로컬 변경이 있는 필드는 건드리지 않는다(push에서 서버가 판정).
    * - 지금 편집 중인 항목의 text는 미뤄서 커서와 작성 중인 글이 바뀌지 않게 한다.
    * - deleted: 다른 기기가 영구 삭제한 항목.
+   * - 이미 같은 값인 칸은 다시 쓰지 않는다: 서버는 이 기기가 보낸 변경도 돌려주고, 처음부터 다시 받을 때(로그인·거절 뒤)는
+   *   모든 행이 온다. 예전엔 바뀐 것이 없어도 행마다 UPDATE해 화면·위젯을 다시 읽고 그렸다.
    */
   async applyRemote(
     page: { folders: Row[]; todos: Row[]; paragraphs: Row[]; deleted?: { id: string; entity: EntityName }[] },
@@ -741,12 +764,13 @@ export class Repo {
       ] as [EntityName, Row[]][]) {
         if (!rows.length) continue;
         const table = TABLE[entity];
-        const existing = await this.existingIds(table, rows.map((r) => r.id as string));
         const columns = [...SYNC_FIELDS[entity], ...SERVER_FIELDS[entity]];
+        const existing = await this.existingRows(table, rows.map((r) => r.id as string), columns);
         for (const remote of rows) {
           const id = remote.id as string;
           const mine = pending.get(id);
-          if (!existing.has(id)) {
+          const local = existing.get(id);
+          if (!local) {
             // 여기서 영구 삭제하고 아직 못 보낸 항목은 되살리지 않는다.
             if (mine?.has('purged')) continue;
             await this.db.run(
@@ -758,6 +782,7 @@ export class Repo {
           const values: Row = {};
           for (const f of columns) {
             if (mine?.has(f)) continue;
+            if (toSql(remote[f]) === local[f]) continue;
             if (f === 'text' && editing.has(id)) {
               deferred.set(id, { entity, text: remote.text as string });
               continue;
@@ -882,14 +907,17 @@ export class Repo {
   async detachFromAccount() {
     await this.write(async () => {
       const shared = (await this.db.all<{ folder_id: string }>(`SELECT folder_id FROM shared_folders`)).map((r) => r.folder_id);
-      const foreign = await this.foreignRows(shared);
+      // 공유가 끊긴 뒤 못 보낸 변경 때문에 남겨 둔 남의 항목(past_shared)도 함께 지운다. 안 지우면 로그아웃 뒤에도 남의 항목이
+      // 남아, 다음 로그인에서 고칠 때마다 서버가 거절하고(forbidden) 처음부터 다시 받았다
+      const past = await this.getKv<string[]>('past_shared', []);
+      const foreign = await this.foreignRows([...new Set([...shared, ...past])]);
       for (const r of foreign) {
         await this.db.run(`DELETE FROM ${r.table} WHERE id = ?`, [r.id]);
         await this.db.run(`DELETE FROM outbox WHERE entity_id = ?`, [r.id]);
       }
       await this.db.run(`DELETE FROM shared_folders`);
       await this.db.run(`DELETE FROM people`);
-      await this.db.run(`UPDATE outbox SET inflight = 0, attempts = attempts + 1 WHERE inflight = 1`);
+      await this.releaseInflight();
       await this.db.run(`DELETE FROM kv WHERE key IN ('sync_cursor', 'past_shared', 'foreign_digest')`);
     });
   }
@@ -909,14 +937,15 @@ export class Repo {
   }
 
   // ---------- 백업 ----------
+  /** 남이 공유해 준 폴더와 그 항목은 뺀다(내 것이 아니다. 가져오기에서 '내가 만든 것'으로 올라가 서버가 거절하고 처음부터 다시 받았다) */
   async exportAll() {
     return this.read(async () => ({
       app: 'modo',
       version: 2,
       exported_at: this.now(),
-      folders: await this.db.all(`SELECT * FROM folders`),
-      todos: await this.db.all(`SELECT * FROM todos`),
-      paragraphs: await this.db.all(`SELECT * FROM paragraphs`),
+      folders: await this.db.all(`SELECT * FROM folders WHERE id NOT IN (SELECT folder_id FROM shared_folders)`),
+      todos: await this.db.all(`SELECT * FROM todos WHERE folder_id IS NULL OR folder_id NOT IN (SELECT folder_id FROM shared_folders)`),
+      paragraphs: await this.db.all(`SELECT * FROM paragraphs WHERE folder_id IS NULL OR folder_id NOT IN (SELECT folder_id FROM shared_folders)`),
     }));
   }
 
@@ -925,6 +954,8 @@ export class Repo {
     return this.write(async () => {
       let added = 0;
       let updated = 0;
+      // 남이 공유해 준 폴더(예전 백업에 섞여 있을 수 있다)는 건너뛴다. 보기 전용이면 그 항목도
+      const sharedRole = new Map((await this.db.all<{ folder_id: string; role: string }>(`SELECT folder_id, role FROM shared_folders`)).map((r) => [r.folder_id, r.role]));
       for (const [entity, rows] of [
         ['folder', data.folders ?? []],
         ['todo', data.todos ?? []],
@@ -933,6 +964,7 @@ export class Repo {
         for (const r of rows) {
           // 예전 백업(v1)에는 영구 삭제 표시 행이 있을 수 있다
           if (typeof r.id !== 'string' || r.purged) continue;
+          if (entity === 'folder' ? sharedRole.has(r.id) : typeof r.folder_id === 'string' && sharedRole.get(r.folder_id) === 'view') continue;
           const values: Row = { id: r.id };
           for (const f of SYNC_FIELDS[entity]) if (f in r) values[f] = r[f];
           const cur = await this.row(entity, r.id);

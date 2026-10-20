@@ -3,7 +3,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } fr
 
 import type { Folder } from '../../core/types';
 import { inputColors } from '../theme';
-import { useApp } from '../../state/AppContext';
+import { useUi } from '../../state/AppContext';
 import { useTop, useWide } from '../layout';
 import { CloseIcon, DotsIcon, PeopleIcon, PlusIcon, PopOutIcon, SearchIcon, ShareIcon } from '../Icons';
 import { IconButton } from '../IconButton';
@@ -30,7 +30,7 @@ export function HomeHeader({
   /** PC 큰 창: 공유 아이콘(시안). 서버에 연결돼 있을 때만 */
   onShare?: () => void;
 }) {
-  const { theme, t } = useApp();
+  const { theme, t } = useUi();
   const top = useTop();
   const { compact } = useWide();
   const menuBtn = useRef<View>(null);
@@ -88,7 +88,7 @@ export function HomeHeader({
 
 /** 검색창: 폴더 줄 자리에 뜨고 폴더 줄은 그 아래로 한 줄 내려간다(지금 폴더 안에서 찾고, 폴더를 바꾸면 그 폴더에서). Esc·×로 닫는다 */
 export function SearchBar({ value, onChange, onClose }: { value: string; onChange: (s: string) => void; onClose: () => void }) {
-  const { theme, t } = useApp();
+  const { theme, t } = useUi();
   const { compact } = useWide();
   return (
     <View style={[styles.searchRow, desktop && styles.searchRowDesk, compact && { paddingTop: 4 }]}>
@@ -116,7 +116,7 @@ export function SearchBar({ value, onChange, onClose }: { value: string; onChang
 
 /** 로고만 있는 머리(캘린더처럼 폴더·⋯가 없는 화면). 홈 머리와 같은 자리·크기 */
 export function LogoBar() {
-  const { theme } = useApp();
+  const { theme } = useUi();
   const top = useTop();
   const { compact } = useWide();
   return (
@@ -147,7 +147,7 @@ export function FolderTabs({
   onAdd: () => void;
   sharedIds: Set<string>;
 }) {
-  const { theme, t } = useApp();
+  const { theme, t } = useUi();
   const { compact } = useWide();
   // 고른 폴더는 가운데로(휴대폰·PC). PC는 넘치면 휠·끌기로 옆으로도(미니창과 같다)
   const scrollRef = useRef<ScrollView>(null);

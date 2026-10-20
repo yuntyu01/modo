@@ -33,7 +33,7 @@ $env:MODO_STORE_PUBLISHER_NAME = '<Package/Properties/PublisherDisplayName from 
 npm run dist:store
 ```
 
-This creates a single x64 `.appx` with the current desktop package version (1.0.1.0), Windows.Desktop minimum 10.0.19041.0, four actual UI languages, and only the required `runFullTrust` capability. The official Windows SDK MakePri indexes the scale/target-size icon assets and MakeAppx validates the package. The build refuses missing identity values. Microsoft signs the package after certification; no external paid EXE certificate is required.
+This creates a single x64 `.appx` with the current desktop package version (1.0.2.0), Windows.Desktop minimum 10.0.19041.0, four actual UI languages, and only the required `runFullTrust` capability. The official Windows SDK MakePri indexes the scale/target-size icon assets and MakeAppx validates the package. The build refuses missing identity values. Microsoft signs the package after certification; no external paid EXE certificate is required.
 
 The initial Store package does not register a login startup task and hides the portable app's registry-based auto-start option. Pinning, opacity and the tray remain available. The custom manifest uses the reserved Store title for package metadata and `modo` for the installed launcher. Its literal ampersand is XML-escaped.
 

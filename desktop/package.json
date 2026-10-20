@@ -1,6 +1,6 @@
 {
   "name": "modo-desktop",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "description": "modo Windows 데스크톱 미니창 (Electron + 앱의 RN 화면을 웹으로 렌더링)",
   "main": "main.cjs",

@@ -1,5 +1,6 @@
 import Constants from 'expo-constants';
-import { Text, View } from 'react-native';
+import { router } from 'expo-router';
+import { Platform, Text, View } from 'react-native';
 
 import type { StringKey } from '../../i18n';
 import { useUi } from '../../state/AppContext';
@@ -24,6 +25,12 @@ export default function Guide() {
           {t('nameMeaning')} · {Constants.expoConfig?.version ?? ''}
         </Text>
       </View>
+      {/* PC 연동: Microsoft Store의 Windows 앱(휴대폰에서만, PC에서는 이미 PC 앱이다) */}
+      {Platform.OS !== 'web' ? (
+        <Group>
+          <Row label={t('pcUse')} onPress={() => router.push('/settings/pc')} last />
+        </Group>
+      ) : null}
       <Group>
         <Row label={t('privacyPolicy')} onPress={() => open(POLICY_URL)} />
         <Row label={t('requestAccountDeletion')} onPress={() => open(DELETION_URL)} />

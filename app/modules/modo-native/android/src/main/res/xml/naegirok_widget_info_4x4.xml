@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  같은 위젯의 4×4 판(위젯 고르기 화면에 크기별로 보이게, WidgetSizes.kt). 홈 화면만(잠금화면은 기본 naegirok_widget_info).
+  가장 작게 줄이는 크기는 기본과 같은 180dp. 옛 런처(Android 11 이하)는 minWidth·minHeight로 처음 크기를 정한다(약 70×칸 - 30dp).
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+  android:minWidth="250dp"
+  android:minHeight="250dp"
+  android:minResizeWidth="180dp"
+  android:minResizeHeight="180dp"
+  android:targetCellWidth="4"
+  android:targetCellHeight="4"
+  android:resizeMode="horizontal|vertical"
+  android:updatePeriodMillis="0"
+  android:initialLayout="@layout/widget_home"
+  android:previewLayout="@layout/widget_preview"
+  android:description="@string/widget_description"
+  android:configure="com.yuntyu01.naegirok.widget.WidgetConfigActivity"
+  android:widgetFeatures="reconfigurable|configuration_optional"
+  android:widgetCategory="home_screen" />

@@ -638,7 +638,7 @@ struct HomeWidgetView: View {
         HStack {
           Spacer()
           Link(destination: URL(string: "naegirok://quickadd" + (entry.folderId.map { "?folder=\($0)" } ?? ""))!) {
-            Image(systemName: "plus").font(.system(size: 18, weight: .regular)).foregroundStyle(Self.text)
+            Image(systemName: "plus").font(.system(size: 18, weight: .semibold)).foregroundStyle(Self.text)
               .frame(width: 44, height: Self.footer)
           }
           .accessibilityLabel(l.add)
@@ -733,33 +733,11 @@ struct NotesWidget: Widget {
   }
 }
 
-/// 제어 센터·잠금화면 컨트롤(iOS 18): 누르면 앱의 빠른 추가 화면
-@available(iOS 18.0, *)
-struct OpenQuickAddIntent: AppIntent {
-  static var title: LocalizedStringResource = "빠른 추가"
-  static var openAppWhenRun = true
-  func perform() async throws -> some IntentResult & OpensIntent {
-    .result(opensIntent: OpenURLIntent(URL(string: "naegirok://quickadd")!))
-  }
-}
-
-@available(iOS 18.0, *)
-struct QuickAddControl: ControlWidget {
-  var body: some ControlWidgetConfiguration {
-    StaticControlConfiguration(kind: "ModoQuickAdd") {
-      ControlWidgetButton(action: OpenQuickAddIntent()) {
-        Label(L.current(nil).quickAdd, systemImage: "plus.square")
-      }
-    }
-    .displayName(LocalizedStringResource(stringLiteral: L.current(nil).quickAdd))
-  }
-}
-
+// 제어 센터의 '빠른 추가' 컨트롤은 뺐다(사용자 요청 2026-10-21). 위젯 +는 그대로 앱의 빠른 추가 화면(naegirok://quickadd)
 @main
 struct ModoWidgets: WidgetBundle {
   var body: some Widget {
     NotesWidget()
-    if #available(iOS 18.0, *) { QuickAddControl() }
   }
 }
 

@@ -209,7 +209,8 @@ export const TodoCard = memo(function TodoCard({
       {ring ? <RingIcon color={theme.circle} size={circle} strokeWidth={stroke} /> : null}
       {repeatRing ? <RepeatRingIcon color={theme.circle} size={circle} strokeWidth={stroke} /> : null}
       {repeatDone ? <RepeatGlyphIcon color={theme.onAccent} size={circle * 0.6} strokeWidth={2.5} /> : null}
-      {done && !rule ? <CheckIcon color={theme.onAccent} size={(theme.desk ? 13.25 : theme.mini ? 16 : 12.75) * theme.zoom * theme.scale} /> : null}
+      {/* 완료 체크: 동그라미의 약 60%, 굵게(사용자 요청 2026-10-21. 예전 휴대폰 12.75·선 2.6은 가늘어 보였다) */}
+      {done && !rule ? <CheckIcon color={theme.onAccent} size={(theme.desk ? 14.5 : theme.mini ? 16 : 15) * theme.zoom * theme.scale} strokeWidth={3.3} /> : null}
     </Pressable>
   );
 
@@ -324,7 +325,7 @@ const DESK_RADIUS = 12;
 const CIRCLE = 25.5;
 
 /**
- * 완료 묶음 머리: 왼쪽 '완료 N', 오른쪽 '전체 지우기'(보이는 완료한 보통 할 일을 휴지통으로, 실행 취소 가능).
+ * 완료 묶음 머리: 왼쪽 '완료 N', 오른쪽 '완료 비우기'(보이는 완료한 보통 할 일을 휴지통으로, 실행 취소 가능).
  * '완료 N'은 작은 옅은 회색 글씨(보조 글자보다 옅게, 조금 굵게)로 카드 왼쪽 끝 가까이(사용자 시안 2026-10-19의 #898E97 근처.
  * 한때 'To do 3'처럼 크고 검게 했다가 되돌림).
  * 숨기기·보기는 머리의 펼침 표시 대신 ⋯ 메뉴에서, 지우기는 ⋯ 메뉴의 '완료한 할 일 정리' 대신 여기서 한다(사용자 요청 2026-10-19).
@@ -339,7 +340,8 @@ export function DoneHeader({ count, onClear }: { count: number; onClear?: () => 
       {onClear ? (
         <Pressable accessibilityRole="button" onPress={onClear} hitSlop={10}>
           {({ pressed }) => (
-            <Text style={theme.font(15 * theme.zoom, { color: theme.accent, fontWeight: '600', opacity: pressed ? 0.6 : 1 })}>{t('clearAllDone')}</Text>
+            // '완료 비우기'는 오른쪽에 차분한 회색으로(사용자 시안 2026-10-20). 오른쪽 체크 동그라미와 같은 쪽
+            <Text style={theme.font(15 * theme.zoom, { color: theme.muted, fontWeight: '500', opacity: pressed ? 0.6 : 1 })}>{t('clearAllDone')}</Text>
           )}
         </Pressable>
       ) : null}

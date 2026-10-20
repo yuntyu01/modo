@@ -7,7 +7,7 @@ import { Composer } from '../ui/home/Composer';
 import { contentColumn } from '../ui/layout';
 
 /**
- * 빠른 추가(iOS 위젯 +, 제어 센터 버튼이 naegirok://quickadd 로 연다).
+ * 빠른 추가(iOS 위젯 +가 naegirok://quickadd 로 연다. 제어 센터 버튼은 뺐다 2026-10-21).
  * Android는 앱을 띄우지 않는 네이티브 창(QuickAddActivity)을 쓰고, 이 화면은 대체 경로다.
  * 위젯이 넘긴 폴더(없거나 지워졌으면 기본)에 저장하고, 어디에 저장되는지 안내 문구에 보여 준다.
  */

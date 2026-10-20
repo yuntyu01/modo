@@ -191,15 +191,17 @@ export default function Customize() {
       <View style={[styles.opacityCard, { backgroundColor: theme.card }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <Text style={theme.kfont(15.5, { color: theme.text, flex: 1 })}>{t('widgetMiniOpacity')}</Text>
-          <Text style={theme.kfont(14.5, { color: theme.subtle })}>{Math.round(opacity * 100)}%</Text>
+          {/* 이름이 '투명도'라 숫자도 투명한 정도로(저장 값은 불투명도: 예전엔 불투명 80%를 '투명도 80%'로 보여 반대로 읽혔다) */}
+          <Text style={theme.kfont(14.5, { color: theme.subtle })}>{Math.round((1 - opacity) * 100)}%</Text>
         </View>
         <Slider
           label={t('widgetMiniOpacity')}
-          value={(opacity - 0.2) / 0.8}
+          // 오른쪽으로 밀수록 더 투명(투명도 0~100%: 왼쪽 끝은 배경이 전혀 비치지 않고, 오른쪽 끝은 배경 없이 글자만)
+          value={1 - opacity}
           style={{ marginTop: 2.5, marginBottom: -2.5 }}
-          onChange={(x) => setDragOpacity(Math.round((0.2 + x * 0.8) * 100) / 100)}
+          onChange={(x) => setDragOpacity(Math.round((1 - x) * 100) / 100)}
           onEnd={(x) => {
-            const v = Math.round((0.2 + x * 0.8) * 100) / 100;
+            const v = Math.round((1 - x) * 100) / 100;
             setPrefs({ widget: { ...prefs.widget, opacity: v }, mini: { ...prefs.mini, opacity: v } });
             setDragOpacity(null);
           }}

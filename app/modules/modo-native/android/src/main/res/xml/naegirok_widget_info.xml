@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  가장 작게 = 가로 3칸 × 세로 2칸(사용자 요청 2026-10-20, 예전엔 가로 4칸부터였다). 기본으로 놓는 크기도 3×2칸.
+  처음 놓는 크기 = 3×3칸(위젯 고르기 화면의 '3×3'. 4×4는 naegirok_widget_info_4x4, 사용자 요청 2026-10-21).
+  예전엔 3×2로 두었지만 높이 180dp가 2칸에 들어가지 않는 런처(Pixel·삼성)는 어차피 3칸을 줬다. 줄이는 것은 180dp까지(2026-10-20).
   높이 = 위 여백(2) + 머리(로고 · 폴더 탭 36) + 할 일 2줄(52×2, 또는 메모 3줄) + 여유(2) + 쪽 점 줄(32 + 아래 4) = 180dp.
   폭은 아래 줄(점 3개 + +)이 겹치지 않는 180dp(폴더 탭은 폭이 모자라면 지금 폴더 근처만, 긴 할 일은 두 줄·…).
   런처 칸이 작아 2칸이 180dp가 안 되면 런처가 3칸을 준다(칸 크기는 런처·기기마다 다르다).
@@ -14,7 +15,7 @@
   android:minResizeWidth="180dp"
   android:minResizeHeight="180dp"
   android:targetCellWidth="3"
-  android:targetCellHeight="2"
+  android:targetCellHeight="3"
   android:resizeMode="horizontal|vertical"
   android:updatePeriodMillis="0"
   android:initialLayout="@layout/widget_home"

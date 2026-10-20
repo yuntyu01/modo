@@ -97,8 +97,8 @@
   </LinearLayout>
 
   <!-- 아래 줄(32 + 아래 여백 4): 쪽 점은 위젯 가운데, +는 오른쪽. 줄 가운데가 아래 끝에서 20dp로 머리(로고) 가운데가 위 끝에서
-       떨어진 만큼(2 + 36/2)과 같고, + 표시는 오른쪽·아래 끝에서 똑같이 13dp(모서리 19 안쪽). 예전엔 오른쪽 23dp·아래 9.5dp로
-       둥근 모서리에 붙어 보였고 위아래 균형이 맞지 않았다(사용자 요청 2026-10-20) -->
+       떨어진 만큼(2 + 36/2)과 같고, + 표시는 오른쪽 끝에서 8dp 더 안쪽(실기기에서 한쪽 끝에 몰려 보였다, 사용자 요청 2026-10-21).
+       예전엔 오른쪽 23dp·아래 9.5dp로 둥근 모서리에 붙어 보였고 위아래 균형이 맞지 않았다(2026-10-20) -->
   <FrameLayout
     android:layout_width="match_parent"
     android:layout_height="32dp"
@@ -115,6 +115,7 @@
       android:layout_width="40dp"
       android:layout_height="32dp"
       android:layout_gravity="end|center_vertical"
+      android:layout_marginEnd="8dp"
       android:contentDescription="@string/add"
       android:paddingStart="9dp"
       android:paddingTop="5dp"

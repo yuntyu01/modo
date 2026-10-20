@@ -12,8 +12,7 @@ public class ModoNativeModule: Module {
     AsyncFunction("refresh") { (tables: [String]?) in Self.refreshAll(tables) }
 
     // iOS는 앱에서 위젯·제어 센터 항목을 바로 추가하는 API가 없다(설정 화면이 방법을 안내).
-    AsyncFunction("requestPinWidget") { false }
-    AsyncFunction("requestAddTile") { "unsupported" }
+    AsyncFunction("requestPinWidget") { (_: String?) -> Bool in false }
 
     AsyncFunction("lockScreenWidgetSupport") { () -> [String: Any] in
       // 위젯 확장은 iOS 17부터(targets/widget/expo-target.config.js deploymentTarget)

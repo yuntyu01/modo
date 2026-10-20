@@ -7,7 +7,6 @@
   <string name="mark_done">%1$s を完了</string>
   <string name="mark_done_short">完了</string>
   <string name="quick_add">クイック追加</string>
-  <string name="tile_label">modo クイック追加</string>
   <string name="new_todo">新しいToDo</string>
   <string name="continue_memo">メモに追記</string>
   <string name="input_as_todo">ToDoとして入力</string>
@@ -27,7 +26,7 @@
   <string name="size_s">小</string>
   <string name="size_m">中</string>
   <string name="size_l">大</string>
-  <string name="bg_opacity">背景の不透明度 %1$d%%</string>
+  <string name="bg_transparency">背景の透明度 %1$d%%</string>
   <string name="done">完了</string>
   <string name="lock_title">ToDo %1$d件</string>
   <string name="lock_more">ほか%1$d件</string>

@@ -75,7 +75,8 @@ export const DEFAULT_PREFS: Prefs = {
   accent: ACCENTS[0],
   gradient: 0.7,
   card: null,
-  checkSide: 'left',
+  // 체크 동그라미는 기본으로 오른쪽(엄지로 누르기 편하게, 사용자 요청 2026-10-20). 이미 저장된 설정(직접 고른 왼쪽 포함)은 그대로
+  checkSide: 'right',
   font: 'system',
   weight: 'regular',
   size: 'm',
@@ -85,7 +86,8 @@ export const DEFAULT_PREFS: Prefs = {
   logoAccent: true,
   accentAt: 0,
   language: 'system',
-  // 위젯·미니창 배경: 시안의 '투명도 80%'(불투명도 80%)
+  // 위젯·미니창 배경 불투명도. 꾸미기에는 '투명도 20%'로 보인다(0~100%까지 고를 수 있다). 35%로 올려 봤다가
+  // 예전(20%)이 낫다고 해서 되돌렸다(사용자 요청 2026-10-21)
   widget: { linked: true, accent: ACCENTS[0], card: null, opacity: 0.8 },
   mini: { linked: true, accent: ACCENTS[0], card: null, opacity: 0.8 },
   lock: { enabled: false, visibility: 'private' },

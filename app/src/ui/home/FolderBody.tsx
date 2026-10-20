@@ -72,7 +72,7 @@ export function FolderBody({
     if (moved.kind === 'todo') repo.moveTo('todo', moved.todo.id, ...neighborKeys(next, to));
   };
 
-  // 완료 묶음의 '전체 지우기': 지울 카드들이 위에서부터 빠르게 하나씩 왼쪽으로 밀려 나간 뒤 지운다(sweep.ts, 휴대폰만)
+  // 완료 묶음의 '완료 비우기': 지울 카드들이 위에서부터 빠르게 하나씩 왼쪽으로 밀려 나간 뒤 지운다(sweep.ts, 휴대폰만)
   const sweeping = useRef<string[] | null>(null);
   const clearDone = () => {
     if (sweeping.current) return;

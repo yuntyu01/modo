@@ -8,9 +8,9 @@ import { MARK_PATH } from './Logo';
  * 기기마다 화면이 달라 스크린샷 대신 그림으로(테마색·다크/라이트를 따르고, 그림 안 글자도 앱 언어로).
  * 좌표는 120 × 220(휴대폰 하나) 기준.
  */
-export type HowToKind = 'widget' | 'tile' | 'lock';
+export type HowToKind = 'widget' | 'lock';
 
-export const HOWTO_STEPS: Record<HowToKind, number> = { widget: 4, tile: 3, lock: 3 };
+export const HOWTO_STEPS: Record<HowToKind, number> = { widget: 4, lock: 3 };
 
 const W = 120;
 const H = 220;
@@ -46,15 +46,6 @@ export function HowToArt({ kind, step, width = 104 }: { kind: HowToKind; step: n
       {hold ? <Circle cx={x} cy={y} r={15} fill="none" stroke={c.accent} strokeOpacity={0.25} strokeWidth={2} /> : null}
       <Circle cx={x} cy={y} r={10} fill={c.accent} fillOpacity={0.22} stroke={c.accent} strokeOpacity={0.6} strokeWidth={1.5} />
       <Circle cx={x} cy={y} r={4.5} fill={c.accent} />
-    </G>
-  );
-
-  /** 누를 버튼: 테마색 원 안에 아이콘(onAccent), 바깥 고리 = 여기를 누른다(손가락 점이 아이콘을 덮지 않게) */
-  const button = (x: number, y: number, icon: string, r = 8) => (
-    <G>
-      <Circle cx={x} cy={y} r={r + 6} fill="none" stroke={c.accent} strokeOpacity={0.3} strokeWidth={2} />
-      <Circle cx={x} cy={y} r={r} fill={c.accent} />
-      <Path d={icon} transform={`translate(${x} ${y})`} fill="none" stroke={theme.onAccent} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" />
     </G>
   );
 
@@ -113,27 +104,6 @@ export function HowToArt({ kind, step, width = 104 }: { kind: HowToKind; step: n
       <Rect x={14} y={186} width={92} height={1} fill={c.line} />
     </G>
   );
-
-  /** 빠른 설정 타일 칸(2열) */
-  const tiles = (top: number, rows: number, skip?: number) =>
-    Array.from({ length: rows * 2 }, (_, i) =>
-      i === skip ? (
-        <Rect
-          key={i}
-          x={i % 2 ? 62 : 10}
-          y={top + Math.floor(i / 2) * 22}
-          width={48}
-          height={17}
-          rx={8.5}
-          fill="none"
-          stroke={c.accent}
-          strokeWidth={1.4}
-          strokeDasharray="3 3"
-        />
-      ) : (
-        <Rect key={i} x={i % 2 ? 62 : 10} y={top + Math.floor(i / 2) * 22} width={48} height={17} rx={8.5} fill={c.block} />
-      ),
-    );
 
   const label = (x: number, y: number, text: string, size = 8.5, color = c.text, anchor: 'start' | 'middle' = 'start', bold = false) => (
     <SvgText x={x} y={y} fontSize={size} fill={color} textAnchor={anchor} fontWeight={bold ? '700' : '400'}>
@@ -200,83 +170,48 @@ export function HowToArt({ kind, step, width = 104 }: { kind: HowToKind; step: n
     );
   }
 
-  if (kind === 'tile') {
-    if (step === 0)
-      return phone(
-        <G>
-          {[40, 62, 84, 106].map((y) => (
-            <Rect key={y} x={14} y={y} width={92} height={14} rx={5} fill={c.block} />
-          ))}
-          {home}
-          {arrow('M60 20 L60 70', [60, 72, 90])}
-          {arrow('M74 20 L74 70', [74, 72, 90])}
-          {finger(67, 18)}
-        </G>,
-      );
-    if (step === 1)
-      return phone(
-        <G>
-          <Rect x={3} y={3} width={W - 6} height={148} rx={16} fill={c.panel} />
-          {tiles(24, 4)}
-          <Rect x={14} y={116} width={92} height={6} rx={3} fill={c.block} />
-          {button(96, 136, 'M-3.5 3.5 L-2.8 0.6 L2.6 -4.8 L4.8 -2.6 L-0.6 2.8 Z')}
-        </G>,
-      );
-    return phone(
-      <G>
-        <Rect x={3} y={3} width={W - 6} height={H - 6} rx={16} fill={c.panel} />
-        {tiles(22, 3, 5)}
-        <Rect x={14} y={96} width={92} height={1} fill={c.line} />
-        {label(14, 110, t('artDragToAdd'), 7.5, c.muted)}
-        <Rect x={10} y={122} width={48} height={17} rx={8.5} fill={c.accent} fillOpacity={0.16} stroke={c.accent} strokeWidth={1.4} />
-        {mark(15, 128.3, 4.4)}
-        {label(29, 133.5, t('quickAdd'), 6.5, c.text)}
-        <Rect x={62} y={122} width={48} height={17} rx={8.5} fill={c.block} />
-        <Rect x={10} y={144} width={48} height={17} rx={8.5} fill={c.block} />
-        {arrow('M40 126 C56 104 74 86 84 75', [85, 73, -55])}
-        {finger(52, 136, true)}
-      </G>,
-    );
-  }
-
-  // 잠금화면(Pixel 기준: 설정에서 켜고 잠긴 화면을 옆으로 밀어 위젯 칸에서 추가)
+  // 잠금화면(삼성 One UI 기준, 사용자 요청 2026-10-21): 잠금화면을 길게 눌러 '위젯' → 목록에서 modo → 없으면 Good Lock LockStar
   if (step === 0)
     return phone(
       <G>
-        {label(14, 34, t('artLockScreen'), 9.5, c.text, 'start', true)}
-        {[50, 72].map((y) => (
-          <G key={y}>
-            <Rect x={14} y={y} width={60} height={5} rx={2.5} fill={c.block} />
-            <Rect x={14} y={y + 9} width={40} height={4} rx={2} fill={c.line} />
-          </G>
-        ))}
-        <Rect x={8} y={92} width={104} height={26} rx={8} fill={c.accent} fillOpacity={0.14} />
-        {label(14, 108, t('artLockWidgets'), 8, c.text, 'start', true)}
-        <Rect x={88} y={99.5} width={18} height={11} rx={5.5} fill={c.accent} />
-        <Circle cx={100.5} cy={105} r={4} fill={theme.onAccent} />
-        {[126, 148].map((y) => (
-          <Rect key={y} x={14} y={y} width={70} height={5} rx={2.5} fill={c.block} />
-        ))}
-        {finger(97, 105)}
+        {label(60, 64, '12:30', 26, c.text, 'middle', true)}
+        <Rect x={38} y={74} width={44} height={4} rx={2} fill={c.line} />
+        <Rect x={14} y={96} width={92} height={30} rx={10} fill={c.accent} fillOpacity={0.12} stroke={c.accent} strokeWidth={1.4} strokeDasharray="3 3" />
+        {label(60, 115, t('artWidgets'), 9, c.text, 'middle', true)}
+        <Rect x={55} y={186} width={10} height={9} rx={2} fill={c.line} />
+        <Path d="M57 186 V183 A3 3 0 0 1 63 183 V186" fill="none" stroke={c.line} strokeWidth={1.6} />
+        {finger(86, 111, true)}
       </G>,
     );
   if (step === 1)
     return phone(
       <G>
-        {label(60, 76, '12:30', 26, c.text, 'middle', true)}
-        <Rect x={38} y={86} width={44} height={4} rx={2} fill={c.line} />
-        <Rect x={55} y={186} width={10} height={9} rx={2} fill={c.line} />
-        <Path d="M57 186 V183 A3 3 0 0 1 63 183 V186" fill="none" stroke={c.line} strokeWidth={1.6} />
-        {arrow('M96 132 L30 132', [28, 132, 180])}
-        {finger(98, 132)}
+        <Rect x={3} y={60} width={W - 6} height={H - 63} rx={16} fill={c.panel} />
+        <Rect x={50} y={68} width={20} height={3} rx={1.5} fill={c.line} />
+        {label(14, 88, t('artWidgets'), 9, c.text, 'start', true)}
+        {[100, 150, 172].map((y) => (
+          <G key={y}>
+            <Rect x={14} y={y} width={16} height={16} rx={4} fill={c.block} />
+            <Rect x={36} y={y + 6} width={42} height={4} rx={2} fill={c.line} />
+          </G>
+        ))}
+        <Rect x={10} y={122} width={100} height={22} rx={7} fill={c.accent} fillOpacity={0.16} stroke={c.accent} strokeWidth={1.4} />
+        {mark(15, 129.5, 6)}
+        {label(36, 137, 'modo', 8.5, c.text, 'start', true)}
+        {finger(92, 133)}
       </G>,
     );
   return phone(
     <G>
-      {widget(14, 30, 92, 44)}
-      <Rect x={14} y={84} width={44} height={44} rx={10} fill={c.block} />
-      <Rect x={62} y={84} width={44} height={44} rx={10} fill={c.block} />
-      {button(60, 158, 'M0 -5 V5 M-5 0 H5', 10)}
+      {label(14, 34, 'Good Lock', 9.5, c.text, 'start', true)}
+      {[46, 92].map((y) => (
+        <Rect key={y} x={10} y={y} width={100} height={20} rx={7} fill={c.block} />
+      ))}
+      <Rect x={10} y={69} width={100} height={20} rx={7} fill={c.accent} fillOpacity={0.16} stroke={c.accent} strokeWidth={1.4} />
+      {label(16, 82, 'LockStar', 8.5, c.text, 'start', true)}
+      <Rect x={86} y={74} width={18} height={10} rx={5} fill={c.accent} />
+      <Circle cx={99} cy={79} r={3.6} fill={theme.onAccent} />
+      {widget(14, 124, 92, 44)}
       {label(60, 186, t('artAddWidget'), 8, c.text, 'middle')}
     </G>,
   );

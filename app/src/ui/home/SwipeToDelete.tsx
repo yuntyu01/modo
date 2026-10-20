@@ -51,7 +51,7 @@ export function SwipeToDelete({
   /** 날아가는 카드에 보일 글 */
   label: string;
   radius: number;
-  /** 완료 묶음 '전체 지우기'로 쓸려 나갈 때 찾는 이름(할 일 id, sweep.ts) */
+  /** 완료 묶음 '완료 비우기'로 쓸려 나갈 때 찾는 이름(할 일 id, sweep.ts) */
   sweepKey?: string;
   style?: StyleProp<ViewStyle>;
   children: ReactNode;
@@ -67,7 +67,7 @@ export function SwipeToDelete({
   const back = useSharedValue(0);
   // 돌아오다 가운데를 지나 좌우로 흔들리는 중(바탕을 숨긴다)
   const wobbling = useSharedValue(false);
-  // '전체 지우기'로 쓸려 나가는 중(빨간 바탕 없이 카드만 밀려 나간다)
+  // '완료 비우기'로 쓸려 나가는 중(빨간 바탕 없이 카드만 밀려 나간다)
   const sweeping = useSharedValue(false);
   // 손가락을 댄 곳(밀기 시작을 방향으로 가른다)
   const downX = useSharedValue(0);

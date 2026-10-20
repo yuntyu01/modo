@@ -60,7 +60,8 @@ data class SurfaceTheme(
         text = Color.parseColor(if (dark) "#FFFFFF" else "#15171A"),
         muted = Color.parseColor(if (dark) "#9C9FA6" else "#7A7F87"),
         circle = Color.parseColor(if (dark) "#A9ADB8" else "#9AA0A8"),
-        opacity = (surface?.optDouble("opacity", 0.8) ?: 0.8).toFloat().coerceIn(0.2f, 1f),
+        // 앱 기본값(state/prefs.ts DEFAULT_PREFS.widget.opacity)과 같게. 0(배경 완전 투명)부터 1까지
+        opacity = (surface?.optDouble("opacity", 0.8) ?: 0.8).toFloat().coerceIn(0f, 1f),
         tinted = cardHex != null,
       )
     }

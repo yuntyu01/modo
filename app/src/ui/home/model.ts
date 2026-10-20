@@ -3,7 +3,7 @@ import type { Folder, FolderFilter, Paragraph, Snapshot, Todo } from '../../core
 
 export type Block =
   | { kind: 'todo'; key: string; sort: string; todo: Todo }
-  /** 완료 묶음 머리 '완료 N'. count는 묶음에 보이는 개수, clearable은 '전체 지우기'로 지울 보통 할 일이 보이는지 */
+  /** 완료 묶음 머리 '완료 N'. count는 묶음에 보이는 개수, clearable은 '완료 비우기'로 지울 보통 할 일이 보이는지 */
   | { kind: 'done'; key: 'done'; sort: ''; count: number; clearable: boolean };
 
 /** 지워지지 않은 폴더(화면·탭에 보이는 순서 그대로) */
@@ -89,7 +89,7 @@ export function buildBlocks(args: { snap: Snapshot; filter: FolderFilter; showDo
   const blocks: Block[] = open.map((t) => ({ kind: 'todo', key: t.id, sort: t.position, todo: t }));
   blocks.sort((a, b) => compareKey(a.sort, b.sort));
   // 완료한 할 일은 진행 중 목록 아래 '완료 N' 묶음에: 반복 할 일 먼저, 그다음 보통 할 일(각각 최근 완료 순).
-  // N은 묶음에 보이는 개수. 지울 보통 할 일이 보이면 머리에 '전체 지우기'(반복 할 일은 다음 회차가 있어 지우지 않는다)
+  // N은 묶음에 보이는 개수. 지울 보통 할 일이 보이면 머리에 '완료 비우기'(반복 할 일은 다음 회차가 있어 지우지 않는다)
   if (done.length) blocks.push({ kind: 'done', key: 'done', sort: '', count: done.length, clearable: done.some((t) => !isRepeatDone(t)) });
   for (const t of done) blocks.push({ kind: 'todo', key: t.id, sort: t.position, todo: t });
   return { blocks, paragraphs, todos };

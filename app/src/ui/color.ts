@@ -63,6 +63,20 @@ export function contrast(a: string, b: string) {
   return (x + 0.05) / (y + 0.05);
 }
 
+/**
+ * 흰 글씨를 올리는 테마색 버튼 바탕: 같은 색상(hue)에서 채도를 조금 올리고 밝기를 내려 흰 글씨 대비 4.5 이상(기본 파랑 → #4678B9).
+ * 회색·흰색·검정 같은 무채색은 채도를 더하지 않고 어둡게만(다른 색이 끼지 않게). 사용자 요청 2026-10-21(친구 추가 버튼)
+ */
+export function deepAccent(hex: string) {
+  const [h, s0, v0] = rgbToHsv(hexToRgb(hex));
+  const s = s0 < 0.15 ? s0 : Math.max(s0, 0.62);
+  for (let v = v0; v > 0; v -= 0.01) {
+    const c = rgbToHex(hsvToRgb(h, s, v));
+    if (contrast(c, '#FFFFFF') >= 4.5) return c;
+  }
+  return '#1B1C20';
+}
+
 /** 배경 위에서 보이도록(대비 min 이상) 색을 흰색/검은색 쪽으로 조금씩 옮긴다. */
 export function ensureContrast(color: string, bg: string, min = 3) {
   const toward = luminance(bg) < 0.5 ? '#FFFFFF' : '#000000';

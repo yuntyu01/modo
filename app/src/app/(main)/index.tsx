@@ -105,7 +105,7 @@ export default function Home() {
         anchor={menuAnchor}
         title={current ? current.name : t('baseFolder')}
         items={[
-          // 완료 숨기기·보기(설정의 '완료 항목 숨기기' 스위치와 같은 설정). 지우기는 완료 묶음 머리의 '전체 지우기'
+          // 완료 숨기기·보기(설정의 '완료 항목 숨기기' 스위치와 같은 설정). 지우기는 완료 묶음 머리의 '완료 비우기'
           { label: prefs.showDone ? t('hideDone') : t('showDone'), onPress: () => setPrefs({ showDone: !prefs.showDone }) },
           // 폴더 추가·삭제·공유는 폴더 관리 화면에서
           { label: t('manageFolders'), onPress: () => router.push('/folders') },

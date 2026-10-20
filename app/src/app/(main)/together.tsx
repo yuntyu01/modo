@@ -5,6 +5,7 @@ import { ActivityIndicator, Keyboard, Pressable, StyleSheet, Text, View } from '
 import { errorText } from '../../i18n';
 import { useApp, useSyncStatus } from '../../state/AppContext';
 import { personName, useFriends, type Friend, type FriendFolder } from '../../state/friends';
+import { deepAccent } from '../../ui/color';
 import { Dropdown } from '../../ui/Dropdown';
 import { formatDate, localDate } from '../../ui/format';
 import { ItemSheets, type SheetState } from '../../ui/ItemSheets';
@@ -14,7 +15,6 @@ import { HomeHeader, SearchBar } from '../../ui/home/Header';
 import { PlusIcon } from '../../ui/Icons';
 import { useBottomInset, useWide } from '../../ui/layout';
 import { ConfirmDialog, Sheet, SheetButton, SheetTitle } from '../../ui/primitives';
-import { mix } from '../../ui/color';
 import { AddFriendSheet } from '../../ui/together/AddFriendSheet';
 import { CopySheet, type CopySource } from '../../ui/together/CopySheet';
 import { FriendShareSheet, NewSharedFolderSheet } from '../../ui/together/ShareSheets';
@@ -131,8 +131,8 @@ export default function Together() {
       <Text style={theme.kfont(16.5, { color: theme.text, textAlign: 'center', lineHeight: 24 })}>{title}</Text>
       {note ? <Text style={theme.kfont(14, { color: theme.muted, textAlign: 'center', marginTop: 8 })}>{note}</Text> : null}
       {action ? (
-        <Pressable accessibilityRole="button" onPress={action.run} style={[styles.emptyBtn, { backgroundColor: mix(theme.bg, theme.accent, theme.dark ? 0.2 : 0.13) }]}>
-          <Text style={theme.kfont(15.5, { color: theme.accent, fontWeight: '600' })}>{action.label}</Text>
+        <Pressable accessibilityRole="button" onPress={action.run} style={[styles.emptyBtn, { backgroundColor: deepAccent(theme.accent) }]}>
+          <Text style={theme.kfont(15.5, { color: '#FFFFFF', fontWeight: '700' })}>{action.label}</Text>
         </Pressable>
       ) : null}
     </View>

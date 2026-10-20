@@ -11,6 +11,7 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
   type ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -24,12 +25,34 @@ import { useSlidingPill } from './motion';
 
 /**
  * 아래에서 올라오는 시트. 상태바·내비게이션 영역을 피한다. soft: 바탕을 화면 바탕색으로(안에 흰 카드를 놓는 시트, 친구 추가 시안).
- * dialog: PC(웹)에서는 가운데 뜨는 알맞은 크기의 대화상자로(휴대폰은 그대로 시트)
+ * dialog: PC(웹)에서는 가운데 뜨는 알맞은 크기의 대화상자로(휴대폰은 그대로 시트).
+ * docked: 휴대폰에서 화면 아래 끝에 붙어 밑에서 올라오는 시트(위 손잡이, 친구 추가 시안). PC는 dialog면 가운데 대화상자
  */
-export function Sheet({ visible, onClose, children, soft, dialog }: { visible: boolean; onClose: () => void; children: ReactNode; soft?: boolean; dialog?: boolean }) {
+export function Sheet({
+  visible,
+  onClose,
+  children,
+  soft,
+  dialog,
+  docked,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  children: ReactNode;
+  soft?: boolean;
+  dialog?: boolean;
+  docked?: boolean;
+}) {
   const { theme, t } = useUi();
   const insets = useSafeAreaInsets();
   const centered = dialog && Platform.OS === 'web';
+  if (docked && !centered) {
+    return (
+      <DockedSheet visible={visible} onClose={onClose} soft={soft}>
+        {children}
+      </DockedSheet>
+    );
+  }
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
@@ -45,6 +68,81 @@ export function Sheet({ visible, onClose, children, soft, dialog }: { visible: b
               {children}
             </ScrollView>
           </Pressable>
+        </Pressable>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+/**
+ * 화면 아래 끝에 붙어 밑에서 올라오는 시트. 바탕은 옅게 어두워지고, 닫을 때도 아래로 내려가며 사라진다.
+ * 위 손잡이를 끌어내리면(조금 내리면 제자리로) 닫힌다. 바깥을 누르거나 뒤로 가기도 닫힌다
+ */
+function DockedSheet({ visible, onClose, children, soft }: { visible: boolean; onClose: () => void; children: ReactNode; soft?: boolean }) {
+  const { theme, t } = useUi();
+  const insets = useSafeAreaInsets();
+  const { height } = useWindowDimensions();
+  // 닫힐 때 내려가는 동안은 그려 둔다
+  const [mounted, setMounted] = useState(visible);
+  if (visible && !mounted) setMounted(true);
+  const [y] = useState(() => new Animated.Value(height));
+  const [fade] = useState(() => new Animated.Value(0));
+  const native = Platform.OS !== 'web';
+  useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.spring(y, { toValue: 0, damping: 26, stiffness: 260, mass: 1, useNativeDriver: native }),
+        Animated.timing(fade, { toValue: 1, duration: 180, useNativeDriver: native }),
+      ]).start();
+      return;
+    }
+    Animated.parallel([
+      Animated.timing(y, { toValue: height, duration: 200, useNativeDriver: native }),
+      Animated.timing(fade, { toValue: 0, duration: 200, useNativeDriver: native }),
+    ]).start(({ finished }) => {
+      if (finished) setMounted(false);
+    });
+  }, [visible, y, fade, height, native]);
+  // 손잡이 끌기는 늘 최신 onClose로
+  const closeRef = useRef(onClose);
+  useEffect(() => {
+    closeRef.current = onClose;
+  });
+  // 만드는 함수 안의 ref는 끌 때(이벤트) 읽는다(컴파일러 규칙의 오탐)
+  // eslint-disable-next-line react-hooks/refs
+  const [pan] = useState(() =>
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_e, g) => g.dy > 4,
+      onPanResponderMove: (_e, g) => y.setValue(Math.max(0, g.dy)),
+      onPanResponderRelease: (_e, g) => {
+        if (g.dy > 90 || g.vy > 0.8) closeRef.current();
+        else Animated.spring(y, { toValue: 0, damping: 26, stiffness: 260, useNativeDriver: Platform.OS !== 'web' }).start();
+      },
+      onPanResponderTerminate: () => Animated.spring(y, { toValue: 0, useNativeDriver: Platform.OS !== 'web' }).start(),
+    }),
+  );
+  if (!mounted) return null;
+  return (
+    <Modal visible transparent animationType="none" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.55)', opacity: fade }]} />
+        <Pressable style={styles.dockedBackdrop} onPress={onClose} accessibilityLabel={t('cancel')}>
+          <Animated.View
+            style={[
+              styles.docked,
+              { backgroundColor: theme.dark ? '#18191C' : soft ? theme.bg : '#FFFFFF', paddingBottom: insets.bottom, transform: [{ translateY: y }] },
+            ]}
+          >
+            <Pressable style={{ flexShrink: 1 }}>
+              <View {...pan.panHandlers} style={styles.handleZone} accessibilityLabel={t('close')}>
+                <View style={[styles.handle, { backgroundColor: theme.dark ? '#3A3D42' : '#CDD3DC' }]} />
+              </View>
+              <ScrollView keyboardShouldPersistTaps="handled" bounces={false}>
+                {children}
+              </ScrollView>
+            </Pressable>
+          </Animated.View>
         </Pressable>
       </KeyboardAvoidingView>
     </Modal>
@@ -447,6 +545,11 @@ const GROUP_RADIUS = 14;
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
   sheet: { marginHorizontal: 10, borderRadius: 24, paddingBottom: 8, overflow: 'hidden', width: '95%', maxWidth: 560, alignSelf: 'center' },
+  dockedBackdrop: { flex: 1, justifyContent: 'flex-end' },
+  // 화면 아래 끝에 붙는 시트: 위 모서리만 둥글게, 좌우 끝까지(태블릿은 가운데 640까지)
+  docked: { width: '100%', maxWidth: 640, alignSelf: 'center', maxHeight: '92%', borderTopLeftRadius: 26, borderTopRightRadius: 26, overflow: 'hidden' },
+  handleZone: { alignItems: 'center', paddingTop: 10, paddingBottom: 8 },
+  handle: { width: 38, height: 5, borderRadius: 3 },
   sheetBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 22, minHeight: 52 },
   infoRow: { flexDirection: 'row', paddingHorizontal: 22, paddingVertical: 7 },
   center: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', padding: 24 },

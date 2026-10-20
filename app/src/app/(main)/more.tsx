@@ -5,7 +5,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-n
 import { LANG_NAMES } from '../../i18n';
 import { useApp, useSyncStatus } from '../../state/AppContext';
 import { HomeHeader } from '../../ui/home/Header';
-import { BoxIcon, ChevronIcon, GlobeIcon, HelpIcon, LockIcon, PersonCircleIcon, SlidersIcon, TrashIcon, WidgetBoxIcon } from '../../ui/Icons';
+import { BoxIcon, ChevronIcon, GlobeIcon, HelpIcon, LockIcon, MonitorIcon, PersonCircleIcon, SlidersIcon, TrashIcon, WidgetBoxIcon } from '../../ui/Icons';
 import { BottomFade } from '../../ui/glass';
 import { contrast } from '../../ui/color';
 import { useBottomInset, useWide } from '../../ui/layout';
@@ -95,6 +95,7 @@ export default function More() {
             value={prefs.language === 'system' ? t('systemDefault') : LANG_NAMES[prefs.language]}
             onPress={() => router.push('/settings/language')}
           />
+          {Platform.OS !== 'web' ? <Row icon={ic(MonitorIcon, 29)} label={t('pcUse')} onPress={() => router.push('/settings/pc')} /> : null}
           <Row icon={ic(HelpIcon, 29)} label={t('help')} onPress={() => router.push('/settings/guide')} last />
         </Group>
       </ScrollView>

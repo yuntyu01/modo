@@ -18,6 +18,7 @@ import android.widget.TextView
 import com.yuntyu01.naegirok.NotesDb
 import com.yuntyu01.naegirok.nativelib.R
 import com.yuntyu01.naegirok.SurfaceTheme
+import kotlin.math.roundToInt
 
 /**
  * 위젯을 놓을 때(그리고 Android 12+에선 길게 눌러 '위젯 설정'으로) 여는 설정:
@@ -85,9 +86,10 @@ class WidgetConfigActivity : Activity() {
     root.addView(sizeGroup)
     val opacityLabel = label("")
     root.addView(opacityLabel)
-    val start = ((cur.opacity ?: theme.opacity) * 100).toInt()
+    // 앱 꾸미기와 같게 '투명도'로 보인다(오른쪽 = 더 투명, 0~100%). 저장 값은 불투명도(1 - 투명도)
+    val start = 100 - ((cur.opacity ?: theme.opacity) * 100).roundToInt()
     fun showOpacity(v: Int) {
-      opacityLabel.text = getString(R.string.bg_opacity, v)
+      opacityLabel.text = getString(R.string.bg_transparency, v)
     }
     showOpacity(start)
     val seek = SeekBar(this).apply {
@@ -96,7 +98,7 @@ class WidgetConfigActivity : Activity() {
       progressTintList = ColorStateList.valueOf(theme.accent)
       thumbTintList = ColorStateList.valueOf(theme.accent)
       setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-        override fun onProgressChanged(s: SeekBar?, v: Int, fromUser: Boolean) = showOpacity(maxOf(20, v))
+        override fun onProgressChanged(s: SeekBar?, v: Int, fromUser: Boolean) = showOpacity(v)
         override fun onStartTrackingTouch(s: SeekBar?) {}
         override fun onStopTrackingTouch(s: SeekBar?) {}
       })
@@ -116,7 +118,7 @@ class WidgetConfigActivity : Activity() {
           show = shows[checked(showGroup)],
           textSize = WidgetPrefs.SIZES[checked(sizeGroup).coerceIn(0, 2)],
           // 슬라이더를 건드리지 않았으면 따로 저장하지 않고 꾸미기의 위젯 투명도를 따른다.
-          opacity = if (seek.progress == start) cur.opacity else maxOf(20, seek.progress) / 100f,
+          opacity = if (seek.progress == start) cur.opacity else (100 - seek.progress) / 100f,
         ).save(this@WidgetConfigActivity, widgetId)
         // Activity가 아닌 applicationContext로 갱신한다.
         val app = applicationContext

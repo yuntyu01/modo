@@ -8,7 +8,6 @@
   <string name="mark_done_short">완료</string>
   <!-- 앱 서랍 아이콘 이름: 앞에 modo를 붙이면 "modo 빠른 …"으로 잘린다(아이콘이 modo 것임을 보여 준다) -->
   <string name="quick_add">빠른 추가</string>
-  <string name="tile_label">modo 빠른 추가</string>
   <string name="new_todo">새로운 할 일</string>
   <string name="continue_memo">메모에 이어 쓰기</string>
   <string name="input_as_todo">할 일로 입력</string>
@@ -28,7 +27,7 @@
   <string name="size_s">작게</string>
   <string name="size_m">보통</string>
   <string name="size_l">크게</string>
-  <string name="bg_opacity">배경 불투명도 %1$d%%</string>
+  <string name="bg_transparency">배경 투명도 %1$d%%</string>
   <string name="done">완료</string>
   <string name="lock_title">할 일 %1$d개</string>
   <string name="lock_more">외 %1$d개</string>

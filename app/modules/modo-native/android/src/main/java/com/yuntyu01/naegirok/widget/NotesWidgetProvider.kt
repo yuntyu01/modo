@@ -24,7 +24,7 @@ import kotlin.math.roundToInt
  * 홈 화면 모양·쪽 넘기기는 HomeWidget(메모 쪽 + 할 일 쪽, 메모 읽기 모드). 잠금화면은 이 파일의 예전 모양(widget_notes_lock).
  * 데이터는 앱과 같은 SQLite 파일을 직접 읽고, 바꾼 내용은 outbox에 남아 앱이 열릴 때 동기화된다.
  */
-class NotesWidgetProvider : AppWidgetProvider() {
+open class NotesWidgetProvider : AppWidgetProvider() {
   // 놓을 때·재부팅 뒤처럼 시스템이 부를 때. 그리기는 DB를 열어 뒤에서(Work), 날이 바뀔 때 다시 그릴 알람도 여기서 건다
   override fun onUpdate(ctx: Context, mgr: AppWidgetManager, ids: IntArray) {
     Work.run(this) {
@@ -114,9 +114,12 @@ class NotesWidgetProvider : AppWidgetProvider() {
     const val EXTRA_INDEX = "index"
     const val EXTRA_TODO = "todo_id"
 
+    /** 크기별로 따로 놓는 같은 위젯들(WidgetSizes.kt): 다시 그릴 때 모두 */
+    val PROVIDERS = listOf(NotesWidgetProvider::class.java, NotesWidgetProvider4x4::class.java)
+
     fun refreshAll(base: Context) {
       val mgr = AppWidgetManager.getInstance(base)
-      val ids = mgr.getAppWidgetIds(ComponentName(base, NotesWidgetProvider::class.java))
+      val ids = PROVIDERS.flatMap { mgr.getAppWidgetIds(ComponentName(base, it)).toList() }
       if (ids.isEmpty()) return
       // 앱 언어는 한 번만 맞춘다(예전엔 위젯마다 DB를 열어 언어를 다시 읽었다)
       val ctx = AppLocale.wrap(base)
@@ -206,10 +209,11 @@ class NotesWidgetProvider : AppWidgetProvider() {
         // 할 일 수는 다 센다(예전엔 50개까지만 읽어 '할 일 50개'에서 멈췄다)
         visibility == "private" -> ctx.getString(R.string.lock_title, head.count)
         visibility == "secret" -> ctx.getString(R.string.lock_hidden)
-        else -> ctx.getString(R.string.widget_empty)
+        // 할 일이 없으면 아무 글 없이(홈 위젯과 같다, 사용자 요청 2026-10-21)
+        else -> ""
       }
       v.setTextViewText(R.id.widget_empty, emptyText)
-      v.setViewVisibility(R.id.widget_empty, if (rows.isEmpty()) View.VISIBLE else View.GONE)
+      v.setViewVisibility(R.id.widget_empty, if (rows.isEmpty() && emptyText.isNotEmpty()) View.VISIBLE else View.GONE)
       v.setViewVisibility(R.id.widget_rows, if (rows.isEmpty()) View.GONE else View.VISIBLE)
       mgr.updateAppWidget(id, v)
     }

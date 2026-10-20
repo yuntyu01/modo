@@ -33,7 +33,8 @@ import kotlin.math.roundToInt
  *
  * - 기본 모드: 첫 쪽은 그 폴더의 메모만, 다음 쪽부터 할 일만(한 쪽에 같이 두지 않는다). 점 = 메모 쪽 1 + 할 일 쪽 수.
  *   메모가 없으면 할 일 쪽만, 할 일이 없으면 빈 할 일 쪽 하나(+로 추가).
- * - 메모를 누르면 메모 읽기 모드: 본문을 실제 줄바꿈으로 쪽에 나눠 보여 주고 점은 메모 쪽만. 다시 누르면 기본 모드의 메모 쪽으로.
+ * - 메모를 누르면: 메모 쪽에 다 보이는 짧은 메모는 메모 고치기 창. 잘린 긴 메모는 메모 읽기 모드(본문을 실제 줄바꿈으로 쪽에
+ *   나눠 보여 주고 점은 메모 쪽만). 다시 누르면 기본 모드의 메모 쪽으로.
  *   마지막 메모 쪽에서 할 일로 넘어가지 않는다. +는 할 일 쪽에만.
  * - 쪽 넘기기는 점을 누른다: 홈 위젯(RemoteViews)에는 가로로 밀기를 받는 뷰가 없다(목록형 뷰도 세로 스크롤·StackView 위아래 넘김뿐).
  *   홈 화면에서 옆으로 밀면 런처가 화면을 넘기고 그 터치는 위젯의 누르기로 오지 않는다.
@@ -67,8 +68,8 @@ object HomeWidget {
   private const val DOT_EDGE = 12f
   /** 남는 높이를 줄마다 나눠 줄 때 한 줄에 더하는 최대(크게 남아도 할 일이 쪽 가운데로 떠 보이지 않게) */
   private const val ROW_EXTRA_MAX = 16f
-  /** 아래 줄 양쪽에서 점이 쓰지 않는 자리(+ 버튼 44 + 여백) */
-  private const val DOT_RESERVE = 52f
+  /** 아래 줄 양쪽에서 점이 쓰지 않는 자리(+ 버튼 40 + 안쪽 여백 8 + 여유) */
+  private const val DOT_RESERVE = 56f
   /** 메모 줄 간격(시안: 넉넉하게 — 최소 크기에서 메모 3줄이 할 일 2줄 자리와 맞는다). widget_home.xml과 같게 */
   private const val LINE_MULT = 1.3f
   /** 잰 값과 실제 그리기의 반올림 차이로 마지막 줄이 잘리지 않게 남기는 여유 */
@@ -190,7 +191,8 @@ object HomeWidget {
     val memoLayout by lazy { if (hasMemo) layout(data.memo, memoPaint, textW, LINE_MULT) else null }
     val memoPages by lazy { memoLayout?.let { pagesOf(it, data.memo) } ?: listOf(0 until 0) }
     // 메모 쪽(기본 모드)은 빈 문단 없이 이어 보인 미리보기: 처음부터 들어가는 줄까지, 넘치면 마지막 줄 …
-    val previewLines by lazy { if (hasMemo) pagesOf(layout(data.preview, memoPaint, textW, LINE_MULT), data.preview)[0].last + 1 else 0 }
+    val previewPages by lazy { if (hasMemo) pagesOf(layout(data.preview, memoPaint, textW, LINE_MULT), data.preview) else emptyList() }
+    val previewLines by lazy { previewPages.firstOrNull()?.let { it.last + 1 } ?: 0 }
     val pageStarts by lazy { IntArray(memoPages.size) { i -> memoLayout?.getLineStart(memoPages[i].first) ?: 0 } }
 
     // 할 일 한 줄 높이: 보조 줄이 있든 없든 같게(제목 + 2 + 보조 줄, 동그라미 44보다 작으면 44)
@@ -306,7 +308,17 @@ object HomeWidget {
       v.setTextViewTextSize(R.id.widget_memo, TypedValue.COMPLEX_UNIT_SP, memoSp)
       c.set(v, R.id.widget_memo, "setTextColor") { it.text }
       v.setInt(R.id.widget_memo, "setMaxLines", lines)
-      if (showTodos) {
+      // 메모가 메모 쪽에 다 보이면(잘린 곳 없음) 누르면 메모 고치기 창(할 일 글자처럼 앱을 띄우지 않는다). 메모만 보이는 위젯도.
+      // 넘쳐 …로 잘렸으면 누르면 읽기 모드 켜기/끄기(긴 메모를 위젯에서 끝까지). 예전엔 짧은 메모도 읽기 모드로 바뀌어
+      // 점만 생겼다 사라져 아무 일도 안 일어난 것처럼 보였다(사용자 제보 2026-10-21)
+      if (!showTodos || (!reading && previewPages.size <= 1)) {
+        val edit = Intent(ctx, WidgetEditActivity::class.java)
+          .putExtra(WidgetEditActivity.EXTRA_MEMO_FOLDER, data.folderId ?: WidgetEditActivity.BASE)
+          .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+          .setData(Uri.parse("naegirok://edit/memo/${data.folderId ?: "base"}/$id"))
+        v.setOnClickPendingIntent(R.id.widget_memo, activity(ctx, id, edit))
+        v.setContentDescription(R.id.widget_memo, ctx.getString(R.string.edit_memo) + ": " + body)
+      } else {
         val tap = Intent(ctx, NotesWidgetProvider::class.java).setAction(NotesWidgetProvider.ACTION_MEMO)
           .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id).setData(Uri.parse("naegirok://widget-memo/$id"))
         v.setOnClickPendingIntent(R.id.widget_memo, broadcast(ctx, id, tap))
@@ -322,13 +334,10 @@ object HomeWidget {
     val slice = if (todoPage >= 0) data.todos.drop(todoPage * perPage).take(perPage) else emptyList()
     v.setViewVisibility(R.id.widget_rows, if (slice.isNotEmpty()) View.VISIBLE else View.GONE)
     for (todo in slice) v.addView(R.id.widget_rows, todoRow(ctx, id, todo, lang, c, titleSp, metaSp, titleH, metaH, blockH, plainLines, rowPad))
-    // 빈 할 일 쪽(메모만 있을 때 둘째 쪽, 또는 둘 다 없을 때)
-    val empty = (todoPage >= 0 && slice.isEmpty()) || (!hasMemo && !showTodos)
-    v.setViewVisibility(R.id.widget_empty, if (empty) View.VISIBLE else View.GONE)
-    v.setTextViewText(
-      R.id.widget_empty,
-      ctx.getString(when { !data.signedIn -> R.string.login_first; hasMemo -> R.string.lock_empty; else -> R.string.widget_empty }),
-    )
+    // 빈 할 일 쪽(메모만 있을 때 둘째 쪽, 또는 둘 다 없을 때)은 아무 글 없이 비워 둔다(+만). 예전 '비어 있어요. + 로 바로 적어 보세요'·
+    // '남은 할 일이 없어요'는 뺐다(사용자 요청 2026-10-21). 로그인하지 않았을 때의 안내만 남긴다
+    v.setViewVisibility(R.id.widget_empty, if (!data.signedIn) View.VISIBLE else View.GONE)
+    v.setTextViewText(R.id.widget_empty, ctx.getString(R.string.login_first))
     c.set(v, R.id.widget_empty, "setTextColor") { it.muted }
     if (!data.signedIn) v.setOnClickPendingIntent(R.id.widget_empty, activity(ctx, id, openApp(ctx, null, id)))
 

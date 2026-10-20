@@ -2,7 +2,6 @@ package com.yuntyu01.naegirok
 
 import com.yuntyu01.naegirok.nativelib.R
 import android.app.PendingIntent
-import android.app.StatusBarManager
 import android.content.BroadcastReceiver
 import android.content.IntentFilter
 import androidx.core.content.ContextCompat
@@ -10,13 +9,13 @@ import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.graphics.drawable.Icon
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import androidx.core.app.NotificationManagerCompat
 import com.yuntyu01.naegirok.notify.Reminders
 import com.yuntyu01.naegirok.widget.NotesWidgetProvider
+import com.yuntyu01.naegirok.widget.NotesWidgetProvider4x4
 import expo.modules.kotlin.Promise
 import expo.modules.kotlin.exception.CodedException
 import expo.modules.kotlin.modules.Module
@@ -81,33 +80,15 @@ class ModoNativeModule : Module() {
       }
     }
 
-    AsyncFunction("requestPinWidget") {
+    // size: '3x3'(기본) | '4x4' — 그 크기로 놓이는 위젯(WidgetSizes.kt)
+    AsyncFunction("requestPinWidget") { size: String? ->
       val mgr = AppWidgetManager.getInstance(ctx)
       if (Build.VERSION.SDK_INT < 26 || !mgr.isRequestPinAppWidgetSupported) return@AsyncFunction false
       // 사용자가 '추가'를 눌러 위젯이 놓이면 런처가 이 알림을 보낸다(취소하면 오지 않는다)
       val pinned = Intent(ACTION_WIDGET_PINNED).setPackage(ctx.packageName)
       val callback = PendingIntent.getBroadcast(ctx, 0, pinned, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-      mgr.requestPinAppWidget(ComponentName(ctx, NotesWidgetProvider::class.java), null, callback)
-    }
-
-    AsyncFunction("requestAddTile") { promise: Promise ->
-      if (Build.VERSION.SDK_INT < 33) return@AsyncFunction promise.resolve("unsupported")
-      val sbm = ctx.getSystemService(StatusBarManager::class.java)
-      sbm.requestAddTileService(
-        ComponentName(ctx, QuickAddTileService::class.java),
-        ctx.getString(R.string.tile_label),
-        Icon.createWithResource(ctx, R.drawable.naegirok_tile),
-        ctx.mainExecutor,
-      ) { result ->
-        promise.resolve(
-          when (result) {
-            StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ADDED -> "added"
-            StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ALREADY_ADDED -> "already"
-            StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_NOT_ADDED -> "dismissed"
-            else -> "unsupported"
-          },
-        )
-      }
+      val provider = if (size == "4x4") NotesWidgetProvider4x4::class.java else NotesWidgetProvider::class.java
+      mgr.requestPinAppWidget(ComponentName(ctx, provider), null, callback)
     }
 
     /**

@@ -10,8 +10,8 @@ type NativeModule = {
   /** 위젯·잠금화면 알림·리마인더를 DB 기준으로 다시 그린다/예약한다 */
   /** 위젯·잠금화면 알림·리마인더를 DB 기준으로 다시 맞춘다. tables = 바뀐 표(없으면 전부). 문단만 바뀌었으면 알림 예약은 건너뛴다 */
   refresh(tables?: string[]): Promise<void>;
-  requestPinWidget(): Promise<boolean>;
-  requestAddTile(): Promise<'added' | 'already' | 'dismissed' | 'unsupported'>;
+  /** 홈 화면에 위젯 놓기(Android 8+ 지원 런처). size: 3x3(기본)·4x4 */
+  requestPinWidget(size?: '3x3' | '4x4'): Promise<boolean>;
   /** 잠금화면 위젯을 이 기기·런처가 지원하는지 */
   /** maybe: OS는 지원하지만 켜는 메뉴가 제조사에 달린 경우(Android 16 QPR2+ 휴대폰) */
   lockScreenWidgetSupport(): Promise<{ supported: boolean; maybe?: boolean; reason: string }>;
@@ -32,8 +32,7 @@ export const native = {
   available: !!mod,
   loginWithKakaoTalk: () => mod?.loginWithKakaoTalk?.() ?? Promise.resolve(null),
   refresh: (tables?: string[]) => mod?.refresh(tables).catch(() => {}),
-  requestPinWidget: async () => (mod ? mod.requestPinWidget() : false),
-  requestAddTile: async () => (mod ? mod.requestAddTile() : 'unsupported'),
+  requestPinWidget: async (size?: '3x3' | '4x4') => (mod ? mod.requestPinWidget(size ?? '3x3') : false),
   lockScreenWidgetSupport: async () =>
     mod ? mod.lockScreenWidgetSupport() : { supported: false, reason: 'native module unavailable' },
   notificationPermission: async () => (mod ? mod.notificationPermission() : 'undetermined'),

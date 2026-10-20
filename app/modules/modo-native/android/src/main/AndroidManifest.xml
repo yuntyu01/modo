@@ -5,24 +5,18 @@
 
   <!-- DB를 여는 부품은 모두 :native 프로세스(ModoEvents.kt 설명). -->
   <application>
-    <!-- '빠른 추가' 별도 앱 아이콘: 누르면 RN 없이 바로 입력창 -->
+    <!-- 위젯 +·잠금화면 알림의 '추가'가 여는 입력줄(RN 없이 키보드 위에 바로). 따로 도는 '빠른 추가' 앱 아이콘·빠른 설정 타일은
+         뺐다(사용자 요청 2026-10-21): 이 앱의 위젯·알림만 연다 -->
     <activity
       android:name="com.yuntyu01.naegirok.QuickAddActivity"
       android:process=":native"
-      android:exported="true"
+      android:exported="false"
       android:label="@string/quick_add"
-      android:icon="@mipmap/naegirok_quick_add"
-      android:roundIcon="@mipmap/naegirok_quick_add"
       android:taskAffinity="com.yuntyu01.naegirok.quickadd"
       android:excludeFromRecents="true"
       android:launchMode="singleTask"
       android:theme="@style/Modo.QuickAdd"
-      android:windowSoftInputMode="stateAlwaysVisible|adjustResize">
-      <intent-filter>
-        <action android:name="android.intent.action.MAIN" />
-        <category android:name="android.intent.category.LAUNCHER" />
-      </intent-filter>
-    </activity>
+      android:windowSoftInputMode="stateAlwaysVisible|adjustResize" />
 
     <!-- 위젯에서 글자를 누르면 뜨는 고치기 창(앱을 띄우지 않음) -->
     <activity
@@ -42,6 +36,14 @@
       </intent-filter>
       <meta-data android:name="android.appwidget.provider" android:resource="@xml/naegirok_widget_info" />
     </receiver>
+    <!-- 같은 위젯을 위젯 고르기 화면에 4×4로도(WidgetSizes.kt). 기본은 위의 3×3(잠금화면도 그것) -->
+    <receiver android:name="com.yuntyu01.naegirok.widget.NotesWidgetProvider4x4"
+      android:process=":native" android:exported="true" android:label="@string/app_name_widget">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/naegirok_widget_info_4x4" />
+    </receiver>
 
 
     <activity
@@ -53,19 +55,6 @@
         <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
       </intent-filter>
     </activity>
-
-    <service
-      android:name="com.yuntyu01.naegirok.QuickAddTileService"
-      android:process=":native"
-      android:exported="true"
-      android:icon="@drawable/naegirok_tile"
-      android:label="@string/tile_label"
-      android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
-      <intent-filter>
-        <action android:name="android.service.quicksettings.action.QS_TILE" />
-      </intent-filter>
-      <meta-data android:name="android.service.quicksettings.TOGGLEABLE_TILE" android:value="false" />
-    </service>
 
     <receiver android:name="com.yuntyu01.naegirok.RefreshReceiver" android:process=":native" android:exported="false" />
     <receiver android:name="com.yuntyu01.naegirok.notify.ReminderReceiver"

@@ -7,7 +7,6 @@
   <string name="mark_done">Complete %1$s</string>
   <string name="mark_done_short">Done</string>
   <string name="quick_add">Quick add</string>
-  <string name="tile_label">modo quick add</string>
   <string name="new_todo">New to-do</string>
   <string name="continue_memo">Continue the memo</string>
   <string name="input_as_todo">Enter as to-do</string>
@@ -27,7 +26,7 @@
   <string name="size_s">Small</string>
   <string name="size_m">Normal</string>
   <string name="size_l">Large</string>
-  <string name="bg_opacity">Background opacity %1$d%%</string>
+  <string name="bg_transparency">Background transparency %1$d%%</string>
   <string name="done">Done</string>
   <string name="lock_title">%1$d to-dos</string>
   <string name="lock_more">+%1$d more</string>

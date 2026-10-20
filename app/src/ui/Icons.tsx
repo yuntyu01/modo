@@ -319,6 +319,14 @@ export const LinkIcon = ({ color, size, strokeWidth = 1.7 }: P) => (
  * 미니 메모 열기(팝아웃): 오른쪽 위 모서리가 열린 창 + 그 모서리에서 바깥으로 나가는 화살표.
  * 예전 '겹친 네모 두 개'는 복사·창 복원처럼 보였다. 그림은 4~20 안(검색·공유 아이콘과 같은 크기, 가운데 정렬)
  */
+/** PC(모니터) */
+export const MonitorIcon = ({ color, size, strokeWidth = 1.7 }: P) => (
+  <S size={size}>
+    <Rect x={3} y={4.5} width={18} height={12} rx={2.2} stroke={color} strokeWidth={strokeWidth} {...base} />
+    <Path d="M9 20h6M12 16.5V20" stroke={color} strokeWidth={strokeWidth} {...base} />
+  </S>
+);
+
 export const PopOutIcon = ({ color, size, strokeWidth = 1.8 }: P) => (
   <S size={size}>
     <Path d="M19 13.5v4.1a2.4 2.4 0 0 1-2.4 2.4H6.4A2.4 2.4 0 0 1 4 17.6V7.4A2.4 2.4 0 0 1 6.4 5h4.1" stroke={color} strokeWidth={strokeWidth} {...base} />

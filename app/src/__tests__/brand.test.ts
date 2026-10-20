@@ -32,3 +32,16 @@ test('예전 기본색을 쓰던 설정은 대표색으로 바뀐다', () => {
   expect(mergePrefs({ accent: '#FF7F6B' }).accent).toBe('#FF7F6B');
   expect(mergePrefs({ accent: BRAND }).accent).toBe(BRAND);
 });
+
+test('체크 위치는 처음 설치하면 오른쪽, 이미 저장된 설정은 그대로', () => {
+  expect(mergePrefs(null).checkSide).toBe('right');
+  expect(mergePrefs({ checkSide: 'left' }).checkSide).toBe('left');
+  expect(mergePrefs({ accent: BRAND }).checkSide).toBe('right');
+});
+
+test('위젯·미니창 투명도: 기본은 투명 20%(불투명 0.8), 완전 투명(0)·완전 불투명(1)도 그대로 남는다', () => {
+  expect(mergePrefs(null).widget.opacity).toBe(0.8);
+  const w = { linked: true, accent: BRAND, card: null, opacity: 0 };
+  const p = mergePrefs({ prefsVersion: 2, widget: w, mini: { ...w, opacity: 1 } });
+  expect([p.widget.opacity, p.mini.opacity]).toEqual([0, 1]);
+});

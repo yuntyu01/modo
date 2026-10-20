@@ -180,6 +180,17 @@ func TestFriendsAndSharingAreSeparate(t *testing.T) {
 	if p := subin.pull(0); len(p.Folders) != 1 || len(p.Todos) != 1 {
 		t.Fatalf("shared folder only: %+v", p)
 	}
+	// 친구에게는 사용자 id로도 공유한다. 친구가 아니면 id로 찾을 수 없다
+	stranger := signup(t, srv, "stranger@example.com")
+	if code := minji.do("POST", "/api/folders/"+private+"/members", map[string]string{"user_id": stranger.id, "role": "view"}, nil); code != 404 {
+		t.Fatalf("share by id to non-friend: %d", code)
+	}
+	if code := minji.do("POST", "/api/folders/"+private+"/members", map[string]string{"user_id": subin.id, "role": "view"}, nil); code != 201 {
+		t.Fatalf("share by id to friend: %d", code)
+	}
+	if fs := subin.friends().Friends[0].Folders; len(fs) != 2 {
+		t.Fatalf("two shared folders: %+v", fs)
+	}
 
 	// 친구를 끊어도 공유는 남는다
 	if code := subin.do("DELETE", "/api/friends/"+minji.id, nil, nil); code != 204 {
@@ -191,7 +202,7 @@ func TestFriendsAndSharingAreSeparate(t *testing.T) {
 	if f := minji.friends(); len(f.Friends) != 0 {
 		t.Fatalf("still friends: %+v", f)
 	}
-	if p := subin.pull(0); len(p.Folders) != 1 || len(p.Todos) != 1 {
-		t.Fatalf("share must survive unfriend: %+v", p)
+	if p := subin.pull(0); len(p.Folders) != 2 || len(p.Todos) != 2 {
+		t.Fatalf("shares must survive unfriend: %+v", p)
 	}
 }

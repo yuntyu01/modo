@@ -107,13 +107,28 @@ func (s *Server) addMember(w http.ResponseWriter, r *http.Request) {
 	}
 	var b struct {
 		Email string `json:"email"`
-		Role  string `json:"role"`
+		// 친구에게는 사용자 id로도 공유한다(이메일이 없는 카카오 계정도). 친구가 아니면 id로는 찾지 않는다
+		UserID string `json:"user_id"`
+		Role   string `json:"role"`
 	}
 	if !decode(w, r, &b) || !validRole(w, b.Role) {
 		return
 	}
 	var m member
-	err := s.db.QueryRow(r.Context(), `SELECT id, email, name FROM users WHERE email = $1`, strings.ToLower(strings.TrimSpace(b.Email))).Scan(&m.UserID, &m.Email, &m.Name)
+	var err error
+	if b.UserID != "" {
+		other, perr := uuid.Parse(b.UserID)
+		if perr != nil {
+			badRequest(w, "user_id가 잘못됐습니다")
+			return
+		}
+		a, bb := friendPair(userFrom(r.Context()).ID, other)
+		err = s.db.QueryRow(r.Context(), `
+			SELECT u.id, COALESCE(u.email, ''), u.name FROM friendships f JOIN users u ON u.id = $3
+			WHERE f.a = $1 AND f.b = $2`, a, bb, other).Scan(&m.UserID, &m.Email, &m.Name)
+	} else {
+		err = s.db.QueryRow(r.Context(), `SELECT id, email, name FROM users WHERE email = $1`, strings.ToLower(strings.TrimSpace(b.Email))).Scan(&m.UserID, &m.Email, &m.Name)
+	}
 	if errors.Is(err, pgx.ErrNoRows) {
 		errJSON(w, http.StatusNotFound, "user_not_found", "그 이메일로 가입한 사용자가 없습니다")
 		return

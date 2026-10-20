@@ -17,6 +17,13 @@ on:
       - '!app/**/*.md'
       - '!desktop/**/*.md'
       - '.github/workflows/windows-store.yml'
+  # PR에서는 패키지까지만 만들어 본다(제출하지 않는다)
+  pull_request:
+    branches: [master]
+    paths:
+      - 'desktop/**'
+      - 'app/**'
+      - '.github/workflows/windows-store.yml'
   workflow_dispatch:
 
 permissions:
@@ -24,7 +31,7 @@ permissions:
 
 # 연달아 푸시하면 앞의 것은 멈추고 마지막 것만 올린다
 concurrency:
-  group: windows-store
+  group: windows-store-${{ github.event_name == 'pull_request' && github.ref || 'release' }}
   cancel-in-progress: true
 
 jobs:
@@ -103,11 +110,11 @@ jobs:
           retention-days: 14
 
       - name: Install msstore CLI
-        if: steps.package.outputs.file != '' && env.HAS_STORE_API == 'true' && env.MODO_STORE_PRODUCT_ID != ''
+        if: github.event_name != 'pull_request' && steps.package.outputs.file != '' && env.HAS_STORE_API == 'true' && env.MODO_STORE_PRODUCT_ID != ''
         uses: microsoft/microsoft-store-apppublisher@v1.1
 
       - name: Submit to Partner Center
-        if: steps.package.outputs.file != ''
+        if: github.event_name != 'pull_request' && steps.package.outputs.file != ''
         shell: pwsh
         env:
           STORE_TENANT_ID: ${{ secrets.STORE_TENANT_ID }}

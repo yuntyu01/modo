@@ -33,15 +33,26 @@ import (
 // 있어야만 토큰으로 바뀐다.
 
 type Config struct {
-	Erasures     *ErasureJournal
-	KakaoKey     string // 카카오 REST API 키. 비어 있으면 카카오 로그인을 끈다
-	KakaoSecret  string // 카카오 Client Secret(콘솔에서 켰을 때만)
-	PublicURL    string // 카카오가 돌아올 이 서버의 외부 주소(예: https://modo.example.com). 콘솔의 Redirect URI = PublicURL + /api/auth/kakao/callback
-	KakaoAuthURL string // 기본 https://kauth.kakao.com (테스트에서 바꾼다)
-	KakaoAPIURL  string // 기본 https://kapi.kakao.com
-	HTTP         *http.Client
-	TrustProxy   bool // 리버스 프록시 뒤면 X-Forwarded-For로 접속 주소를 본다(요청 수 제한용)
-	RateLimit    int  // 로그인·가입 등 접속 주소마다 1분에 받는 횟수(0이면 10)
+	Erasures       *ErasureJournal
+	KakaoKey       string // 카카오 REST API 키. 비어 있으면 카카오 로그인을 끈다
+	KakaoSecret    string // 카카오 Client Secret(콘솔에서 켰을 때만)
+	KakaoAdmin     string // 서버 전용. 연결 해제 웹훅 검증 및 탈퇴 시 연결 해제에만 사용.
+	KakaoAppID     string
+	PublicURL      string // 카카오가 돌아올 이 서버의 외부 주소(예: https://modo.example.com). 콘솔의 Redirect URI = PublicURL + /api/auth/kakao/callback
+	KakaoAuthURL   string // 기본 https://kauth.kakao.com (테스트에서 바꾼다)
+	KakaoAPIURL    string // 기본 https://kapi.kakao.com
+	GoogleClientID string
+	GoogleSecret   string
+	GoogleAuthURL  string // Overrides are only for isolated tests, never environment variables.
+	GoogleTokenURL string
+	GoogleJWKSURL  string
+	HTTP           *http.Client
+	TrustProxy     bool // 리버스 프록시 뒤면 X-Forwarded-For로 접속 주소를 본다(요청 수 제한용)
+	RateLimit      int  // 로그인·가입 등 접속 주소마다 1분에 받는 횟수(0이면 10)
+
+	// 이메일 가입·로그인을 끈다. 로그인은 Google·카카오만 쓴다(앱에서 이메일 로그인을 없앴다).
+	// 실제 서버는 PASSWORD_LOGIN=1일 때만 켜 둔다(테스트·E2E 서버가 계정을 만들 때). 0값(켬)은 테스트용 Config{}를 위해서
+	PasswordLoginOff bool
 }
 
 func (c *Config) defaults() {
@@ -51,18 +62,30 @@ func (c *Config) defaults() {
 	if c.KakaoAPIURL == "" {
 		c.KakaoAPIURL = "https://kapi.kakao.com"
 	}
+	if c.GoogleAuthURL == "" {
+		c.GoogleAuthURL = "https://accounts.google.com/o/oauth2/v2/auth"
+	}
+	if c.GoogleTokenURL == "" {
+		c.GoogleTokenURL = "https://oauth2.googleapis.com/token"
+	}
+	if c.GoogleJWKSURL == "" {
+		c.GoogleJWKSURL = "https://www.googleapis.com/oauth2/v3/certs"
+	}
 	if c.HTTP == nil {
 		c.HTTP = &http.Client{Timeout: 10 * time.Second}
 	}
 	c.PublicURL = strings.TrimRight(c.PublicURL, "/")
 }
 
-func (s *Server) kakaoEnabled() bool { return s.cfg.KakaoKey != "" && s.cfg.PublicURL != "" }
+func (s *Server) kakaoEnabled() bool {
+	return s.cfg.KakaoKey != "" && s.cfg.PublicURL != "" && s.cfg.KakaoAdmin != "" && s.cfg.KakaoAppID != ""
+}
 
 func (s *Server) kakaoCallbackURL() string { return s.cfg.PublicURL + "/api/auth/kakao/callback" }
 
 func (s *Server) providers(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]bool{"password": true, "kakao": s.kakaoEnabled()})
+	w.Header().Set("Cache-Control", "no-store")
+	writeJSON(w, http.StatusOK, map[string]bool{"password": !s.cfg.PasswordLoginOff, "kakao": s.kakaoEnabled(), "google": s.googleEnabled()})
 }
 
 var challengeRe = regexp.MustCompile(`^[A-Za-z0-9_-]{43,128}$`)
@@ -70,15 +93,15 @@ var challengeRe = regexp.MustCompile(`^[A-Za-z0-9_-]{43,128}$`)
 // 돌아갈 곳은 앱 주소(modo://, naegirok://)나 이 컴퓨터(개발용 웹)만.
 func allowedRedirect(raw string) bool {
 	u, err := url.Parse(raw)
-	if err != nil || len(raw) > 300 {
+	if err != nil || len(raw) > 300 || u.User != nil || u.Fragment != "" || u.RawQuery != "" {
 		return false
 	}
 	switch u.Scheme {
 	case "modo", "naegirok":
-		return true
+		return u.Host == "auth" && u.Path == "" && u.Opaque == ""
 	case "http":
-		h := u.Hostname()
-		return h == "127.0.0.1" || h == "localhost"
+		port, err := strconv.Atoi(u.Port())
+		return err == nil && port > 0 && port <= 65535 && u.Hostname() == "127.0.0.1" && u.Path == "/oauth/callback"
 	}
 	return false
 }
@@ -103,7 +126,7 @@ func (s *Server) kakaoStart(w http.ResponseWriter, r *http.Request) {
 	}
 	q := r.URL.Query()
 	redirect, clientState, challenge := q.Get("redirect_uri"), q.Get("state"), q.Get("code_challenge")
-	if !allowedRedirect(redirect) || len(clientState) > 200 || !challengeRe.MatchString(challenge) {
+	if !allowedRedirect(redirect) || clientState == "" || len(clientState) > 200 || !challengeRe.MatchString(challenge) {
 		badRequest(w, "redirect_uri/state/code_challenge가 잘못됐습니다")
 		return
 	}
@@ -124,6 +147,7 @@ func (s *Server) kakaoStart(w http.ResponseWriter, r *http.Request) {
 		"response_type": {"code"},
 		"state":         {state},
 	}
+	w.Header().Set("Cache-Control", "no-store")
 	http.Redirect(w, r, s.cfg.KakaoAuthURL+"/oauth/authorize?"+v.Encode(), http.StatusFound)
 }
 
@@ -137,7 +161,7 @@ func (s *Server) kakaoCallback(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	var redirect, clientState, challenge string
 	err := s.db.QueryRow(ctx, `
-		DELETE FROM oauth_states WHERE state_hash = $1 AND expires_at > now()
+		DELETE FROM oauth_states WHERE state_hash = $1 AND provider = 'kakao' AND expires_at > now()
 		RETURNING redirect_uri, client_state, challenge`, hashOf(q.Get("state"))).Scan(&redirect, &clientState, &challenge)
 	if errors.Is(err, pgx.ErrNoRows) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -218,8 +242,12 @@ func (s *Server) kakaoUser(ctx context.Context, code string) (kakaoProfile, erro
 	if tok.AccessToken == "" {
 		return kakaoProfile{}, errors.New("token: empty")
 	}
-	req, _ = http.NewRequestWithContext(ctx, http.MethodGet, s.cfg.KakaoAPIURL+"/v2/user/me", nil)
-	req.Header.Set("Authorization", "Bearer "+tok.AccessToken)
+	return s.kakaoUserWithToken(ctx, tok.AccessToken)
+}
+
+func (s *Server) kakaoUserWithToken(ctx context.Context, accessToken string) (kakaoProfile, error) {
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, s.cfg.KakaoAPIURL+"/v2/user/me", nil)
+	req.Header.Set("Authorization", "Bearer "+accessToken)
 	var me struct {
 		ID      int64 `json:"id"`
 		Account struct {
@@ -263,11 +291,33 @@ func (s *Server) kakaoJSON(req *http.Request, v any) error {
 // 같은 이메일의 기존 계정에 자동으로 붙이지 않는다: 비밀번호 가입은 이메일을 확인하지 않아서, 남의 이메일로 먼저 가입해 둔
 // 사람이 나중에 그 주인이 카카오로 들어올 때 그 계정을 넘겨받을 수 있다. 이메일이 이미 쓰이고 있으면 새 사용자는 이메일 없이 만든다.
 func (s *Server) findOrCreateKakaoUser(ctx context.Context, p kakaoProfile) (authUser, error) {
+	return s.findOrCreateOAuthUser(ctx, "kakao", p)
+}
+
+func (s *Server) findOrCreateOAuthUser(ctx context.Context, provider string, p kakaoProfile) (authUser, error) {
 	var u authUser
 	err := pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
+		// Serialize identical identities and email claims without linking accounts by email.
+		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, provider+":"+p.Subject); err != nil {
+			return err
+		}
+		if provider == "kakao" {
+			var pending bool
+			if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM kakao_unlink_jobs WHERE subject=$1)`, p.Subject).Scan(&pending); err != nil {
+				return err
+			}
+			if pending {
+				return errors.New("kakao_deletion_pending")
+			}
+		}
+		if p.Email != "" {
+			if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 1))`, p.Email); err != nil {
+				return err
+			}
+		}
 		err := tx.QueryRow(ctx, `
 			SELECT u.id, COALESCE(u.email, ''), u.name FROM oauth_identities i JOIN users u ON u.id = i.user_id
-			WHERE i.provider = 'kakao' AND i.subject = $1`, p.Subject).Scan(&u.ID, &u.Email, &u.Name)
+			WHERE i.provider = $1 AND i.subject = $2`, provider, p.Subject).Scan(&u.ID, &u.Email, &u.Name)
 		if err == nil || !errors.Is(err, pgx.ErrNoRows) {
 			return err
 		}
@@ -281,7 +331,7 @@ func (s *Server) findOrCreateKakaoUser(ctx context.Context, p kakaoProfile) (aut
 		if err := tx.QueryRow(ctx, `SELECT COALESCE(email, '') FROM users WHERE id = $1`, u.ID).Scan(&u.Email); err != nil {
 			return err
 		}
-		_, err = tx.Exec(ctx, `INSERT INTO oauth_identities (provider, subject, user_id) VALUES ('kakao', $1, $2)`, p.Subject, u.ID)
+		_, err = tx.Exec(ctx, `INSERT INTO oauth_identities (provider, subject, user_id) VALUES ($1, $2, $3)`, provider, p.Subject, u.ID)
 		return err
 	})
 	return u, err

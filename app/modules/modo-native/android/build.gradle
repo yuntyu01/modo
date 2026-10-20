@@ -16,6 +16,7 @@ android {
 }
 
 dependencies {
+  implementation 'com.kakao.sdk:v2-user:2.25.1'
   implementation 'androidx.core:core-ktx:1.13.1'
   // 홈 위젯 쪽 계산·보조 줄 표기(Android 의존 없는 코드)의 JVM 단위 테스트
   testImplementation 'junit:junit:4.13.2'

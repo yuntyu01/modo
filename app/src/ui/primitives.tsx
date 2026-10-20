@@ -16,22 +16,29 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { inputColors } from './theme';
-import { useApp, useToast } from '../state/AppContext';
+import { useIsFocused } from 'expo-router';
+
+import { useToast, useUi } from '../state/AppContext';
 import { ChevronIcon } from './Icons';
 import { useSlidingPill } from './motion';
 
-/** 아래에서 올라오는 시트. 상태바·내비게이션 영역을 피한다. */
-export function Sheet({ visible, onClose, children }: { visible: boolean; onClose: () => void; children: ReactNode }) {
-  const { theme, t } = useApp();
+/**
+ * 아래에서 올라오는 시트. 상태바·내비게이션 영역을 피한다. soft: 바탕을 화면 바탕색으로(안에 흰 카드를 놓는 시트, 친구 추가 시안).
+ * dialog: PC(웹)에서는 가운데 뜨는 알맞은 크기의 대화상자로(휴대폰은 그대로 시트)
+ */
+export function Sheet({ visible, onClose, children, soft, dialog }: { visible: boolean; onClose: () => void; children: ReactNode; soft?: boolean; dialog?: boolean }) {
+  const { theme, t } = useUi();
   const insets = useSafeAreaInsets();
+  const centered = dialog && Platform.OS === 'web';
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel={t('cancel')}>
+        <Pressable style={[styles.backdrop, centered && { justifyContent: 'center' }]} onPress={onClose} accessibilityLabel={t('cancel')}>
           <Pressable
             style={[
               styles.sheet,
-              { backgroundColor: theme.dark ? '#18191C' : '#FFFFFF', marginBottom: insets.bottom + 10, maxHeight: '86%' },
+              { backgroundColor: theme.dark ? '#18191C' : soft ? theme.bg : '#FFFFFF', marginBottom: insets.bottom + 10, maxHeight: '86%' },
+              centered && { maxWidth: 460, marginBottom: 0 },
             ]}
           >
             <ScrollView keyboardShouldPersistTaps="handled" bounces={false}>
@@ -45,7 +52,7 @@ export function Sheet({ visible, onClose, children }: { visible: boolean; onClos
 }
 
 export function SheetTitle({ title, subtitle }: { title: string; subtitle?: string }) {
-  const { theme } = useApp();
+  const { theme } = useUi();
   return (
     <View style={{ paddingHorizontal: 22, paddingTop: 18, paddingBottom: 8 }}>
       <Text style={theme.font(13, { color: theme.muted })}>{title}</Text>
@@ -74,7 +81,7 @@ export function SheetButton({
   /** 고르는 목록: true면 진하고 굵게, false면 옅게(체크 표시 대신) */
   selected?: boolean;
 }) {
-  const { theme } = useApp();
+  const { theme } = useUi();
   return (
     <Pressable
       onPress={onPress}
@@ -97,7 +104,7 @@ export function SheetButton({
 }
 
 export function InfoRow({ label, value }: { label: string; value: string }) {
-  const { theme } = useApp();
+  const { theme } = useUi();
   return (
     <View style={styles.infoRow}>
       <Text style={theme.font(14, { color: theme.muted, width: 92 })}>{label}</Text>
@@ -128,7 +135,7 @@ export function PromptDialog({
   onConfirm: (v: string) => void;
   onClose: () => void;
 }) {
-  const { theme, t } = useApp();
+  const { theme, t } = useUi();
   const [value, setValue] = useState(initial);
   // 열릴 때마다 처음 값으로(그리는 중에 바로 맞춘다)
   const [wasVisible, setWasVisible] = useState(visible);
@@ -196,7 +203,7 @@ export function ConfirmDialog({
   onConfirm: () => void;
   onClose: () => void;
 }) {
-  const { theme, t } = useApp();
+  const { theme, t } = useUi();
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <View style={styles.center}>
@@ -227,21 +234,24 @@ export function ConfirmDialog({
 
 /** 화면 아래 잠깐 뜨는 알림(실행 취소 버튼 포함) */
 export function ToastHost({ bottom }: { bottom: number }) {
-  const { showToast, theme } = useApp();
+  const { showToast, theme } = useUi();
   const toast = useToast();
+  // 보이는 화면 하나만: 설정 하위 화면이 열려 있으면 그 밑의 홈에도 ToastHost가 있어 애니메이션·타이머가 둘씩 돌았다.
+  // 가려진 화면에서 띄운 토스트는 돌아온 화면에서 새로 뜬다
+  const focused = useIsFocused();
   const [opacity] = useState(() => new Animated.Value(0));
   useEffect(() => {
-    if (!toast) return;
+    if (!toast || !focused) return;
     opacity.setValue(0);
     Animated.timing(opacity, { toValue: 1, duration: 160, useNativeDriver: Platform.OS !== 'web' }).start();
     const timer = setTimeout(() => showToast(null), toast.action ? 5000 : 2500);
     return () => clearTimeout(timer);
-  }, [toast, opacity, showToast]);
-  if (!toast) return null;
+  }, [toast, focused, opacity, showToast]);
+  if (!toast || !focused) return null;
   return (
     <Animated.View
       accessibilityLiveRegion="polite"
-      style={[styles.toast, { bottom, opacity, backgroundColor: theme.dark ? '#2A2C30' : '#2A2C30' }]}
+      style={[styles.toast, { bottom, opacity, backgroundColor: '#2A2C30' }]}
     >
       <Text style={theme.font(14, { color: '#FFFFFF', flex: 1 })}>{toast.message}</Text>
       {toast.action ? (
@@ -261,7 +271,7 @@ export function ToastHost({ bottom }: { bottom: number }) {
 
 /** size: md(설정 시안 44×26) | sm(꾸미기 시안 39×22.5) */
 export function Switch({ value, onChange, label, size = 'md' }: { value: boolean; onChange: (v: boolean) => void; label: string; size?: 'md' | 'sm' }) {
-  const { theme } = useApp();
+  const { theme } = useUi();
   return (
     <Pressable
       accessibilityRole="switch"
@@ -291,7 +301,7 @@ export function Slider({
   label: string;
   style?: ViewStyle;
 }) {
-  const { theme } = useApp();
+  const { theme } = useUi();
   const width = useRef(1);
   const startX = useRef(0);
   const last = useRef(value);
@@ -347,7 +357,7 @@ export function Slider({
 
 /** inset: 카드 [위, 아래] 안쪽 여백(설정 시안 3·4.5, 꾸미기 시안 3·1) */
 export function Group({ title, children, style, inset = [3, 4.5] }: { title?: string; children: ReactNode; style?: ViewStyle; inset?: [number, number] }) {
-  const { theme } = useApp();
+  const { theme } = useUi();
   return (
     <View style={[{ marginBottom: 19.5 }, style]}>
       {title ? <Text style={theme.kfont(14.5, { color: theme.tab, marginLeft: 6.5, marginBottom: 5.5 })}>{title}</Text> : null}
@@ -376,7 +386,7 @@ export function Row({
   /** md: 설정 시안(줄 53.5 + 카드 안쪽 4, 글자 16.5) | sm: 꾸미기 시안(줄 52.7 + 카드 안쪽 2, 글자 15.5) */
   size?: 'md' | 'sm';
 }) {
-  const { theme } = useApp();
+  const { theme } = useUi();
   return (
     <Pressable
       onPress={onPress}
@@ -406,7 +416,7 @@ export function Segmented<V extends string>({
   value: V;
   onChange: (v: V) => void;
 }) {
-  const { theme } = useApp();
+  const { theme } = useUi();
   // 고른 칸의 바탕이 새 칸으로 미끄러진다(하단바와 같은 움직임)
   const { onItemLayout, pill } = useSlidingPill(options.findIndex((o) => o.value === value));
   return (
@@ -432,7 +442,7 @@ export function Segmented<V extends string>({
 }
 
 /** 시안의 묶음·카드 모서리(설정·공유·꾸미기 시안에서 잰 값 13.5~14.5) */
-export const GROUP_RADIUS = 14;
+const GROUP_RADIUS = 14;
 
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
@@ -476,7 +486,6 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(0,0,0,0.25)',
     boxShadow: '0px 1px 3px rgba(0,0,0,0.3)',
   },
-  group: {},
   row: { flexDirection: 'row', alignItems: 'center', paddingLeft: 18.5, paddingRight: 18, minHeight: 53.5 },
   rowLine: { position: 'absolute', bottom: 0, height: StyleSheet.hairlineWidth },
   segment: { flexDirection: 'row', borderRadius: 14, padding: 4 },

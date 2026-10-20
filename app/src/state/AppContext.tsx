@@ -1,22 +1,23 @@
 import * as Crypto from 'expo-crypto';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useLocales } from 'expo-localization';
+import * as SplashScreen from 'expo-splash-screen';
 import { AppState, Platform, Text, View, useColorScheme } from 'react-native';
 
 import { openDb } from '../core/platform/openDb';
 import { Repo, touchesData, type Touched } from '../core/repo';
-import { SyncEngine, type Account, type SyncApi, type SyncStatus } from '../core/sync';
+import { SyncEngine, type Account, type SyncApi, type SyncStatus, type ServerApi } from '../core/sync';
 import type { FolderFilter, Snapshot } from '../core/types';
-import { resolveLang, translator, type T } from '../i18n';
+import { resolveLang, translator, type Lang, type T } from '../i18n';
 import { desktop, native } from '../native/bridge';
 import { DesktopSync, desktopSyncBridge } from '../native/desktopSync';
-import { makeTheme, type Theme } from '../ui/theme';
+import { isMiniWindow, makeTheme, type Theme } from '../ui/theme';
 import { DEFAULT_PREFS, mergePrefs, type Prefs } from './prefs';
+import { fmt } from '../core/repeat';
 
 export type Toast = { message: string; action?: { label: string; run: () => void } };
 
 type App = {
-  ready: boolean;
-  error: string | null;
   repo: Repo;
   /** 휴대폰: 이 앱의 동기화 엔진. PC 창: 메인 프로세스의 엔진에 맡기는 대리(native/desktopSync.ts) */
   sync: SyncApi;
@@ -25,6 +26,10 @@ type App = {
   setPrefs: (p: Partial<Prefs>) => void;
   theme: Theme;
   t: T;
+  /** 화면 언어(설정이 '시스템'이면 기기 언어에서 고른 것). 날짜·요일 표기에 쓴다 */
+  lang: Lang;
+  /** 오늘 'YYYY-MM-DD'. 날이 바뀌거나 앞으로 올 때 바뀐다(카드가 그릴 때마다 새 Date를 만들지 않고, 자정이 지나면 모든 카드가 한 번 다시 그려진다) */
+  today: string;
   /** 지금 보는 폴더(null = 기본). 이 기기에서 마지막으로 쓴 폴더를 기억한다. */
   filter: FolderFilter;
   setFilter: (f: FolderFilter) => void;
@@ -41,13 +46,20 @@ type App = {
    * 서버(API)에 닿는지와 켜 둔 로그인 수단. 닿지 않으면 null: 공유·계정·동기화처럼 서버가 있어야 하는 기능은 숨긴다.
    * 휴대폰은 앞으로 올 때마다·1분마다 묻고, PC는 메인 프로세스가 물어 알려 준다(sync-host.cjs).
    */
-  serverApi: { kakao: boolean; password: boolean } | null;
-  /** 처음 로그인 화면을 이번 실행 동안 띄우지 않는지('나중에'를 눌렀거나, 켤 때 서버에 닿지 않았으면) */
-  loginDeferred: boolean;
-  deferLogin: () => void;
+  serverApi: ServerApi | null;
+  /** 서버에 닿는지 한 번이라도 물어 봤는지(그 전에는 로그인 화면이 '인터넷 없음' 대신 기다림을 보인다) */
+  serverChecked: boolean;
+  /** 지금 서버에 다시 묻는다(로그인 화면의 다시 시도) */
+  recheckServer: () => Promise<void>;
 };
 
 const Ctx = createContext<App | null>(null);
+/**
+ * 자주 바뀌지 않는 것만(저장소·설정·테마·언어·토스트). 할 일 카드·메모처럼 많이 그려지는 곳은 useUi로 읽는다:
+ * 앱 상태(useApp)는 저장할 때마다(snap) 바뀌어, 카드가 그걸 읽으면 글 하나를 고쳐도 모든 카드가 다시 그려졌다.
+ */
+type Ui = Pick<App, 'repo' | 'sync' | 'prefs' | 'setPrefs' | 'theme' | 't' | 'lang' | 'today' | 'showToast' | 'registerFlush' | 'flushAll'>;
+const UiCtx = createContext<Ui | null>(null);
 /**
  * 동기화 상태는 따로 둔다: 동기화가 돌 때마다(마지막 동기화 시각 등) 바뀌어, 앱 상태에 같이 두면 상태를 보지도 않는 화면 전체가
  * 30초마다 다시 그려졌다. 상태를 보여 주는 곳(설정의 내 계정)만 useSyncStatus로 읽는다.
@@ -92,6 +104,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<SyncStatus>({ state: 'local', lastSyncAt: null, pending: 0, rejected: 0 });
   const [account, setAccount] = useState<Account | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
+  const [today, setToday] = useState(() => fmt(new Date()));
   const flushers = useRef(new Set<() => Promise<void> | void>());
 
   useEffect(() => {
@@ -112,8 +125,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         // 설정은 없어도 메모·할 일이 이미 있으면(예전 버전) 첫 실행 화면은 건너뛴다
         if (!saved && (s.todos.length || s.paragraphs.length)) merged.onboarded = true;
         setPrefsState(merged);
-        // 기본값이 바뀌어 고쳐진 값(위젯 투명도 등)은 위젯·빠른 추가도 읽도록 저장해 둔다.
-        if (saved && (saved.widget?.opacity !== merged.widget.opacity || saved.accent !== merged.accent || saved.widget?.accent !== merged.widget.accent)) {
+        // 설정 고치기(prefsVersion)가 돌았으면 위젯·빠른 추가도 읽도록 저장해 둔다(다음부터는 돌지 않는다)
+        if (saved && saved.prefsVersion !== merged.prefsVersion) {
           await repo.write(() => repo.setKv('prefs', merged));
         }
         setSnap(s);
@@ -162,9 +175,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // PC 다른 창은 0.3초 모아서, 휴대폰 위젯·알림 예약은 1초 모아서(메모를 쓰는 동안 저장될 때마다 위젯을 다시 그리지 않게)
       widgetTimer = setTimeout(
         () => {
-          native.refresh();
-          desktop?.notifyDataChanged([...notify]);
+          const tables = [...notify];
           notify.clear();
+          // 바뀐 표를 알려 메모만 고쳤을 때는 알림 예약을 다시 하지 않게(예전엔 문단 하나를 고쳐도 Android가 알람 전부를 다시 잡았다)
+          native.refresh(tables);
+          desktop?.notifyDataChanged(tables);
         },
         desktop ? 300 : 1000,
       );
@@ -173,11 +188,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // PC는 메인 프로세스가 동기화 주기를 정한다(창이 숨거나 닫혀도 계속)
     if (!desktop) sync.start();
     // 위젯·빠른 추가·다른 창이 DB를 직접 바꿨을 수 있어 앞으로 올 때마다 다시 읽는다.
+    // iOS는 뒤로 갈 때 inactive → background 두 번 알리고, 제어 센터·전화처럼 잠깐 inactive만 되기도 한다.
+    // 저장(flush)은 처음 떠날 때 한 번, 보내기·주기 멈춤은 background에서 한 번만(예전엔 둘 다 두 번씩 돌았다)
+    let was = AppState.currentState;
     const appState = AppState.addEventListener('change', async (st) => {
+      const prev = was;
+      was = st;
       if (st === 'active') {
         reload();
-        if (!desktop) sync.start();
-      } else if (st === 'background' || st === 'inactive') {
+        setToday(fmt(new Date()));
+        if (!desktop && prev !== 'inactive') sync.start();
+        return;
+      }
+      if (prev === 'active') {
         for (const fn of flushers.current) await fn();
         // 모아 두던 위젯 갱신은 앱이 멈추기 전에 바로(나가자마자 위젯이 옛 내용으로 남지 않게)
         if (widgetTimer && !desktop) {
@@ -185,7 +208,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
           widgetTimer = null;
           native.refresh();
         }
-        if (desktop) return;
+      }
+      if (st === 'background' && !desktop) {
         sync.syncNow();
         sync.stop();
       }
@@ -197,6 +221,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const next = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1, 0, 0, 2).getTime();
       dayTimer = setTimeout(() => {
         reload();
+        setToday(fmt(new Date()));
         atMidnight();
       }, next - d.getTime());
     };
@@ -215,8 +240,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       for (const fn of flushers.current) await fn();
     });
     // 빠른 추가·위젯 체크처럼 네이티브가 DB를 바꾸면 바로 다시 읽고 보낸다.
-    const offNative = native.onDataChanged(() => {
-      reload();
+    const offNative = native.onDataChanged((tables) => {
+      reload(tables?.length ? new Set(tables) : undefined);
       sync.schedule(500);
     });
     return () => {
@@ -280,24 +305,65 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [boot, snap, setFilter]);
 
   const prefsRefresh = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 설정 저장은 0.25초 모아서(슬라이더를 끄는 동안 움직일 때마다 저장하고 PC 다른 창에 알리던 것을 줄인다).
+  // 화면은 바로 바뀌고, 앱이 뒤로 가거나 창을 닫기 전에는 바로 저장한다(flushers).
+  // 저장할 때는 바뀐 항목만 저장된 설정 위에 덮어쓴다: PC는 미니창·큰 창이 각자 설정을 들고 있어, 전체를 통째로 쓰면
+  // 다른 창이 방금 바꾼 항목(투명도 등)을 이 창의 옛 값으로 되돌렸다
+  const prefsRef = useRef(prefs);
+  useEffect(() => {
+    prefsRef.current = prefs;
+  }, [prefs]);
+  const prefsSave = useRef<{ timer: ReturnType<typeof setTimeout> | null; patch: Partial<Prefs> | null }>({ timer: null, patch: null });
+  const savePrefs = useCallback(async () => {
+    const pending = prefsSave.current;
+    if (pending.timer) clearTimeout(pending.timer);
+    pending.timer = null;
+    const patch = pending.patch;
+    pending.patch = null;
+    if (!boot || !patch) return;
+    await boot.repo.write(async () => {
+      const saved = await boot.repo.getKv<Partial<Prefs> | null>('prefs', null);
+      await boot.repo.setKv('prefs', { ...mergePrefs(saved), ...patch });
+    });
+    // 저장한 뒤 다른 창(PC 미니창 ↔ 큰 창)에 알린다. 휴대폰은 위젯 색·잠금화면 알림이 설정을 읽어 그리니 조금 모아 다시 그린다
+    // (안 그러면 잠금화면 알림을 켜도 앱을 나가야 생겼다)
+    desktop?.notifyDataChanged(['kv']);
+    if (desktop) return;
+    if (prefsRefresh.current) clearTimeout(prefsRefresh.current);
+    prefsRefresh.current = setTimeout(() => native.refresh(), 500);
+  }, [boot]);
+  // 로그인·로그아웃하면 위젯·잠금화면 알림·할 일 알림을 다시 맞춘다(로그인하지 않았으면 위젯은 안내만, 알림은 내린다).
+  // 계정은 kv라 데이터 변경 알림이 가지 않는다. 처음 켤 때는 네이티브 모듈이 따로 맞춘다
+  const accountId = account?.id ?? null;
+  const seenAccount = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (!boot || desktop) return;
+    if (seenAccount.current !== undefined && seenAccount.current !== accountId) native.refresh();
+    seenAccount.current = accountId;
+  }, [boot, accountId]);
+  useEffect(() => {
+    if (!boot) return;
+    const set = flushers.current;
+    set.add(savePrefs);
+    return () => {
+      set.delete(savePrefs);
+    };
+  }, [boot, savePrefs]);
   const setPrefs = useCallback(
     (p: Partial<Prefs>) => {
-      setPrefsState((cur) => {
-        const next = { ...cur, ...p };
-        // 테마색을 바꾸면 바꾼 시각을 남긴다(계정 테마와 맞출 때 늦게 바꾼 쪽이 이긴다). 계정에서 받아 온 값은 그 시각을 그대로
-        if (p.accent && p.accent !== cur.accent && p.accentAt === undefined) next.accentAt = Date.now();
-        // 저장한 뒤 다른 창(PC 미니창 ↔ 큰 창)에 알린다. 휴대폰은 위젯 색·잠금화면 알림이 설정을 읽어 그리니 조금 모아 다시 그린다
-        // (안 그러면 잠금화면 알림을 켜도 앱을 나가야 생겼다)
-        boot?.repo.write(() => boot.repo.setKv('prefs', next)).then(() => {
-          desktop?.notifyDataChanged(['kv']);
-          if (desktop) return;
-          if (prefsRefresh.current) clearTimeout(prefsRefresh.current);
-          prefsRefresh.current = setTimeout(() => native.refresh(), 500);
-        });
-        return next;
-      });
+      const cur = prefsRef.current;
+      const patch: Partial<Prefs> = { ...p };
+      // 테마색을 바꾸면 바꾼 시각을 남긴다(계정 테마와 맞출 때 늦게 바꾼 쪽이 이긴다). 계정에서 받아 온 값은 그 시각을 그대로
+      if (p.accent && p.accent !== cur.accent && p.accentAt === undefined) patch.accentAt = Date.now();
+      const next = { ...cur, ...patch };
+      prefsRef.current = next;
+      setPrefsState(next);
+      const pending = prefsSave.current;
+      pending.patch = { ...(pending.patch ?? {}), ...patch };
+      if (pending.timer) clearTimeout(pending.timer);
+      pending.timer = setTimeout(savePrefs, 250);
     },
-    [boot],
+    [savePrefs],
   );
 
   // 테마색을 계정과 맞춘다(휴대폰. PC는 메인 프로세스가 맡는다): 테마색을 바꾸면 조금 기다렸다 올리고, 동기화가 끝날 때마다(1분에 한 번까지) 다른 기기에서 바꾼 색을 받는다
@@ -319,23 +385,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(timer);
   }, [account, prefs.accent, prefs.accentAt, syncTheme]);
   useEffect(() => {
-    if (account && !desktop && status.state === 'idle' && Date.now() - lastThemeSync.current > 60_000) syncTheme();
+    if (account && !desktop && status.state === 'idle' && Date.now() - lastThemeSync.current > 300_000) syncTheme();
   }, [account, status.state, status.lastSyncAt, syncTheme]);
+  // 앞으로 올 때도(다른 기기에서 바꾼 색을 바로 받게). 예전엔 켜 둔 동안 1분마다 물었다 → 5분마다 + 앞으로 올 때
+  useEffect(() => {
+    if (!account || desktop) return;
+    const sub = AppState.addEventListener('change', (st) => {
+      if (st === 'active' && Date.now() - lastThemeSync.current > 60_000) syncTheme();
+    });
+    return () => sub.remove();
+  }, [account, syncTheme]);
 
   // 서버(API)가 닿는지: 로그인 수단을 물어 본다(로그인 화면·공유 버튼을 보일지 정한다)
-  const [serverApi, setServerApi] = useState<{ kakao: boolean; password: boolean } | null>(null);
+  const [serverApi, setServerApi] = useState<ServerApi | null>(null);
   const serverUrl = account?.server ?? prefs.server;
-  const [loginDeferred, setLoginDeferred] = useState(false);
-  const reachable = useRef(false);
-  // PC: 메인 프로세스가 묻고 알려 준다(창마다 따로 묻지 않는다). 처음 로그인 화면을 띄울지도 메인이 정한다(켤 때 서버가 닿았는지·'나중에')
+  const [serverChecked, setServerChecked] = useState(false);
+  // 처음엔 '닿는다'고 보고 시작한다: 켤 때 sync.start()가 바로 한 번 도는데, 첫 확인이 '다시 닿았다'로 보여 한 번 더 돌았다
+  const reachable = useRef(true);
+  const probeNow = useRef<() => Promise<void>>(async () => {});
+  // PC: 메인 프로세스가 묻고 알려 준다(창마다 따로 묻지 않는다)
   useEffect(() => {
     const bridge = desktopSyncBridge();
     if (!boot || !bridge) return;
     bridge.call('setDefaults', [{ server: prefs.server }]);
-    const apply = (st: { api: { kakao: boolean; password: boolean } | null; gate: boolean; at: number }) => {
+    const apply = (st: { api: ServerApi | null; at: number }) => {
       if (!st.at) return; // 메인이 아직 묻기 전
-      setServerApi((cur) => (cur && st.api && cur.kakao === st.api.kakao && cur.password === st.api.password ? cur : st.api));
-      if (!st.gate) setLoginDeferred(true);
+      setServerApi((cur) => (cur && st.api && cur.kakao === st.api.kakao && cur.google === st.api.google && cur.password === st.api.password ? cur : st.api));
+      setServerChecked(true);
+    };
+    probeNow.current = async () => {
+      await bridge.call('probe');
     };
     bridge.serverState().then(apply, () => {});
     return bridge.onServerState(apply);
@@ -343,8 +422,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!boot || desktop) return;
     let alive = true;
-    const startedAt = Date.now();
-    let first = true;
     let timer: ReturnType<typeof setTimeout> | null = null;
     // 닿으면 10분, 안 닿으면 1분 뒤에 다시(앞에 있는 동안만. 뒤로 가면 멈추고 앞으로 올 때 바로 묻는다)
     const next = () => {
@@ -359,19 +436,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
           // 끊겼다가 다시 닿으면 쌓아 둔 변경을 바로 보낸다(동기화 재시도 간격을 기다리지 않게)
           if (!reachable.current) boot.sync.account().then((acc) => acc && boot.sync.syncNow());
           reachable.current = true;
-          setServerApi((cur) => (cur && cur.kakao === !!p.kakao && cur.password === !!p.password ? cur : { kakao: !!p.kakao, password: !!p.password }));
-          // 처음 로그인 화면은 켤 때 바로 서버에 닿았을 때만. 쓰는 도중에 인터넷이 연결돼도 갑자기 덮지 않는다(설정 → 내 계정에서 로그인)
-          if (first && Date.now() - startedAt > 5000) setLoginDeferred(true);
-          first = false;
+          setServerApi((cur) => (cur && cur.kakao === !!p.kakao && cur.google === !!p.google && cur.password === !!p.password ? cur : { kakao: !!p.kakao, google: !!p.google, password: !!p.password }));
+          setServerChecked(true);
         })
         .catch(() => {
           if (!alive) return;
           reachable.current = false;
           setServerApi(null);
-          if (first) setLoginDeferred(true);
-          first = false;
+          setServerChecked(true);
         })
         .finally(next);
+    probeNow.current = probe;
     probe();
     const sub = AppState.addEventListener('change', (st) => {
       if (st === 'active') probe();
@@ -384,7 +459,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, [boot, serverUrl]);
 
-  const theme = useMemo(() => makeTheme(prefs, systemDark), [prefs, systemDark]);
+  // PC 미니창은 미니창 설정(prefs.mini)으로 만든 테마를 쓴다. 예전엔 미니창 화면만 따로 만들고 그 안의 카드·입력창·편집기는 앱 테마를 읽어 서로 달랐다
+  const theme = useMemo(() => makeTheme(prefs, systemDark, isMiniWindow() ? prefs.mini : undefined), [prefs, systemDark]);
   // 데스크톱(웹): 글자 선택 하이라이트를 테마색으로
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof document === 'undefined') return;
@@ -405,7 +481,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // 스크롤 막대는 ui/thinScrollbar(3px, 올렸을 때만)가 맡는다. 여기 있던 8px 막대 규칙이 그걸 덮어써 두껍게 보였다
     el.textContent = `::selection{background:${theme.selection};color:inherit}*{caret-color:${theme.accent}}`;
   }, [theme.selection, theme.accent]);
-  const t = useMemo(() => translator(resolveLang(prefs.language)), [prefs.language]);
+  // 기기 언어는 바뀔 때만 다시 읽는다(useLocales). 예전엔 카드마다 그릴 때마다 getLocales()를 불렀다
+  const locales = useLocales();
+  const lang = useMemo(() => resolveLang(prefs.language, locales), [prefs.language, locales]);
+  const t = useMemo(() => translator(lang), [lang]);
   const registerFlush = useCallback((fn: () => Promise<void> | void) => {
     flushers.current.add(fn);
     return () => flushers.current.delete(fn);
@@ -414,18 +493,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
     for (const fn of flushers.current) await fn();
   }, []);
 
+  const ui = useMemo<Ui | null>(
+    () => (boot ? { repo: boot.repo, sync: boot.sync, prefs, setPrefs, theme, t, lang, today, showToast: setToast, registerFlush, flushAll } : null),
+    [boot, prefs, setPrefs, theme, t, lang, today, registerFlush, flushAll],
+  );
+  // 공유 목록(snap.shared)이 바뀔 때만 새 함수(메모·카드가 memo라 함수가 바뀌면 다시 그려진다)
+  const canWrite = useCallback(
+    (folderId: string | null) => {
+      const shared = folderId ? snap.shared.find((s) => s.folder_id === folderId) : undefined;
+      return !shared || shared.role === 'edit';
+    },
+    [snap.shared],
+  );
   const value = useMemo<App | null>(() => {
-    if (!boot) return null;
+    // ui 안의 함수(registerFlush 등)가 ref를 쓰지만 불릴 때 읽는다(아래 if (!value)와 같은 컴파일러 규칙의 오탐)
+    // eslint-disable-next-line react-hooks/refs
+    if (!boot || !ui) return null;
     return {
-      ready: true,
-      error,
-      repo: boot.repo,
-      sync: boot.sync,
+      ...ui,
       snap,
-      prefs,
-      setPrefs,
-      theme,
-      t,
       filter,
       setFilter,
       account,
@@ -439,24 +525,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setFilterState(null);
         setAccount(null);
         setPrefs({ lock: { enabled: false, visibility: 'private' } });
+        // 위젯·잠금화면 알림이 설정을 읽기 전에 바로 저장
+        await savePrefs();
         await native.refresh();
       },
-      showToast: setToast,
-      registerFlush,
-      flushAll,
-      canWrite: (folderId) => {
-        const shared = folderId ? snap.shared.find((s) => s.folder_id === folderId) : undefined;
-        return !shared || shared.role === 'edit';
-      },
+      canWrite,
       serverApi,
-      loginDeferred,
-      deferLogin: () => {
-        setLoginDeferred(true);
-        // PC: 다른 창(다시 연 큰 창)에서도 이번 실행 동안은 다시 띄우지 않게
-        desktopSyncBridge()?.call('deferLogin');
-      },
+      serverChecked,
+      recheckServer: () => probeNow.current(),
     };
-  }, [boot, error, snap, prefs, setPrefs, theme, t, filter, setFilter, account, registerFlush, flushAll, serverApi, loginDeferred]);
+  }, [boot, ui, snap, filter, setFilter, account, flushAll, setPrefs, savePrefs, serverApi, serverChecked, canWrite]);
   const draftValue = useMemo<Drafts>(
     () => ({ draftOf: (folder, todoMode) => drafts[draftKey(folder, todoMode)] ?? '', setDraftOf }),
     [drafts, setDraftOf],
@@ -467,6 +545,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // eslint-disable-next-line react-hooks/refs
   if (!value) return null;
   return (
+    <UiCtx.Provider value={ui}>
     <Ctx.Provider value={value}>
       <StatusCtx.Provider value={status}>
         <DraftCtx.Provider value={draftValue}>
@@ -477,11 +556,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
         </DraftCtx.Provider>
       </StatusCtx.Provider>
     </Ctx.Provider>
+    </UiCtx.Provider>
   );
 }
 
-/** 첫 데이터로 화면이 그려진 다음 프레임 = 입력할 수 있는 때. PC 성능 측정(desktop/bench.cjs)에 알린다 */
+/** 첫 데이터로 화면이 그려진 다음 프레임 = 입력할 수 있는 때. 로딩 화면을 내리고, PC 성능 측정(desktop/bench.cjs)에 알린다 */
 function ReadyMark() {
+  useEffect(() => {
+    SplashScreen.hide();
+  }, []);
   useEffect(() => {
     if (!desktop?.perfMark) return;
     const id = requestAnimationFrame(() => desktop?.perfMark?.('interactive'));
@@ -491,6 +574,9 @@ function ReadyMark() {
 }
 
 function BootError({ message }: { message: string }) {
+  useEffect(() => {
+    SplashScreen.hide();
+  }, []);
   return (
     <View style={{ flex: 1, backgroundColor: '#000', justifyContent: 'center', padding: 24 }}>
       <Text style={{ color: '#fff', fontSize: 16 }}>저장소를 열지 못했어요</Text>
@@ -502,6 +588,13 @@ function BootError({ message }: { message: string }) {
 export function useApp() {
   const v = useContext(Ctx);
   if (!v) throw new Error('useApp outside AppProvider');
+  return v;
+}
+
+/** 저장소·설정·테마·언어처럼 자주 바뀌지 않는 것만(할 일 카드·메모처럼 많이 그려지는 곳) */
+export function useUi() {
+  const v = useContext(UiCtx);
+  if (!v) throw new Error('useUi outside AppProvider');
   return v;
 }
 

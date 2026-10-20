@@ -3,7 +3,7 @@ import { Keyboard, Platform, Pressable, StyleSheet, Text, TextInput, View } from
 
 import { inputColors } from '../theme';
 import type { FolderFilter } from '../../core/types';
-import { useApp, useDrafts } from '../../state/AppContext';
+import { useDrafts, useUi } from '../../state/AppContext';
 import { mix } from '../color';
 import { GlassBackground } from '../glass';
 import { ArrowUpIcon, CheckSquareIcon, MemoNoteIcon } from '../Icons';
@@ -24,7 +24,6 @@ type Props = {
   onFocusChange?: (focused: boolean) => void;
   autoFocus?: boolean;
   /** 값이 바뀌면 입력창에 포커스(전체 보기에서 폴더를 골라 넘어왔을 때) */
-  focusSignal?: number;
   /** PC 미니창(시안): 덜 둥근 카드 모양, 토글 바탕 없음 */
   variant?: 'pill' | 'card';
   /** 카드형 입력칸 바탕(미니창: 메모·할 일과 같은 재질) */
@@ -39,8 +38,8 @@ type Props = {
  * - 한글 조합 중 엔터, 연달아 오는 제출 이벤트로 중복 추가되지 않게 막는다.
  */
 export function Composer(props: Props) {
-  const { todoMode, setTodoMode, onSubmit, disabledReason, onFocusChange, autoFocus, focusSignal, variant = 'pill', draftFolder, onComposingChange, surface } = props;
-  const { theme, t, prefs, setPrefs } = useApp();
+  const { todoMode, setTodoMode, onSubmit, disabledReason, onFocusChange, autoFocus, variant = 'pill', draftFolder, onComposingChange, surface } = props;
+  const { theme, t, prefs, setPrefs } = useUi();
   // 입력창 높이: 예전 한 줄 카드 높이 그대로(카드 높이를 통일할 때 입력창은 유지)
   const cardH = useCardStyles().inputH;
   const drafts = useDrafts();
@@ -48,9 +47,6 @@ export function Composer(props: Props) {
   const draft = stored ? drafts.draftOf(draftFolder, todoMode) : (props.draft ?? '');
   const setDraft = (v: string) => (stored ? drafts.setDraftOf(draftFolder, todoMode, v) : props.setDraft?.(v));
   const input = useRef<TextInput>(null);
-  useEffect(() => {
-    if (focusSignal) setTimeout(() => input.current?.focus(), 250);
-  }, [focusSignal]);
   const busy = useRef(false);
   const last = useRef({ text: '', at: 0 });
   const [focused, setFocused] = useState(false);

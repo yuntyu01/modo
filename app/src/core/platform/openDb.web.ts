@@ -19,9 +19,6 @@ declare global {
   }
 }
 
-export const DB_NAME = 'naegirok.db';
-export const APP_GROUP = '';
-
 export async function openDb(): Promise<Db> {
   const d = window.desktop?.db;
   if (!d) throw new CodedError('desktop_only', '데스크톱 앱(Electron)에서 실행해야 합니다');

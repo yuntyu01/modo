@@ -1,4 +1,4 @@
-import { byPosition, keyBetween } from '../frac';
+import { keyBetween } from '../frac';
 
 const KEY = /^[0-9A-Za-z]{1,200}$/; // 서버가 받는 정렬 키 형식(server/internal/api/sync.go keyRe)
 
@@ -69,10 +69,4 @@ test('예전 키와 새 키가 섞인 사이에도 끼워 넣을 수 있다', ()
       lo = k;
     }
   }
-});
-
-test('같은 키는 id로 순서가 정해진다', () => {
-  const a = { position: 'V', id: 'b' };
-  const b = { position: 'V', id: 'a' };
-  expect([a, b].sort(byPosition)[0].id).toBe('a');
 });

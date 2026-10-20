@@ -8,7 +8,7 @@ const MAX_STATEMENTS = 200;
 class DesktopDb {
   constructor(file) {
     this.db = new DatabaseSync(file);
-    this.db.exec('PRAGMA busy_timeout = 3000; PRAGMA journal_mode = WAL;');
+    this.db.exec('PRAGMA busy_timeout = 3000; PRAGMA journal_mode = WAL; PRAGMA secure_delete = ON;');
     this.statements = new Map();
   }
   prepare(sql) {

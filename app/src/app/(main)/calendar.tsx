@@ -4,9 +4,9 @@ import { Keyboard, Platform, Pressable, ScrollView, StyleSheet, Text, View } fro
 import { parseDoneLog } from '../../core/doneLog';
 import { addDays, matchesRule, ruleOf } from '../../core/repeat';
 import type { Todo } from '../../core/types';
-import { resolveLang } from '../../i18n';
 import { desktop } from '../../native/bridge';
 import { useApp } from '../../state/AppContext';
+import { useIdHandlers } from '../../ui/home/useIdHandlers';
 import { CalendarAdd } from '../../ui/CalendarAdd';
 import { BottomFade } from '../../ui/glass';
 import { useBottomInset, useWide } from '../../ui/layout';
@@ -27,7 +27,7 @@ import { Sheet } from '../../ui/primitives';
  * 모든 폴더의 할 일을 모아 보여 주고, 카드에는 원래 폴더 이름을 강조색으로 단다.
  */
 export default function Calendar() {
-  const { snap, theme, t, canWrite, prefs } = useApp();
+  const { snap, theme, t, canWrite, prefs, lang, today } = useApp();
   const { compact } = useWide();
   // 떠 있는 하단바가 덮는 아래쪽(스크롤 끝 여백, '할 일 추가'를 보이게 올릴 때 그만큼 덜 보인다고 본다)
   const navInset = useBottomInset();
@@ -35,14 +35,12 @@ export default function Calendar() {
   useEffect(() => {
     inset.current = navInset;
   }, [navInset]);
-  const lang = resolveLang(prefs.language);
   const [month, setMonth] = useState(new Date());
   const [selected, setSelected] = useState(localDate(new Date()));
   const [editing, setEditing] = useState<Editing>(null);
   const [sheet, setSheet] = useState<SheetState>(null);
   // 날짜 옆 +: 누를 때마다 입력칸을 연다
   const [addSignal, setAddSignal] = useState(0);
-  const today = localDate(new Date());
   const goToday = () => {
     setMonth(new Date());
     setSelected(today);
@@ -72,7 +70,8 @@ export default function Calendar() {
 
   // 캘린더의 반복 할 일은 날짜마다의 회차라, 이번 회차를 끝내 두었어도(목록에선 체크된 채 맨 아래) 다음 예정일 칸에는 할 일로 보인다
   const todos = useMemo(() => snap.todos.map((x) => (x.repeat_freq && x.done ? { ...x, done: false } : x)), [snap.todos]);
-  const live = todos.filter((x) => !x.deleted_at && (prefs.showDone || !x.done));
+  // 아래 달력 점(marks)이 이것에 기대어 매번 새로 만들지 않는다(예전엔 그릴 때마다 새 배열이라 6주 × 반복 할 일 계산을 늘 다시 했다)
+  const live = useMemo(() => todos.filter((x) => !x.deleted_at && (prefs.showDone || !x.done)), [todos, prefs.showDone]);
   const liveIds = useMemo(() => liveFolderIds(snap.folders), [snap.folders]);
   const folderLabel = (folderId: string | null) => {
     const id = homeFolder(folderId, liveIds);
@@ -123,6 +122,12 @@ export default function Calendar() {
   const day = splitDone([...dayTodos, ...routineLog]).flat();
   const undated = live.filter((x) => !x.due_date && !x.done);
 
+  // 카드마다 같은 함수(카드는 memo라 함수가 바뀌면 다시 그려진다. 예전엔 그릴 때마다 새로 만들어 날짜를 바꿀 때마다 카드 전부가 다시 그려졌다)
+  const h = useIdHandlers((id) => ({
+    info: () => setSheet({ type: 'todo', id }),
+    repeat: () => setSheet({ type: 'repeat', id }),
+    date: () => setSheet({ type: 'date', id }),
+  }));
   const card = (todo: (typeof live)[number], undatedRow = false) => {
     const writable = canWrite(todo.folder_id);
     return (
@@ -132,25 +137,13 @@ export default function Calendar() {
         editing={editing}
         setEditing={setEditing}
         readOnly={!writable || (todo.due_date !== selected && !undatedRow)}
-        onLongPress={() => setSheet({ type: 'todo', id: todo.id })}
-        onInfo={() => setSheet({ type: 'todo', id: todo.id })}
+        onLongPress={h(todo.id).info}
+        onInfo={h(todo.id).info}
         folderLabel={undatedRow ? undefined : folderLabel(todo.folder_id)}
         // 고른 날짜의 할 일은 날짜를 빼고 시간만. 날짜 없는 할 일은 알림 날짜까지 보여 준다(시간만 있으면 언제인지 모른다)
         hideDue={!undatedRow}
-        onRepeatPress={writable ? () => setSheet({ type: 'repeat', id: todo.id }) : undefined}
-        accessory={
-          undatedRow && writable ? (
-            <Pressable
-              onPress={() => setSheet({ type: 'date', id: todo.id })}
-              hitSlop={10}
-              accessibilityRole="button"
-              accessibilityLabel={`${todo.text} ${t('setDateShort')}`}
-              style={{ marginLeft: 10 }}
-            >
-              <Text style={theme.kfont(13.5 * theme.zoom, { color: theme.subtle })}>{t('setDateShort')}</Text>
-            </Pressable>
-          ) : undefined
-        }
+        onRepeatPress={writable ? h(todo.id).repeat : undefined}
+        onSetDate={undatedRow && writable ? h(todo.id).date : undefined}
       />
     );
   };

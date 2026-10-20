@@ -1,0 +1,37 @@
+name: modo Windows package
+on:
+  push:
+    branches: [codex/modo-microsoft-store, codex/modo-social-login]
+    paths: [desktop/**, app/**, .github/workflows/build-windows.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            app/package-lock.json
+            desktop/package-lock.json
+      - run: npm ci --no-audit --no-fund
+        working-directory: app
+      - run: npm ci --no-audit --no-fund
+        working-directory: desktop
+      - run: node node_modules/electron/install.js
+        working-directory: desktop
+      - run: npm run typecheck; if ($LASTEXITCODE) { exit $LASTEXITCODE }; npm run lint
+        working-directory: app
+      - run: npm run test:unit
+        working-directory: desktop
+      - run: npm run dist:win
+        working-directory: desktop
+      - uses: actions/upload-artifact@v4
+        with:
+          name: modo-windows-x64
+          path: desktop/dist/*.zip
+          if-no-files-found: error

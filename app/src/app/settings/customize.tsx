@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { useApp } from '../../state/AppContext';
+import { useApp, useUi } from '../../state/AppContext';
 import { DEFAULT_PREFS, MAIN_ACCENTS, type Prefs } from '../../state/prefs';
 import { contrast, hexToRgb, rgbToHsv } from '../../ui/color';
 import { homeFolder, liveFolderIds } from '../../ui/home/model';
@@ -45,7 +45,7 @@ export function Preview() {
 
 /** 테마 색상 4개(파랑·차콜·화이트·주황). 고른 색은 흰 테두리 + 체크. 더 많은 꾸미기에서 다른 색을 골랐으면 그 색도 끝에 보여 준다 */
 function AccentDots() {
-  const { theme, prefs, setPrefs, t } = useApp();
+  const { theme, prefs, setPrefs, t } = useUi();
   const current = prefs.accent.toUpperCase();
   const list = MAIN_ACCENTS.includes(current) ? MAIN_ACCENTS : [...MAIN_ACCENTS, current];
   return (
@@ -75,7 +75,7 @@ function AccentDots() {
 
 /** 화면: 시스템 / 라이트 / 다크 */
 function ModeSegment() {
-  const { theme, prefs, setPrefs, t } = useApp();
+  const { theme, prefs, setPrefs, t } = useUi();
   const opts: { value: Prefs['themeMode']; label: string }[] = [
     { value: 'system', label: t('themeSystem') },
     { value: 'light', label: t('themeLight') },
@@ -105,7 +105,7 @@ function ModeSegment() {
 
 /** 체크 위치: 왼쪽 체크 / 오른쪽 체크 작은 그림 두 개 */
 function CheckSide() {
-  const { theme, prefs, setPrefs, t } = useApp();
+  const { theme, prefs, setPrefs, t } = useUi();
   const tile = (side: Prefs['checkSide']) => {
     const on = prefs.checkSide === side;
     const box = on ? (
@@ -142,7 +142,7 @@ function CheckSide() {
 const LOOK_KEYS = ['themeMode', 'accent', 'gradient', 'card', 'checkSide', 'font', 'weight', 'size', 'widget', 'mini', 'logoAccent'] as const;
 
 export default function Customize() {
-  const { theme, t, prefs, setPrefs, showToast } = useApp();
+  const { theme, t, prefs, setPrefs, showToast } = useUi();
   // 기본값으로 되돌리기: 꾸미기(이 화면과 '더 많은 꾸미기')의 값만 처음으로. 바로 '실행 취소'할 수 있다
   const resetLook = () => {
     const before = Object.fromEntries(LOOK_KEYS.map((k) => [k, prefs[k]])) as Partial<Prefs>;

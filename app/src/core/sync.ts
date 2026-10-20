@@ -1,6 +1,6 @@
 import { CodedError } from './errors';
 import type { Repo } from './repo';
-import type { EntityName, SharedFolder } from './types';
+import type { EntityName, FriendsData, SharedFolder } from './types';
 
 /** email은 카카오 계정이면 비어 있을 수 있다(이메일 동의를 안 했을 때). 그때는 name을 보여 준다. */
 export type Account = { id: string; email: string; name?: string; token: string; server: string };
@@ -12,10 +12,14 @@ export type AuthBrowser = (url: string, redirect: string) => Promise<string | nu
 export type Pkce = { verifier: string; challenge: string };
 
 /** 외부 로그인에서 브라우저가 돌아올 앱 주소(app.json scheme) */
+/** 실제 서비스 주소(로그인 보호에도 쓴다: 다른 주소로는 자격 증명을 보내지 않는다) */
+export const SERVICE_ORIGIN = 'https://modo.kodeploy.com';
 export const AUTH_REDIRECT = 'modo://auth';
+/** 서버가 켜 둔 로그인 수단(/api/auth/providers) */
+export type ServerApi = { kakao: boolean; google: boolean; password: boolean };
 
 /** 'a=1&b=2' 꼴 쿼리(RN의 URL 구현에 기대지 않는다) */
-function queryOf(url: string): Record<string, string> {
+export function queryOf(url: string): Record<string, string> {
   const out: Record<string, string> = {};
   const q = url.split('#')[0].split('?')[1] ?? '';
   for (const part of q.split('&')) {
@@ -56,7 +60,7 @@ type Fetch = typeof fetch;
 /** Release builds send account/content data only to the configured modo service. */
 function serviceBase(server: string) {
   const base = server.replace(/\/+$/, '');
-  if (process.env.NODE_ENV === 'production' && base !== 'https://modo.kodeploy.com') {
+  if (process.env.NODE_ENV === 'production' && base !== SERVICE_ORIGIN) {
     throw new HttpError(0, 'Please use the modo HTTPS service.', 'network');
   }
   return base;
@@ -73,23 +77,36 @@ export class HttpError extends CodedError {
   }
 }
 
-export async function api<T>(fetchFn: Fetch, server: string, path: string, init: RequestInit & { token?: string } = {}) {
-  let res: Response;
+/**
+ * 서버 요청. 시간 제한이 있다(동기화 60초, 그 밖 30초): 예전엔 제한이 없어 연결이 소리 없이 끊기면(네트워크 바뀜 등)
+ * 요청이 영영 끝나지 않아 동기화 상태가 '동기화 중'에 멈추고 로그아웃·계정 삭제도 돌아오지 않았다.
+ */
+export async function api<T>(fetchFn: Fetch, server: string, path: string, init: RequestInit & { token?: string; timeoutMs?: number } = {}) {
+  const { token, timeoutMs, ...rest } = init;
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(), timeoutMs ?? (path.startsWith('/api/sync/') ? 60_000 : 30_000));
   try {
-    res = await fetchFn(serviceBase(server) + path, {
-      ...init,
-      headers: {
-        ...(init.body ? { 'Content-Type': 'application/json' } : {}),
-        ...(init.token ? { Authorization: `Bearer ${init.token}` } : {}),
-      },
-    });
-  } catch {
-    throw new HttpError(0, '서버에 연결할 수 없어요', 'network');
+    let res: Response;
+    try {
+      res = await fetchFn(serviceBase(server) + path, {
+        ...rest,
+        signal: ac.signal,
+        headers: {
+          ...(rest.body ? { 'Content-Type': 'application/json' } : {}),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+    } catch {
+      throw new HttpError(0, '서버에 연결할 수 없어요', 'network');
+    }
+    if (res.status === 204) return undefined as T;
+    const data = await res.json().catch(() => null);
+    if (ac.signal.aborted) throw new HttpError(0, '서버에 연결할 수 없어요', 'network');
+    if (!res.ok) throw new HttpError(res.status, data?.error ?? `요청 실패 (${res.status})`, data?.code);
+    return data as T;
+  } finally {
+    clearTimeout(t);
   }
-  if (res.status === 204) return undefined as T;
-  const data = await res.json().catch(() => null);
-  if (!res.ok) throw new HttpError(res.status, data?.error ?? `요청 실패 (${res.status})`, data?.code);
-  return data as T;
 }
 
 /**
@@ -142,14 +159,14 @@ export class SyncEngine {
 
   /** 서버가 켜 둔 로그인 수단 */
   async providers(server: string) {
-    return api<{ password: boolean; kakao: boolean }>(this.fetchFn, server, '/api/auth/providers');
+    return api<{ password: boolean; kakao: boolean; google?: boolean }>(this.fetchFn, server, '/api/auth/providers');
   }
 
   /**
    * 카카오 로그인: 서버가 카카오와 인가 코드를 주고받고, 앱에는 일회용 코드를 돌려준다.
    * 그 코드는 이 기기만 아는 PKCE verifier가 있어야 세션으로 바뀐다(다른 앱이 modo:// 주소를 가로채도 못 쓴다).
    */
-  async loginExternal(server: string, provider: 'kakao', browser: AuthBrowser, pkce: Pkce, state: string) {
+  async loginExternal(server: string, provider: 'kakao' | 'google', browser: AuthBrowser, pkce: Pkce, state: string) {
     const base = serviceBase(server);
     const url = `${base}/api/auth/${provider}/start?${encodeQuery({ redirect_uri: AUTH_REDIRECT, state, code_challenge: pkce.challenge })}`;
     const back = await browser(url, AUTH_REDIRECT);
@@ -158,7 +175,7 @@ export class SyncEngine {
     if (q.state !== state) throw new HttpError(400, '로그인 응답이 맞지 않아요. 다시 시도해 주세요', 'auth_mismatch');
     if (q.error === 'cancelled') throw new AuthCancelled();
     if (q.error === 'server') throw new HttpError(500, '서버 오류', 'server');
-    if (q.error || !q.code) throw new HttpError(502, '카카오 로그인에 실패했어요. 잠시 후 다시 시도해 주세요', 'kakao_failed');
+    if (q.error || !q.code) throw new HttpError(502, '로그인에 실패했어요. 잠시 후 다시 시도해 주세요', `${provider}_failed`);
     const r = await api<AuthResponse>(this.fetchFn, server, '/api/auth/exchange', {
       method: 'POST',
       body: JSON.stringify({ code: q.code, code_verifier: pkce.verifier, device: this.device }),
@@ -231,9 +248,15 @@ export class SyncEngine {
    * PC는 창이 모두 숨으면 간격을 늘린다(desktop/main.cjs). immediate=false면 지금 한 번 돌리지 않고 간격만 바꾼다.
    */
   start(every = 30_000, immediate = true) {
-    this.stop();
+    // 간격만 바꿀 때는 기다리던 '로컬 변경 뒤 1.5초' 타이머를 살려 둔다(PC에서 창을 숨기거나 닫을 때마다 start가 불려
+    // 방금 고친 것이 다음 주기(숨긴 창은 5분)까지 올라가지 않았다). 바로 한 번 돌릴 때는 어차피 보내니 지운다
+    if (this.interval) clearInterval(this.interval);
     this.interval = setInterval(() => this.syncNow(), every);
-    if (immediate) this.syncNow();
+    if (immediate) {
+      if (this.timer) clearTimeout(this.timer);
+      this.timer = null;
+      this.syncNow();
+    }
   }
   stop() {
     if (this.interval) clearInterval(this.interval);
@@ -318,7 +341,18 @@ export class SyncEngine {
       if (rejected.length) {
         // 서버가 거절한 변경은 다음 pull에서 서버 상태로 되돌아간다. 몇 건인지 사용자에게 보여준다.
         this.setStatus({ rejected: this.status.rejected + rejected.length });
-        await this.repo.write(() => this.repo.setKv('sync_cursor', 0));
+        // 권한이 바뀌어(예: 함께 편집 → 보기만) 막힌 글은 버리기 전에 남겨 둔다: 화면이 알리고 내 기본 폴더에 보관할 수 있게
+        const byId = new Map(ops.map((o) => [o.op_id, o]));
+        const lost = rejected
+          .filter((x) => x.status === 'forbidden')
+          .map((x) => byId.get(x.op_id))
+          .filter((o): o is NonNullable<typeof o> => !!o && (o.entity === 'todo' || o.entity === 'paragraph') && typeof o.fields.text?.new === 'string')
+          .map((o) => ({ entity: o.entity as 'todo' | 'paragraph', text: o.fields.text!.new as string }))
+          .filter((x) => x.text.trim());
+        await this.repo.write(async () => {
+          await this.repo.setKv('sync_cursor', 0);
+          if (lost.length) await this.repo.setKv('rejected_texts', [...(await this.repo.getKv<{ entity: string; text: string }[]>('rejected_texts', [])), ...lost].slice(-50));
+        });
       }
       await this.repo.ackOutbox(r.results.map((x) => x.op_id));
       // 서버에서 이미 영구 삭제된 항목(백업에서 되살렸거나 오래 꺼져 있던 기기): 여기서도 지운다
@@ -331,6 +365,9 @@ export class SyncEngine {
   private async pullAll(acc: Account) {
     // 지난번 남의 항목 목록 요약: 서버의 것과 같으면 서버가 목록을 빼고 보낸다(빈 동기화마다 공유 폴더 항목 id를 다 받지 않게)
     const fd = await this.repo.getKv<string>('foreign_digest', '');
+    // 친구·요청 목록 요약: 같으면 서버가 목록을 빼고 보낸다(친구 상태도 이 동기화로 받아 창마다 따로 묻지 않는다)
+    const friendsCache = await this.repo.getKv<{ account: string; digest: string } | null>('friends', null);
+    const ffd = friendsCache?.account === acc.id ? friendsCache.digest : '';
     for (;;) {
       const since = await this.repo.getKv<number>('sync_cursor', 0);
       const p = await api<{
@@ -344,7 +381,14 @@ export class SyncEngine {
         foreign_ids?: string[];
         foreign_digest?: string;
         foreign_same?: boolean;
-      }>(this.fetchFn, acc.server, `/api/sync/pull?since=${since}&limit=1000${fd ? `&fd=${encodeURIComponent(fd)}` : ''}`, { token: acc.token });
+        friends?: FriendsData;
+        friends_digest?: string;
+      }>(
+        this.fetchFn,
+        acc.server,
+        `/api/sync/pull?since=${since}&limit=1000${fd ? `&fd=${encodeURIComponent(fd)}` : ''}${ffd ? `&ffd=${encodeURIComponent(ffd)}` : ''}`,
+        { token: acc.token },
+      );
       if (p.folders.length || p.todos.length || p.paragraphs.length || p.deleted?.length) {
         await this.repo.applyRemote(p, this.editing, this.deferred);
       }
@@ -355,6 +399,11 @@ export class SyncEngine {
         const clean = await this.repo.sweepForeign(p.foreign_same ? null : (p.foreign_ids ?? []), p.shared);
         const digest = clean && p.foreign_digest ? p.foreign_digest : '';
         if (digest !== fd) await this.repo.write(() => this.repo.setKv('foreign_digest', digest), 'remote');
+        // 친구 상태가 바뀌었을 때만 온다(계정별로 남겨 인터넷이 없을 때도 마지막 목록을 보인다)
+        if (p.friends && p.friends_digest) {
+          const data = p.friends;
+          await this.repo.write(() => this.repo.setKv('friends', { account: acc.id, digest: p.friends_digest, data }), 'remote');
+        }
         return;
       }
     }

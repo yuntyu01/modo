@@ -5,7 +5,8 @@ import { useEffect, useRef, useState } from 'react';
 import { AppState, Keyboard, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useApp } from '../../state/AppContext';
+import { useApp, useSyncStatus } from '../../state/AppContext';
+import { FriendsProvider } from '../../state/friends';
 import { desktop } from '../../native/bridge';
 import { BottomNav, NAV_HEIGHT } from '../../ui/BottomNav';
 import { BlurTargetContext } from '../../ui/glass';
@@ -18,7 +19,7 @@ import { ToastHost } from '../../ui/primitives';
 
 /** 목록·캘린더·더보기 공통 틀: 상단 테마색 그라데이션, 하단 내비게이션. */
 export default function MainLayout() {
-  const { theme, serverApi, account, loginDeferred, deferLogin, prefs, setPrefs } = useApp();
+  const { theme, account, prefs, setPrefs } = useApp();
   const insets = useSafeAreaInsets();
   const { compact } = useWide();
   // 유리 하단바·입력창이 흐리게 비출 대상(Android는 대상을 감싸 알려 줘야 한다)
@@ -50,21 +51,20 @@ export default function MainLayout() {
   // PC 큰 창(시안): 하단바는 창 아래에 붙은 줄이라 자리를 차지한다(덮는 높이 0).
   const web = Platform.OS === 'web';
   const navInset = keyboard || web ? 0 : NAV_HEIGHT + bottomGap;
-  // 첫 실행 화면(휴대폰, 처음 설치): 테마색 + 첫 할 일. '이미 계정이 있어요'를 누르면 로그인 화면으로(거기서 '나중에'면 다시 여기로)
-  const canLogin = !!serverApi && (serverApi.kakao || serverApi.password);
-  const [welcomeLogin, setWelcomeLogin] = useState(false);
-  const welcome = !web && !prefs.onboarded && !account && (!welcomeLogin || loginDeferred);
-  // 로그인해서 들어온 사람(다시 설치 등)은 첫 실행 화면을 건너뛴다
-  useEffect(() => {
-    if (account && !prefs.onboarded) setPrefs({ onboarded: true });
-  }, [account, prefs.onboarded, setPrefs]);
-  // 서버가 닿고 아직 로그인하지 않았으면 처음에 로그인 화면(이번 실행에서 '나중에'를 누르면 넘어간다). 첫 실행 화면이 먼저
-  const gate = canLogin && !account && !loginDeferred && !welcome;
+  // 로그인하지 않았으면 무조건 로그인 화면부터('나중에'는 없앴다, 사용자 요청 2026-10-19). 인터넷이 없으면 거기서 연결을 기다린다.
+  // 로그인이 만료돼도(서버가 401) 로그인 화면으로: 이 기기의 기록은 그대로 두고, 다시 로그인하면 쌓인 변경을 올린다
+  const status = useSyncStatus();
+  const expired = !!account && status.state === 'expired';
+  const gate = !account || expired;
+  // 첫 실행 화면(휴대폰): 로그인한 뒤 새 계정이면 테마색 + 첫 할 일. 기록이 있는 계정은 로그인 화면이 건너뛰게 해 둔다(LoginGate)
+  const welcome = !web && !gate && !prefs.onboarded;
   // PC 창 버튼(– □ ×) 색을 테마에 맞춘다(라이트에서 밝은 회색이면 안 보인다)
   useEffect(() => {
     desktop?.setTitleBarDark?.(theme.dark);
   }, [theme.dark]);
   return (
+    // 친구 목록(함께 탭·하단바의 받은 요청 점)은 로그인한 화면에서만 받는다
+    <FriendsProvider>
     <View style={[styles.root, { backgroundColor: theme.bg }]}>
       <LinearGradient
         pointerEvents="none"
@@ -75,8 +75,8 @@ export default function MainLayout() {
       />
       {/* PC 큰 창: 제목줄이 없어서 위쪽 띠를 잡고 창을 옮긴다(오른쪽 창 버튼 자리는 비움) */}
       {Platform.OS === 'web' ? <View style={[styles.drag, { WebkitAppRegion: 'drag' } as object]} /> : null}
-      {/* 서버가 닿고 아직 로그인하지 않았으면 처음에 카카오 로그인(로그인하면 늘 동기화) */}
-      {gate ? <LoginGate /> : null}
+      {/* 로그인하지 않았으면 로그인 화면만(로그인하면 늘 동기화) */}
+      {gate ? <LoginGate expired={expired} /> : null}
       {gate ? null : (
       <KeyboardAvoidingView key={kavKey} style={[{ flex: 1 }, contentColumn]} behavior={Platform.OS === 'web' ? undefined : 'padding'}>
         <BlurTargetView ref={blurTarget} style={{ flex: 1, paddingBottom: keyboard ? 8 : 0 }}>
@@ -109,17 +109,13 @@ export default function MainLayout() {
       <ToastHost bottom={navSpace + 80} />
       {welcome ? (
         <Welcome
-          onStart={(todoId, from) => {
-            // 이번 실행은 로그인 화면 없이 홈 안내로(다음 실행부터 로그인 화면)
-            deferLogin();
-            coachStore.set({ todoId, from });
-          }}
+          onStart={(todoId, from) => coachStore.set({ todoId, from })}
           onHidden={() => setPrefs({ onboarded: true })}
-          onLogin={canLogin ? () => setWelcomeLogin(true) : undefined}
         />
       ) : null}
       <CoachOverlay />
     </View>
+    </FriendsProvider>
   );
 }
 

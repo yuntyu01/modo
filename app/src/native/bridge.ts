@@ -6,8 +6,10 @@ import { PermissionsAndroid, Platform } from 'react-native';
  * 모듈이 없는 환경(Expo Go, 웹)에서는 아무 일도 하지 않는다.
  */
 type NativeModule = {
+  loginWithKakaoTalk?(): Promise<string | null>;
   /** 위젯·잠금화면 알림·리마인더를 DB 기준으로 다시 그린다/예약한다 */
-  refresh(): Promise<void>;
+  /** 위젯·잠금화면 알림·리마인더를 DB 기준으로 다시 맞춘다. tables = 바뀐 표(없으면 전부). 문단만 바뀌었으면 알림 예약은 건너뛴다 */
+  refresh(tables?: string[]): Promise<void>;
   requestPinWidget(): Promise<boolean>;
   requestAddTile(): Promise<'added' | 'already' | 'dismissed' | 'unsupported'>;
   /** 잠금화면 위젯을 이 기기·런처가 지원하는지 */
@@ -21,14 +23,15 @@ type NativeModule = {
   canScheduleExactAlarms(): Promise<boolean>;
   openExactAlarmSettings(): Promise<void>;
   /** 빠른 추가·위젯·알림이 DB를 바꿨을 때 */
-  addListener(event: 'onDataChanged', fn: () => void): { remove(): void };
+  addListener(event: 'onDataChanged', fn: (e?: { tables?: string[] }) => void): { remove(): void };
 };
 
 const mod = Platform.OS === 'web' ? null : requireOptionalNativeModule<NativeModule>('ModoNative');
 
 export const native = {
   available: !!mod,
-  refresh: () => mod?.refresh().catch(() => {}),
+  loginWithKakaoTalk: () => mod?.loginWithKakaoTalk?.() ?? Promise.resolve(null),
+  refresh: (tables?: string[]) => mod?.refresh(tables).catch(() => {}),
   requestPinWidget: async () => (mod ? mod.requestPinWidget() : false),
   requestAddTile: async () => (mod ? mod.requestAddTile() : 'unsupported'),
   lockScreenWidgetSupport: async () =>
@@ -45,17 +48,16 @@ export const native = {
   },
   canScheduleExactAlarms: async () => (mod ? mod.canScheduleExactAlarms() : false),
   openExactAlarmSettings: async () => mod?.openExactAlarmSettings(),
-  onDataChanged: (fn: () => void) => {
-    const sub = mod?.addListener?.('onDataChanged', fn);
+  /** tables = 네이티브가 바꾼 표(없으면 전부 다시 읽는다) */
+  onDataChanged: (fn: (tables?: string[]) => void) => {
+    const sub = mod?.addListener?.('onDataChanged', (e) => fn(e?.tables));
     return () => sub?.remove();
   },
 };
 
 /** Electron 미니창 제어(desktop/preload.cjs). */
 export type DesktopApi = {
-  minimize(): Promise<void>;
   toggleMini(): Promise<void>;
-  isMini(): Promise<boolean>;
   platform: string;
   setPinned(on: boolean): Promise<void>;
   isPinned(): Promise<boolean>;
@@ -63,9 +65,6 @@ export type DesktopApi = {
   setContentHeight(h: number): Promise<void>;
   /** 미니창에서 시트를 여는 동안 창을 h까지 키운다(0 = 닫음, 내용 높이로). 예전 데스크톱 앱에는 없다 */
   setSheetHeight?(h: number): Promise<void>;
-  setOpacity(o: number): Promise<void>;
-  getLoginItem(): Promise<boolean>;
-  setLoginItem(on: boolean): Promise<void>;
   /** 큰 창 열기. route를 주면 그 화면으로(예: '/settings/trash') */
   openSettings(route?: string): Promise<void>;
   /** 큰 창의 창 버튼(– □ ×) 색을 테마에 맞춘다 */

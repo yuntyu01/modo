@@ -4,6 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"github.com/coreos/go-oidc/v3/oidc"
 	"log"
 	"net/http"
 
@@ -14,15 +15,21 @@ import (
 var schema string
 
 type Server struct {
-	db      *pgxpool.Pool
-	limiter *limiter
-	cfg     Config
-	popular popularCache
+	db             *pgxpool.Pool
+	limiter        *limiter
+	cfg            Config
+	popular        popularCache
+	googleVerifier *oidc.IDTokenVerifier
 }
 
 func New(db *pgxpool.Pool, cfg Config) *Server {
 	cfg.defaults()
-	return &Server{db: db, limiter: newLimiter(cfg.RateLimit), cfg: cfg}
+	s := &Server{db: db, limiter: newLimiter(cfg.RateLimit), cfg: cfg}
+	if s.googleEnabled() {
+		ctx := oidc.ClientContext(context.Background(), cfg.HTTP)
+		s.googleVerifier = oidc.NewVerifier("https://accounts.google.com", oidc.NewRemoteKeySet(ctx, cfg.GoogleJWKSURL), &oidc.Config{ClientID: cfg.GoogleClientID, SupportedSigningAlgs: []string{oidc.RS256}})
+	}
+	return s
 }
 
 func (s *Server) Migrate(ctx context.Context) error {
@@ -35,11 +42,15 @@ func (s *Server) Cleanup(ctx context.Context) error {
 	if err := s.ApplyErasures(ctx); err != nil {
 		return err
 	}
+	if err := s.retryKakaoUnlinks(ctx); err != nil {
+		return err
+	}
 	for _, q := range []string{
 		`DELETE FROM applied_ops WHERE created_at < now() - interval '30 days'`,
 		`DELETE FROM sessions WHERE last_used_at < now() - interval '180 days'`,
 		`DELETE FROM oauth_states WHERE expires_at < now()`,
 		`DELETE FROM login_codes WHERE expires_at < now()`,
+		`DELETE FROM friend_requests WHERE status <> 'pending' AND responded_at < now() - interval '30 days'`,
 	} {
 		if _, err := s.db.Exec(ctx, q); err != nil {
 			return err
@@ -54,7 +65,12 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/auth/logout", s.auth(s.logout))
 	mux.HandleFunc("GET /api/auth/providers", s.providers)
 	mux.HandleFunc("GET /api/auth/kakao/start", s.kakaoStart)
+	mux.HandleFunc("POST /api/auth/kakao/native", s.kakaoNative)
 	mux.HandleFunc("GET /api/auth/kakao/callback", s.kakaoCallback)
+	mux.HandleFunc("GET /api/auth/kakao/unlink", s.kakaoUnlinkWebhook)
+	mux.HandleFunc("POST /api/auth/kakao/unlink", s.kakaoUnlinkWebhook)
+	mux.HandleFunc("GET /api/auth/google/start", s.googleStart)
+	mux.HandleFunc("GET /api/auth/google/callback", s.googleCallback)
 	mux.HandleFunc("POST /api/auth/exchange", s.exchange)
 	mux.HandleFunc("GET /api/me", s.auth(s.me))
 	mux.HandleFunc("DELETE /api/me", s.auth(s.deleteAccount))
@@ -72,6 +88,17 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/folders/{id}/links", s.auth(s.createLink))
 	mux.HandleFunc("DELETE /api/folders/{id}/links/{token}", s.auth(s.deleteLink))
 	mux.HandleFunc("GET /s/{token}", s.publicLink)
+
+	mux.HandleFunc("POST /api/folders/{id}/leave", s.auth(s.leaveFolder))
+	mux.HandleFunc("PUT /api/folders/{id}/home", s.auth(s.setFolderHome))
+
+	mux.HandleFunc("GET /api/friends", s.auth(s.listFriends))
+	mux.HandleFunc("GET /api/friends/search", s.auth(s.searchFriend))
+	mux.HandleFunc("POST /api/friends/requests", s.auth(s.requestFriend))
+	mux.HandleFunc("POST /api/friends/requests/{id}/accept", s.auth(s.acceptFriend))
+	mux.HandleFunc("POST /api/friends/requests/{id}/decline", s.auth(s.declineFriend))
+	mux.HandleFunc("DELETE /api/friends/requests/{id}", s.auth(s.cancelFriendRequest))
+	mux.HandleFunc("DELETE /api/friends/{user}", s.auth(s.removeFriend))
 }
 
 func decode(w http.ResponseWriter, r *http.Request, v any) bool {

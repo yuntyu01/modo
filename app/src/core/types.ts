@@ -45,7 +45,18 @@ export type EntityName = 'folder' | 'todo' | 'paragraph';
 export type Person = { id: string; email: string; name: string };
 
 /** 내가 공유받은 폴더(남의 폴더). 이 폴더와 그 안의 항목은 주인의 것이다. */
-export type SharedFolder = { folder_id: string; role: 'view' | 'edit'; owner: Person };
+/** home: 내 홈(목록 탭)에도 보일지(참여자 각자의 설정, 예전 서버는 보내지 않아 늘 보인다) */
+export type SharedFolder = { folder_id: string; role: 'view' | 'edit'; owner: Person; home?: boolean };
+
+/**
+ * 친구와 함께 쓰는 폴더(서버가 pull로 알려 준다). role = 내 권한, friend_role = 친구의 권한(owner | edit | view).
+ * 셋째 사람의 폴더에 둘 다 참여 중이면 둘 다 참여자 권한. home = 내 홈에 보이는지
+ */
+export type FriendFolder = { folder_id: string; role: 'owner' | 'edit' | 'view'; friend_role: 'owner' | 'edit' | 'view'; mine: boolean; home: boolean };
+export type Friend = Person & { since: string; folders: FriendFolder[] };
+export type FriendRequest = { id: string; user: Person; created_at: string };
+/** 친구·대기 중인 받은/보낸 요청. 서버가 관리하고 동기화(pull)로 받아 kv 'friends'에 둔다 */
+export type FriendsData = { friends: Friend[]; incoming: FriendRequest[]; outgoing: FriendRequest[] };
 
 export type Snapshot = {
   folders: Folder[];

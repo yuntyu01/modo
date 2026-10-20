@@ -56,6 +56,7 @@ async function fakeFetch(url, init) {
 }
 
 const sent = [];
+let deletedCleanup = 0;
 const host = createSyncHost({
   db,
   fetch: fakeFetch,
@@ -63,6 +64,7 @@ const host = createSyncHost({
   broadcast: (channel, payload) => sent.push({ channel, payload }),
   hasVisibleWindow: () => true,
   openAuth: async () => null,
+  afterAccountDeleted: async () => { deletedCleanup++; },
 });
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const until = async (fn, ms = 3000) => {
@@ -83,13 +85,13 @@ const until = async (fn, ms = 3000) => {
   host.begin(0);
   await until(() => sent.some((s) => s.channel === 'server:state'));
   const st = sent.find((s) => s.channel === 'server:state').payload;
-  assert.deepStrictEqual(st.api, { kakao: true, password: true });
-  assert.strictEqual(st.gate, true, '켤 때 서버가 바로 답하면 처음 로그인 화면을 띄울 수 있다');
+  assert.deepStrictEqual(st.api, { kakao: true, google: false, password: true });
 
-  // '나중에': 다른 창에도 다시 띄우지 않게 알린다
+  // 로그인 화면의 다시 시도: 바로 다시 묻고 모든 창에 알린다
   sent.length = 0;
-  await host.call(null, 'deferLogin', []);
-  assert.strictEqual(sent.find((s) => s.channel === 'server:state').payload.gate, false);
+  const pr = await host.call(null, 'probe', []);
+  assert.deepStrictEqual(pr.value.api, { kakao: true, google: false, password: true });
+  assert.ok(sent.some((s) => s.channel === 'server:state'));
 
   // 로그인 → 모든 창에 알리고 첫 동기화(다른 기기의 할 일을 받아 창들에 '바뀐 표' 알림)
   sent.length = 0;
@@ -121,6 +123,16 @@ const until = async (fn, ms = 3000) => {
   await host.call(null, 'syncNow', []);
   assert.ok(!sent.some((s) => s.channel === 'data-changed'), `빈 동기화 알림: ${JSON.stringify(sent)}`);
 
+  server.up = false;
+  assert.strictEqual((await host.call(null, 'deleteAccount', [])).ok, false);
+  assert.ok(await win.getKv('account', null), 'failed deletion preserves account');
+  assert.strictEqual(deletedCleanup, 0);
+  server.up = true;
+  assert.strictEqual((await host.call(null, 'deleteAccount', [])).ok, true);
+  assert.strictEqual(deletedCleanup, 1, 'cleanup only after accepted server deletion');
+  assert.strictEqual(await win.getKv('account', null), null);
+  assert.strictEqual((await win.snapshot()).todos.length, 0, 'all windows see erased local records');
+  assert.strictEqual((await db.all('SELECT COUNT(*) AS n FROM outbox'))[0].n, 0);
   host.stop();
 
   // 스키마 버전이 오르는 첫 실행: 고치기 전에 백업을 부른다(같은 버전이면 부르지 않는다)

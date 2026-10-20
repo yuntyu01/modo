@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform, type LayoutChangeEvent, type ViewStyle } from 'react-native';
 
 type Drag = { id: string; from: number; to: number; dy: number; h: number };
@@ -8,7 +8,7 @@ type Drag = { id: string; from: number; to: number; dy: number; h: number };
  * - 끄는 동안 들린 카드는 커서를 따라오고, 다른 카드는 비켜나며 부드럽게 움직인다.
  * - 놓으면 onDrop(새 순서). 저장이 반영될 때까지는 새 순서로 보여 줘서 제자리로 튀었다 돌아오지 않는다.
  * - 움직이지 않고 놓았거나(그냥 꾹 누르기) 오른쪽 클릭이면 onInfo(항목 정보).
- * 카드의 길게 누르기(EditableText의 0.5초 누르기·오른쪽 클릭)가 start를 부른다.
+ * 카드의 길게 누르기(EditableText의 0.5초 누르기·오른쪽 클릭)가 start를 부른다. start는 늘 같은 함수다(카드에 넘겨도 카드가 다시 그려지지 않게).
  */
 export function useWebReorder(ids: string[], onDrop: (id: string, order: string[]) => void, onInfo: (id: string) => void) {
   const rows = useRef(new Map<string, { y: number; h: number }>());
@@ -23,6 +23,12 @@ export function useWebReorder(ids: string[], onDrop: (id: string, order: string[
     setOrder(null);
   }
   const ordered = order && order.length === ids.length ? order : ids;
+  // 없어진 항목의 자리 정보는 버린다
+  useEffect(() => {
+    const live = new Set(ids);
+    for (const k of rows.current.keys()) if (!live.has(k)) rows.current.delete(k);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
 
   useEffect(() => {
     if (Platform.OS !== 'web') return;
@@ -39,7 +45,14 @@ export function useWebReorder(ids: string[], onDrop: (id: string, order: string[
     };
   }, []);
 
-  const start = (id: string) => {
+  // start가 부를 때의 순서·콜백(start를 늘 같은 함수로 두려고 마지막으로 그린 값을 여기 둔다)
+  const latest = useRef({ ordered, onDrop, onInfo });
+  useEffect(() => {
+    latest.current = { ordered, onDrop, onInfo };
+  });
+
+  const start = useCallback((id: string) => {
+    const { ordered, onDrop, onInfo } = latest.current;
     const from = ordered.indexOf(id);
     const me = rows.current.get(id);
     // 오른쪽 클릭(버튼이 이미 떨어짐)이거나 끌 수 없는 항목(완료 묶음)이면 정보
@@ -74,7 +87,7 @@ export function useWebReorder(ids: string[], onDrop: (id: string, order: string[
     };
     window.addEventListener('mousemove', move, true);
     window.addEventListener('mouseup', up, true);
-  };
+  }, []);
 
   const onRowLayout = (id: string) => (e: LayoutChangeEvent) => {
     const { y, height } = e.nativeEvent.layout;

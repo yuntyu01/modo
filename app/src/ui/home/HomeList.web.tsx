@@ -12,7 +12,7 @@ export function HomeList(p: HomeListProps) {
     <FlatList
       data={p.blocks}
       keyExtractor={keyOf}
-      renderItem={({ item }) => p.renderBlock(item, { onLongPress: (info) => info(), active: false })}
+      renderItem={({ item }) => p.renderBlock(item, WEB_OPTS)}
       // 첫 화면을 채울 만큼 먼저, 나머지는 스크롤하며(PC 창 높이 700에 카드 48 + 간격 8 기준 넉넉히)
       initialNumToRender={16}
       maxToRenderPerBatch={16}
@@ -26,3 +26,5 @@ export function HomeList(p: HomeListProps) {
 }
 
 const keyOf = (b: Block) => b.key;
+// 늘 같은 함수(카드는 memo라 길게 누르기 함수가 바뀌면 다시 그려진다. 예전엔 그릴 때마다 새로 만들어 보이는 카드가 전부 다시 그려졌다)
+const WEB_OPTS = { onLongPress: (info: () => void) => info(), active: false };

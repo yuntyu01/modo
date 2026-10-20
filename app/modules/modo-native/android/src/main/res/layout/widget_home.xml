@@ -23,9 +23,9 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:paddingStart="22dp"
-    android:paddingTop="4dp"
+    android:paddingTop="2dp"
     android:paddingEnd="12dp"
-    android:paddingBottom="34dp">
+    android:paddingBottom="36dp">
 
     <!-- 머리 한 줄(36dp): 맨 왼쪽 로고(글자 없이, 누르면 앱) + 폴더 탭(앱과 같이, 누르면 그 폴더로. 지금 폴더는 굵은 글자) -->
     <LinearLayout
@@ -96,12 +96,14 @@
       android:visibility="gone" />
   </LinearLayout>
 
-  <!-- 아래 줄(32 + 아래 여백 2): 쪽 점은 위젯 가운데, +는 오른쪽. 마지막 할 일과 점이 멀어지지 않게 낮게 -->
+  <!-- 아래 줄(32 + 아래 여백 4): 쪽 점은 위젯 가운데, +는 오른쪽. 줄 가운데가 아래 끝에서 20dp로 머리(로고) 가운데가 위 끝에서
+       떨어진 만큼(2 + 36/2)과 같고, + 표시는 오른쪽·아래 끝에서 똑같이 13dp(모서리 19 안쪽). 예전엔 오른쪽 23dp·아래 9.5dp로
+       둥근 모서리에 붙어 보였고 위아래 균형이 맞지 않았다(사용자 요청 2026-10-20) -->
   <FrameLayout
     android:layout_width="match_parent"
     android:layout_height="32dp"
     android:layout_gravity="bottom"
-    android:layout_marginBottom="2dp">
+    android:layout_marginBottom="4dp">
     <LinearLayout
       android:id="@+id/widget_dots"
       android:layout_width="wrap_content"
@@ -110,14 +112,13 @@
       android:orientation="horizontal" />
     <ImageView
       android:id="@+id/widget_add"
-      android:layout_width="44dp"
+      android:layout_width="40dp"
       android:layout_height="32dp"
       android:layout_gravity="end|center_vertical"
-      android:layout_marginEnd="8dp"
       android:contentDescription="@string/add"
-      android:paddingStart="11dp"
+      android:paddingStart="9dp"
       android:paddingTop="5dp"
-      android:paddingEnd="11dp"
+      android:paddingEnd="9dp"
       android:paddingBottom="5dp"
       android:src="@drawable/naegirok_add" />
   </FrameLayout>

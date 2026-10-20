@@ -15,9 +15,6 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.ImageButton
 import com.yuntyu01.naegirok.nativelib.R
-import com.yuntyu01.naegirok.notify.LockNotifier
-import com.yuntyu01.naegirok.notify.Reminders
-import com.yuntyu01.naegirok.widget.NotesWidgetProvider
 
 /**
  * 위젯에서 글자를 누르면 뜨는 고치기 창(빠른 추가와 같은 모양: 키보드 위 입력줄 하나).
@@ -31,8 +28,10 @@ class WidgetEditActivity : Activity() {
   private lateinit var input: EditText
   private var todoId: String? = null
   private var memoFolder: String? = null
+  /** 마지막으로 저장한(처음엔 연) 글. 이것과 다를 때만 저장한다 */
   private var original = ""
-  private var saved = false
+  /** 연 글이 입력칸에 그대로 들어갔는지. 아니면(잘렸으면) 저장하지 않는다: 메모는 글 전체로 문단을 맞춰, 잘린 뒤쪽 문단이 휴지통으로 갔다 */
+  private var intact = false
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
@@ -42,11 +41,20 @@ class WidgetEditActivity : Activity() {
     val memo = intent.getStringExtra(EXTRA_MEMO_FOLDER)
     memoFolder = memo?.takeIf { it != BASE }
 
+    var signedIn = false
     val loaded = NotesDb.use(this) { db ->
+      signedIn = NotesDb.signedIn(db)
       val theme = SurfaceTheme.from(this, NotesDb.prefs(db), "widget")
       val text = if (todoId != null) NotesDb.todoText(db, todoId!!) else NotesDb.memo(db, memoFolder).joinToString("\n")
       val name = NotesDb.folderName(db, memoFolder) ?: getString(R.string.base_folder)
       Triple(theme, text, name)
+    }
+    // 로그인하지 않았으면 고치지 않고 앱의 로그인 화면으로(로그아웃한 뒤 남은 위젯을 눌렀을 때)
+    if (!signedIn) {
+      android.widget.Toast.makeText(this, R.string.login_first, android.widget.Toast.LENGTH_SHORT).show()
+      ModoEvents.openApp(this)
+      finish()
+      return
     }
     if (loaded == null || loaded.second == null) {
       finish()
@@ -87,7 +95,10 @@ class WidgetEditActivity : Activity() {
       input.maxLines = 10
       input.hint = getString(R.string.edit_memo) + " · " + folderName
     }
+    // 빠른 추가 칸의 5000자 제한은 새로 쓰는 글에만: 이미 있는 긴 메모·할 일을 열면 잘리지 않게(앱의 고치기에도 제한이 없다)
+    input.filters = emptyArray()
     input.setText(original)
+    intact = input.text.toString() == original
     input.setSelection(input.length())
 
     send.setOnClickListener { saveAndClose() }
@@ -118,22 +129,21 @@ class WidgetEditActivity : Activity() {
   }
 
   private fun save() {
-    if (saved || !::input.isInitialized) return
+    if (!intact || !::input.isInitialized) return
     input.clearComposingText()
     val text = input.text.toString().let { if (todoId != null) it.replace('\n', ' ').trim() else it.trimEnd() }
     // 할 일을 다 지우면 지우지 않고 그대로 둔다(삭제는 앱에서 실행 취소와 함께)
     if (text == original || (todoId != null && text.isBlank())) return
-    saved = true
+    // 홈 버튼으로 나갔다 돌아와 더 고치면 그것도 저장한다(예전엔 한 번 저장하면 그 창에선 다시 저장하지 않았다)
+    original = text
     val id = todoId
     val folder = memoFolder
     val app = applicationContext
-    Thread {
-      NotesDb.write(app) { db -> if (id != null) NotesDb.setTodoText(db, id, text) else NotesDb.saveMemo(db, folder, text) }
-      NotesWidgetProvider.refreshAll(app)
-      LockNotifier.refresh(app)
-      Reminders.scheduleAll(app)
-      ModoEvents.dataChanged(app)
-    }.start()
+    // 저장은 차례로(Work): 두 번 저장해도 늦게 고친 글이 마지막에 들어간다
+    Work.run {
+      NotesDb.write(app) { db -> if (id != null) NotesDb.setTodoText(db, id, text) else NotesDb.saveMemo(db, folder, text) } ?: return@run
+      ModoEvents.afterWrite(app, if (id != null) "todos" else "paragraphs")
+    }
   }
 
   private fun saveAndClose() {

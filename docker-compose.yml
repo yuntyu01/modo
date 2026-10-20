@@ -21,10 +21,16 @@ services:
     build: ./server
     environment:
       DATABASE_URL: postgres://modo:modo@db:5432/modo?sslmode=disable
-      # 카카오 로그인(선택). 카카오 개발자 콘솔의 REST API 키·Client Secret과 이 서버의 외부 주소.
+      # 소셜 로그인(선택). 공급자 키는 서버에만 전달한다.
       KAKAO_REST_API_KEY: ${KAKAO_REST_API_KEY:-}
       KAKAO_CLIENT_SECRET: ${KAKAO_CLIENT_SECRET:-}
+      KAKAO_ADMIN_KEY: ${KAKAO_ADMIN_KEY:-}
+      KAKAO_APP_ID: ${KAKAO_APP_ID:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       PUBLIC_URL: ${PUBLIC_URL:-http://127.0.0.1:8080}
+      # 로컬·E2E 테스트 서버만 이메일 가입·로그인을 켠다(테스트가 계정을 만들 때). 앱에는 이메일 로그인이 없다
+      PASSWORD_LOGIN: "1"
     ports:
       - "8080:8080"
     depends_on:

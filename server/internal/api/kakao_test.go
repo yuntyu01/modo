@@ -82,7 +82,7 @@ func kakaoRound(t *testing.T, srv *httptest.Server, kakaoCode, challenge string)
 
 func TestKakaoLogin(t *testing.T) {
 	kakao := newFakeKakao(t)
-	testConfig = Config{KakaoKey: "test-key", KakaoAuthURL: kakao.URL, KakaoAPIURL: kakao.URL, PublicURL: "http://modo.test"}
+	testConfig = Config{KakaoKey: "test-key", KakaoAdmin: "test-admin", KakaoAppID: "test-app", KakaoAuthURL: kakao.URL, KakaoAPIURL: kakao.URL, PublicURL: "http://modo.test"}
 	defer func() { testConfig = Config{} }()
 	srv := newTestServer(t)
 	existing := signup(t, srv, "same@example.com")

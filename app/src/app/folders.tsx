@@ -7,6 +7,7 @@ import { EditIcon, PeopleIcon, PlusIcon, ShareIcon, TrashIcon } from '../ui/Icon
 import { ItemSheets, type SheetState } from '../ui/ItemSheets';
 import { Group, Row } from '../ui/primitives';
 import { Note, SubScreen } from '../ui/SubScreen';
+import { liveFolders } from '../ui/home/model';
 
 /**
  * 폴더 관리: 폴더 추가 · 이름 바꾸기 · 삭제 · 공유(서버에 닿을 때만) 를 한곳에서.
@@ -15,7 +16,7 @@ import { Note, SubScreen } from '../ui/SubScreen';
 export default function Folders() {
   const { theme, t, snap, serverApi, account } = useApp();
   const [sheet, setSheet] = useState<SheetState>(null);
-  const folders = snap.folders.filter((f) => !f.deleted_at);
+  const folders = liveFolders(snap.folders);
   const sharedIds = new Set(snap.shared.map((s) => s.folder_id));
   const count = (id: string) => snap.todos.filter((x) => x.folder_id === id && !x.deleted_at && !x.done).length;
   const baseCount = snap.todos.filter((x) => !x.folder_id && !x.deleted_at && !x.done).length;

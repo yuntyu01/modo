@@ -11,10 +11,11 @@ import android.net.Uri
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import com.yuntyu01.naegirok.ModoEvents
 import com.yuntyu01.naegirok.NotesDb
 import com.yuntyu01.naegirok.nativelib.R
 import com.yuntyu01.naegirok.SurfaceTheme
-import com.yuntyu01.naegirok.widget.NotesWidgetProvider
+import com.yuntyu01.naegirok.Work
 
 /**
  * 할 일 알림. remind_at은 절대 시각(epoch ms)이라 시간대가 바뀌어도 같은 순간에 울린다.
@@ -42,15 +43,17 @@ object Reminders {
     val store = ctx.getSharedPreferences(STORE, Context.MODE_PRIVATE)
     val fired = store.getStringSet("fired", emptySet()) ?: emptySet()
     // 이미 울린 알림(id@시각)은 빼고, 시각이 지났어도 아직 안 울렸으면 남겨 둔다(지난 시각이면 바로 울린다).
-    val pending = (NotesDb.use(ctx) { NotesDb.pendingReminders(it, now - GRACE) } ?: emptyList())
+    // 로그인하지 않았으면(로그아웃) 걸어 둔 알림을 모두 내린다. 다시 로그인하면 앱이 새로 고쳐 다시 건다
+    val pending = (NotesDb.use(ctx) { if (NotesDb.signedIn(it)) NotesDb.pendingReminders(it, now - GRACE) else emptyList() } ?: emptyList())
       .filter { (todo, at) -> "${todo.id}@$at" !in fired }
     val am = ctx.getSystemService(AlarmManager::class.java)
     val before = store.getStringSet("ids", emptySet()) ?: emptySet()
     val nowIds = pending.map { it.first.id }.toSet()
     for (id in before - nowIds) cancel(ctx, id)
+    val exact = canExact(ctx)
     for ((todo, at) in pending) {
       val pi = intent(ctx, todo.id)
-      if (canExact(ctx)) {
+      if (exact) {
         am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
         am.cancel(intent(ctx, todo.id, idle = true))
       } else {
@@ -100,41 +103,32 @@ object Reminders {
 class ReminderReceiver : BroadcastReceiver() {
   override fun onReceive(ctx: Context, intent: Intent) {
     val id = intent.getStringExtra(Reminders.EXTRA_ID) ?: return
-    val pending = goAsync()
-    Thread {
-      try {
-        when (intent.action) {
-          Reminders.ACTION_FIRE -> show(ctx, id)
-          Reminders.ACTION_DONE -> {
-            NotesDb.write(ctx) { NotesDb.complete(it, id) }
-            com.yuntyu01.naegirok.ModoEvents.dataChanged(ctx)
-            NotificationManagerCompat.from(ctx).cancel(id.hashCode())
-            NotesWidgetProvider.refreshAll(ctx)
-            LockNotifier.refresh(ctx)
-            // 반복 할 일은 다음 회차 알림을 건다(앱이 꺼져 있으면 앱 쪽 다시 맞추기가 돌지 않는다)
-            Reminders.scheduleAll(ctx)
-          }
+    Work.run(this) {
+      when (intent.action) {
+        Reminders.ACTION_FIRE -> show(ctx, id)
+        Reminders.ACTION_DONE -> {
+          NotesDb.write(ctx) { if (NotesDb.signedIn(it)) NotesDb.complete(it, id) }
+          NotificationManagerCompat.from(ctx).cancel(id.hashCode())
+          // 위젯·잠금화면 알림, 반복이면 다음 회차 알림까지(앱이 꺼져 있으면 앱 쪽 다시 맞추기가 돌지 않는다)
+          ModoEvents.afterWrite(ctx, "todos")
         }
-      } finally {
-        pending.finish()
       }
-    }.start()
+    }
   }
 
   private fun show(base: Context, id: String) {
-    val ctx = com.yuntyu01.naegirok.AppLocale.wrap(base)
     // 울리는 순간 다시 확인: 그 사이 완료·삭제됐거나 알림 시각이 아직이면(다른 기기에서 미룸) 보내지 않는다.
     val now = System.currentTimeMillis()
-    val found = NotesDb.use(ctx) { db ->
-      NotesDb.pendingReminders(db, 0).firstOrNull { it.first.id == id } to SurfaceTheme.from(ctx, NotesDb.prefs(db))
-    } ?: return
-    val (hit, theme) = found
+    val found = NotesDb.use(base) { db -> NotesDb.reminder(db, id)?.takeIf { NotesDb.signedIn(db) } to NotesDb.prefs(db) } ?: return
+    val (hit, prefs) = found
     val (todo, at) = hit ?: return
+    val ctx = com.yuntyu01.naegirok.AppLocale.wrap(base, prefs)
+    val theme = SurfaceTheme.from(ctx, prefs)
     if (at > now + 60_000) {
       Reminders.scheduleAll(ctx)
       return
     }
-    // 두 알람이 거의 같이 울려도(지난 시각) 한 번만 띄운다. 각자 다른 스레드라 확인과 기록을 함께 잠근다.
+    // 두 알람이 거의 같이 울려도(지난 시각) 한 번만 띄운다(차례로 돌지만 확인과 기록은 함께 잠가 둔다).
     val first = synchronized(Reminders) {
       !Reminders.hasFired(ctx, id, at).also { if (!it) Reminders.markFired(ctx, id, at) }
     }
@@ -171,15 +165,6 @@ class ReminderReceiver : BroadcastReceiver() {
 /** 재부팅·시간/시간대 변경·앱 업데이트 뒤 알람과 위젯, 잠금화면 알림을 다시 맞춘다. */
 class BootReceiver : BroadcastReceiver() {
   override fun onReceive(ctx: Context, intent: Intent) {
-    val pending = goAsync()
-    Thread {
-      try {
-        Reminders.scheduleAll(ctx)
-        LockNotifier.refresh(ctx)
-        NotesWidgetProvider.refreshAll(ctx)
-      } finally {
-        pending.finish()
-      }
-    }.start()
+    Work.run(this) { ModoEvents.refresh(ctx, null) }
   }
 }

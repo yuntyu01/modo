@@ -1,11 +1,11 @@
-import { useApp } from '../../state/AppContext';
+import { useUi } from '../../state/AppContext';
 import { pickBackup, saveBackup } from '../../ui/backup';
 import { localDate } from '../../ui/format';
 import { Group, Row } from '../../ui/primitives';
 import { Note, SubScreen } from '../../ui/SubScreen';
 
 export default function Backup() {
-  const { t, repo, showToast } = useApp();
+  const { t, repo, showToast } = useUi();
   return (
     <SubScreen title={t('backup')}>
       <Note>{t('backupNote')}</Note>

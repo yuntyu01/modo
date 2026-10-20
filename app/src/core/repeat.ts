@@ -8,11 +8,14 @@
 export type RepeatFreq = 'daily' | 'weekly' | 'monthly';
 export type RepeatRule = { freq: RepeatFreq; days: number | null };
 
+/** 매주 + 모든 요일(= 매일) */
 export const ALL_DAYS = 127;
 
 const pad = (n: number) => String(n).padStart(2, '0');
-const fmt = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-const parse = (s: string) => {
+/** 현지 날짜 'YYYY-MM-DD'(화면 ui/format.ts도 이것을 쓴다. 코어는 ui를 가져올 수 없어 여기 둔다: PC가 코어만 묶는다) */
+export const fmt = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+/** 'YYYY-MM-DD' → 그날 0시(현지) */
+export const parse = (s: string) => {
   const [y, m, d] = s.split('-').map(Number);
   return new Date(y, m - 1, d);
 };

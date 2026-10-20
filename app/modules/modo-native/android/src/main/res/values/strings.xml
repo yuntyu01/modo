@@ -1,15 +1,13 @@
 <resources>
-  <string name="app_name_widget">modo</string>
-  <string name="widget_description">메모와 할 일, 한곳에.</string>
+  <string name="app_name_widget">modo - 메모와 할 일</string>
+  <string name="widget_description">떠오른 생각과 해야 할 일을 한곳에.</string>
   <string name="base_folder">기본</string>
   <string name="add">추가</string>
   <string name="widget_empty">비어 있어요. + 로 바로 적어 보세요</string>
   <string name="mark_done">%1$s 완료하기</string>
-  <string name="mark_undone">%1$s 완료 취소</string>
   <string name="mark_done_short">완료</string>
   <!-- 앱 서랍 아이콘 이름: 앞에 modo를 붙이면 "modo 빠른 …"으로 잘린다(아이콘이 modo 것임을 보여 준다) -->
   <string name="quick_add">빠른 추가</string>
-  <string name="quick_add_to">빠른 추가 · %1$s</string>
   <string name="tile_label">modo 빠른 추가</string>
   <string name="new_todo">새로운 할 일</string>
   <string name="continue_memo">메모에 이어 쓰기</string>
@@ -19,6 +17,7 @@
   <string name="added_todo">할 일을 추가했어요</string>
   <string name="added_memo">메모에 이어 썼어요</string>
   <string name="open_app_first">앱을 한 번 연 뒤에 쓸 수 있어요</string>
+  <string name="login_first">앱에서 로그인하면 쓸 수 있어요</string>
   <string name="widget_settings">위젯 설정</string>
   <string name="folder">폴더</string>
   <string name="widget_show">표시할 내용</string>
@@ -38,11 +37,9 @@
   <string name="channel_reminders">할 일 알림</string>
   <string name="reminder_title">할 일 알림</string>
   <string name="preview_memo">회의 때 배포 일정 확인하기</string>
-  <string name="preview_todo">회의 자료 정리</string>
   <string name="prev_folder">이전 폴더</string>
   <string name="next_folder">다음 폴더</string>
   <string name="lock_hidden">잠금을 풀면 보여요</string>
-  <string name="more">더 보기</string>
   <string name="edit_todo">할 일 고치기</string>
   <string name="edit_memo">메모 고치기</string>
   <string name="save">저장</string>

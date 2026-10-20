@@ -69,7 +69,8 @@ export const SCHEMA_SHARED = `
 CREATE TABLE IF NOT EXISTS shared_folders (
   folder_id TEXT PRIMARY KEY,
   role TEXT NOT NULL CHECK (role IN ('view', 'edit')),
-  owner_id TEXT NOT NULL
+  owner_id TEXT NOT NULL,
+  home INTEGER NOT NULL DEFAULT 1
 );
 CREATE TABLE IF NOT EXISTS people (
   id TEXT PRIMARY KEY,

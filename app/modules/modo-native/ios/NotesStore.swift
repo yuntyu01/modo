@@ -26,6 +26,8 @@ public enum NotesStore {
     public var todos: [Todo]
     public var prefs: [String: Any]
     public var folderCount: Int = 0
+    /// 로그인해 있는지. 아니면 위젯은 내용 없이 안내만(누르면 앱의 로그인 화면)
+    public var signedIn: Bool = true
     /// 위젯 점(•••)용: 지금 폴더의 자리(0 = 기본)
     public var pageIndex: Int = 0
   }
@@ -123,12 +125,15 @@ public enum NotesStore {
     while sqlite3_step(st) == SQLITE_ROW { row(st) }
   }
 
-  private static func exec(_ db: OpaquePointer, _ sql: String, _ args: [Any?] = []) {
+  /// 문장이 끝까지 실행됐는지. BEGIN IMMEDIATE는 앱이 쓰는 중이면 busy_timeout 뒤 실패할 수 있어 결과를 보고 쓰기를 포기한다
+  /// (예전엔 결과를 버려 트랜잭션 없이 UPDATE가 나가거나 outbox 없이 행만 바뀔 수 있었다)
+  @discardableResult
+  private static func exec(_ db: OpaquePointer, _ sql: String, _ args: [Any?] = []) -> Bool {
     var st: OpaquePointer?
-    guard sqlite3_prepare_v2(db, sql, -1, &st, nil) == SQLITE_OK, let st else { return }
+    guard sqlite3_prepare_v2(db, sql, -1, &st, nil) == SQLITE_OK, let st else { return false }
     defer { sqlite3_finalize(st) }
     bind(st, args)
-    sqlite3_step(st)
+    return sqlite3_step(st) == SQLITE_DONE
   }
 
   private static func bind(_ st: OpaquePointer, _ args: [Any?]) {
@@ -154,6 +159,10 @@ public enum NotesStore {
     var s = Snapshot(folderName: nil, memo: [], todos: [], prefs: [:])
     query(db, "SELECT value FROM kv WHERE key = 'prefs'") { st in
       if let t = text(st, 0), let d = t.data(using: .utf8), let o = try? JSONSerialization.jsonObject(with: d) as? [String: Any] { s.prefs = o }
+    }
+    if !signedIn(db) {
+      s.signedIn = false
+      return s
     }
     // folderId nil = 기본 폴더(폴더 없음 또는 없어진 폴더를 가리키는 항목). 지워진 폴더를 가리키면 기본으로.
     if let folderId {
@@ -195,6 +204,8 @@ public enum NotesStore {
   public static func pendingReminders(now: Int64) -> [(id: String, text: String, at: Int64)] {
     guard let db = open() else { return [] }
     defer { sqlite3_close(db) }
+    // 로그아웃했으면 걸어 둔 알림을 모두 내린다(scheduleAll이 목록에 없는 것을 지운다)
+    if !signedIn(db) { return [] }
     var out: [(String, String, Int64)] = []
     // 반복은 알림이 다음 회차 것이라 완료 표시와 상관없이 예약한다
     query(db, "SELECT id, text, remind_at FROM todos WHERE remind_at > ? AND (done_at IS NULL OR repeat_freq IS NOT NULL) AND deleted_at IS NULL\(live)", [now]) { st in
@@ -203,12 +214,32 @@ public enum NotesStore {
     return out.map { (id: $0.0, text: $0.1, at: $0.2) }
   }
 
+  /// 보기 전용으로 공유받은 폴더의 할 일인지(Android NotesDb.todoViewOnly와 같다). 바꾸면 서버가 거절하고, 그 거절로 앱이 모든 항목을
+  /// 처음부터 다시 받았다. 공유 표가 아직 없으면(앱을 한 번도 안 켠 새 설치) query가 아무것도 읽지 않아 보기 전용도 없다.
+  /// 이 기기에 로그인해 있는지(앱 kv 'account'에 토큰이 있는지, Android NotesDb.signedIn과 같다). 로그인해야 쓸 수 있어서
+  /// 로그인하지 않았으면 위젯은 안내만 보이고 체크·알림 예약도 하지 않는다.
+  private static func signedIn(_ db: OpaquePointer) -> Bool {
+    var ok = false
+    query(db, "SELECT value FROM kv WHERE key = 'account'") { st in
+      if let t = text(st, 0), let d = t.data(using: .utf8), let o = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
+        let token = o["token"] as? String, !token.isEmpty { ok = true }
+    }
+    return ok
+  }
+
+  private static func todoViewOnly(_ db: OpaquePointer, _ id: String) -> Bool {
+    var hit = false
+    query(db, "SELECT 1 FROM todos t JOIN shared_folders s ON s.folder_id = t.folder_id WHERE t.id = ? AND s.role = 'view' LIMIT 1", [id]) { _ in hit = true }
+    return hit
+  }
+
   /// 완료/완료 취소. 완료 시각만 바꾸고 outbox에 남겨 앱이 동기화한다.
   public static func setDone(id: String, done: Bool) {
     guard let db = open() else { return }
     defer { sqlite3_close(db) }
+    if todoViewOnly(db, id) || !signedIn(db) { return }
     let now = Int64(Date().timeIntervalSince1970 * 1000)
-    exec(db, "BEGIN IMMEDIATE")
+    guard exec(db, "BEGIN IMMEDIATE") else { return }
     var cur: Int64?? = .none
     query(db, "SELECT done_at FROM todos WHERE id = ?", [id]) { st in
       cur = .some(sqlite3_column_type(st, 0) == SQLITE_NULL ? nil : sqlite3_column_int64(st, 0))
@@ -224,16 +255,18 @@ public enum NotesStore {
   public static func uncheck(id: String) {
     guard let db = open() else { return }
     defer { sqlite3_close(db) }
+    if todoViewOnly(db, id) || !signedIn(db) { return }
     var found = false
-    var freq: String?, due: String?, remind: Int64?, doneAt: Int64?, log: String?
-    exec(db, "BEGIN IMMEDIATE")
-    query(db, "SELECT repeat_freq, due_date, remind_at, done_at, done_log FROM todos WHERE id = ?", [id]) { st in
+    var freq: String?, due: String?, remind: Int64?, doneAt: Int64?, log: String?, updated: Int64 = 0
+    guard exec(db, "BEGIN IMMEDIATE") else { return }
+    query(db, "SELECT repeat_freq, due_date, remind_at, done_at, done_log, updated_at FROM todos WHERE id = ?", [id]) { st in
       found = true
       freq = text(st, 0)
       due = text(st, 1)
       remind = sqlite3_column_type(st, 2) == SQLITE_NULL ? nil : sqlite3_column_int64(st, 2)
       doneAt = sqlite3_column_type(st, 3) == SQLITE_NULL ? nil : sqlite3_column_int64(st, 3)
       log = text(st, 4)
+      updated = sqlite3_column_int64(st, 5)
     }
     guard found else { exec(db, "ROLLBACK"); return }
     // 반복이 아니면 완료 취소만(setDone은 따로 열고 잠그니 먼저 놓는다)
@@ -245,11 +278,13 @@ public enum NotesStore {
     let newRemind = remind.map { Repeat.shift($0, from: from, to: today) }
     let days = (log ?? "").split(separator: ",").map(String.init).filter { $0.count == 10 && $0 != todayText }
     let newLog: String? = days.isEmpty ? nil : days.sorted().suffix(400).joined(separator: ",")
-    exec(db, "UPDATE todos SET done_at = NULL, due_date = ?, remind_at = ?, done_log = ? WHERE id = ?", [todayText, newRemind, newLog, id])
+    // 예정일이 바뀌니 '마지막 수정'도 바꾼다(앱 reopenRepeat·Android uncheck와 같은 규칙)
+    exec(db, "UPDATE todos SET done_at = NULL, due_date = ?, remind_at = ?, done_log = ?, updated_at = ? WHERE id = ?", [todayText, newRemind, newLog, now, id])
     var fields: [String: Any] = [
       "done_at": ["old": doneAt as Any? ?? NSNull(), "new": NSNull()],
       "due_date": ["old": due as Any? ?? NSNull(), "new": todayText],
       "done_log": ["old": log as Any? ?? NSNull(), "new": newLog as Any? ?? NSNull()],
+      "updated_at": ["old": updated, "new": now],
     ]
     if newRemind != remind { fields["remind_at"] = ["old": remind as Any? ?? NSNull(), "new": newRemind as Any? ?? NSNull()] }
     enqueue(db, entity: "todo", id: id, create: false, fields: fields, now: now)
@@ -260,9 +295,12 @@ public enum NotesStore {
   public static func complete(id: String) {
     guard let db = open() else { return }
     defer { sqlite3_close(db) }
+    if todoViewOnly(db, id) || !signedIn(db) { return }
     let now = Int64(Date().timeIntervalSince1970 * 1000)
     var found = false
     var freq: String?, days: Int?, due: String?, remind: Int64?, updated: Int64 = 0, doneAt: Int64?, log: String?
+    // 읽기도 트랜잭션 안에서(예전엔 읽고 나서 BEGIN해, 그 사이 앱이 고친 값을 덮어썼다)
+    guard exec(db, "BEGIN IMMEDIATE") else { return }
     query(db, "SELECT repeat_freq, repeat_days, due_date, remind_at, updated_at, done_at, done_log FROM todos WHERE id = ?", [id]) { st in
       found = true
       freq = text(st, 0)
@@ -273,10 +311,13 @@ public enum NotesStore {
       doneAt = sqlite3_column_type(st, 5) == SQLITE_NULL ? nil : sqlite3_column_int64(st, 5)
       log = text(st, 6)
     }
-    guard found else { return }
-    guard let freq else { return setDone(id: id, done: true) }
+    guard found else { exec(db, "ROLLBACK"); return }
+    // 반복이 아니면 완료만(setDone은 따로 열고 잠그니 먼저 놓는다)
+    guard let freq else { exec(db, "ROLLBACK"); return setDone(id: id, done: true) }
     let today = Repeat.startOfDay(Date())
     let dueDate = due.flatMap(Repeat.parse)
+    // 이번 회차를 이미 끝냈으면(다음 예정일 전) 그대로: 위젯이 옛 화면을 보여 주다 눌리면 다음 회차까지 한 번 더 넘겼다
+    if doneAt != nil, let dueDate, dueDate > today { exec(db, "ROLLBACK"); return }
     let next = Repeat.nextDue(freq: freq, days: freq == "weekly" ? days : nil, due: dueDate, today: today)
     let nextText = Repeat.format(next)
     var newRemind: Int64? = nil
@@ -284,7 +325,6 @@ public enum NotesStore {
       let from = dueDate ?? Repeat.startOfDay(Date(timeIntervalSince1970: TimeInterval(remind) / 1000))
       newRemind = Repeat.shift(remind, from: from, to: next)
     }
-    exec(db, "BEGIN IMMEDIATE")
     // 이번 회차 완료: 다음 예정일까지는 완료로 남고, 오늘을 '한 날'로 남긴다(앱 core/doneLog.ts와 같은 모양)
     var dayset = Set((log ?? "").split(separator: ",").map(String.init).filter { $0.count == 10 })
     dayset.insert(Repeat.format(Date()))
@@ -310,7 +350,8 @@ public enum NotesStore {
 
 /// 반복 할 일의 날짜 규칙. app/src/core/repeat.ts, Android Repeat.kt와 같다(바꾸면 함께 바꿀 것).
 public enum Repeat {
-  static var cal: Calendar { var c = Calendar(identifier: .gregorian); c.timeZone = .current; return c }
+  // 한 번만 만든다(예전엔 쓸 때마다 새로 만들어 nextDue의 400번 반복에서도 만들었다). 시간대가 바뀌면 따라간다
+  static let cal: Calendar = { var c = Calendar(identifier: .gregorian); c.timeZone = .autoupdatingCurrent; return c }()
 
   static func startOfDay(_ d: Date) -> Date { cal.startOfDay(for: d) }
 
@@ -417,7 +458,7 @@ public struct L {
   public func late(_ n: Int) -> String { pick("\(n)일 지남", n == 1 ? "1 day overdue" : "\(n) days overdue", "\(n)日経過", "逾期\(n)天") }
   public var noTodos: String { pick("할 일 없음", "No to-dos", "ToDoなし", "没有待办") }
   public var more: String { pick("더 보기", "More", "もっと見る", "查看更多") }
-  public var tagline: String { pick("메모와 할 일, 한곳에.", "Simple, modern Memo & ToDo.", "メモとToDoを、ひとつに。", "备忘与待办，尽在一处。") }
+  public var tagline: String { pick("떠오른 생각과 해야 할 일을 한곳에.", "Simple, modern Memo & ToDo.", "メモとToDoを、ひとつに。", "备忘与待办，尽在一处。") }
   public var quickAdd: String { pick("modo 빠른 추가", "modo quick add", "modo クイック追加", "modo 快速添加") }
   /// 위젯 고르기 화면의 미리보기
   public var sampleMemo: String { pick("회의 때 배포 일정 확인하기", "Check the release date at the meeting", "会議でリリース日を確認する", "开会时确认发布日期") }

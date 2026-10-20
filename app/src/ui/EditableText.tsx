@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Keyboard, Platform, StyleSheet, Text, TextInput, View, type TextLayoutLine, type TextStyle } from 'react-native';
 
 import { inputColors } from './theme';
-import { useApp } from '../state/AppContext';
+import { useUi } from '../state/AppContext';
 import { caretFromTap } from './caret';
 import { useTextTip } from './textTip';
 import { useWebLongPress } from './webLongPress';
@@ -37,7 +37,7 @@ type Props = {
  * 저장은 0.5초 묶음 + 포커스 해제·백그라운드 전환 때 즉시.
  */
 export function EditableText(p: Props) {
-  const { registerFlush, sync, theme } = useApp();
+  const { registerFlush, sync, theme } = useUi();
   const lines = useRef<TextLayoutLine[] | null>(null);
   const input = useRef<TextInput>(null);
   const caret = useRef(0);

@@ -9,15 +9,16 @@ public class ModoNativeModule: Module {
 
     OnCreate { Self.refreshAll() }
 
-    AsyncFunction("refresh") { Self.refreshAll() }
+    AsyncFunction("refresh") { (tables: [String]?) in Self.refreshAll(tables) }
 
     // iOS는 앱에서 위젯·제어 센터 항목을 바로 추가하는 API가 없다(설정 화면이 방법을 안내).
     AsyncFunction("requestPinWidget") { false }
     AsyncFunction("requestAddTile") { "unsupported" }
 
     AsyncFunction("lockScreenWidgetSupport") { () -> [String: Any] in
-      if #available(iOS 16.0, *) { return ["supported": true, "reason": "iOS 16+"] }
-      return ["supported": false, "reason": "iOS < 16"]
+      // 위젯 확장은 iOS 17부터(targets/widget/expo-target.config.js deploymentTarget)
+      if #available(iOS 17.0, *) { return ["supported": true, "reason": "iOS 17+"] }
+      return ["supported": false, "reason": "iOS < 17"]
     }
 
     AsyncFunction("notificationPermission") { (promise: Promise) in
@@ -35,9 +36,11 @@ public class ModoNativeModule: Module {
     AsyncFunction("openExactAlarmSettings") {}
   }
 
-  static func refreshAll() {
+  /// tables = 바뀐 표(nil·빈 목록 = 전부). 문단(메모)만 바뀌었으면 알림 예약은 그대로(할 일만 쓴다)
+  static func refreshAll(_ tables: [String]? = nil) {
     WidgetCenter.shared.reloadAllTimelines()
-    Reminders.scheduleAll()
+    let onlyParagraphs = tables.map { !$0.isEmpty && $0.allSatisfy { $0 == "paragraphs" } } ?? false
+    if !onlyParagraphs { Reminders.scheduleAll() }
   }
 
   static func status(_ s: UNAuthorizationStatus) -> String {

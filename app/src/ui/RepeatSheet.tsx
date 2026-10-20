@@ -4,8 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { dayBit, firstOnOrAfter, ruleOf, type RepeatFreq, type RepeatRule } from '../core/repeat';
 import type { Todo } from '../core/types';
-import { resolveLang } from '../i18n';
-import { useApp } from '../state/AppContext';
+import { useUi } from '../state/AppContext';
 import { formatDate, formatDue, localDate, parseLocalDate, weekNamesMonFirst } from './format';
 import { CheckIcon, ChevronIcon, CloseIcon } from './Icons';
 import { MonthGrid } from './MonthGrid';
@@ -26,9 +25,8 @@ export function RepeatSheet({ todo, onClose }: { todo: Todo | undefined; onClose
 }
 
 function Body({ todo, onClose }: { todo: Todo; onClose: () => void }) {
-  const { theme, t, prefs, repo, showToast } = useApp();
+  const { theme, t, repo, showToast, lang } = useUi();
   const insets = useSafeAreaInsets();
-  const lang = resolveLang(prefs.language);
   const today = localDate(new Date());
   const cur = ruleOf(todo);
   const [start, setStart] = useState(todo.due_date ?? today);

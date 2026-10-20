@@ -128,6 +128,25 @@ cd desktop && npm run test:unit                   # 데이터 폴더 옮기기(�
   3. expo.dev → Access tokens에서 토큰 → `gh secret set EXPO_TOKEN`, `gh variable set IOS_RELEASE --body true`.
   - iOS는 아직 한 번도 빌드해 보지 않아(위젯 Swift 포함) 첫 빌드에서 고칠 것이 나올 수 있다.
 
+## Microsoft Store 자동 배포
+
+`master`에 데스크톱(`desktop/`)·앱(`app/`) 변경을 푸시하면 GitHub Actions(`.github/workflows/windows-store.yml`)가 돈다. Actions 탭에서 손으로 돌릴 수도 있다.
+
+1. 앱 타입·린트, 데스크톱 단위 테스트.
+2. Store용 APPX(`npm run dist:store`, `desktop/electron-builder.store.cjs`). 버전은 `package.json`의 주·부 버전 + 실행 번호(예: 1.0.37 → 패키지 1.0.37.0). Store는 올릴 때마다 더 큰 버전을 요구한다.
+3. Microsoft Store Developer CLI(`msstore publish`)로 Partner Center에 제출. 저장소 변수 `MODO_STORE_FLIGHT_ID`가 있으면 그 **패키지 플라이트**(비공개 테스트 그룹)로, 없으면 일반 제출(인증 뒤 공개).
+
+- 패키지 신원 변수가 없으면 Store 패키지 대신 zip만 만들고, API 비밀값이 없으면 제출을 건너뛴다(둘 다 경고만, 만든 파일은 Actions 아티팩트로 14일).
+
+처음 한 번 할 일(계정, 사람이 직접):
+
+1. Partner Center에서 앱 이름을 예약하고, **첫 제출은 직접**(가격·연령 등급·스토어 목록·개인정보 처리방침 URL). Store API는 완료된 제출이 하나 있어야 쓸 수 있다.
+2. 제품 관리 → 제품 ID에서 값 세 개를 그대로 복사해 저장소 변수로: `gh variable set MODO_STORE_IDENTITY`(Package/Identity/Name), `MODO_STORE_PUBLISHER`(Package/Identity/Publisher, `CN=…`), `MODO_STORE_PUBLISHER_NAME`(Package/Properties/PublisherDisplayName). 앱 개요의 Store ID(9로 시작)를 `MODO_STORE_PRODUCT_ID`에.
+3. Partner Center 계정 설정 → 사용자 → Azure AD 애플리케이션에서 앱을 만들어(관리자 역할) 키를 발급 → `gh secret set STORE_TENANT_ID`, `STORE_CLIENT_ID`, `STORE_CLIENT_SECRET`, `STORE_SELLER_ID`(계정 설정 → 법인 정보의 판매자 ID).
+4. 비공개 테스트로 먼저 돌리려면 Partner Center → 패키지 플라이트에서 그룹(테스터 이메일)을 만들고 그 플라이트 ID를 `gh variable set MODO_STORE_FLIGHT_ID`. 지우면 일반 제출로 바뀐다.
+
+- 아직 한 번도 실제 제출까지 돌려 보지 않았다(계정 값이 없다). 첫 실행에서 `msstore`가 .appx를 받는지 확인할 것(받지 않으면 electron-builder 대상을 msix로).
+
 ## 구현한 것
 
 - 화면 디자인 D(시안 11장 기준, 같은 dp로 나란히 놓고 맞춤, docs/screenshots/sheets/7·8):

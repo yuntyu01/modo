@@ -87,6 +87,12 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/folders/{id}/links", s.auth(s.createLink))
 	mux.HandleFunc("DELETE /api/folders/{id}/links/{token}", s.auth(s.deleteLink))
 	mux.HandleFunc("GET /s/{token}", s.publicLink)
+
+	mux.HandleFunc("GET /api/friends", s.auth(s.listFriends))
+	mux.HandleFunc("POST /api/friends/requests", s.auth(s.requestFriend))
+	mux.HandleFunc("POST /api/friends/requests/{id}/accept", s.auth(s.acceptFriend))
+	mux.HandleFunc("DELETE /api/friends/requests/{id}", s.auth(s.deleteFriendRequest))
+	mux.HandleFunc("DELETE /api/friends/{user}", s.auth(s.removeFriend))
 }
 
 func decode(w http.ResponseWriter, r *http.Request, v any) bool {

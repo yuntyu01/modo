@@ -234,6 +234,28 @@ CREATE TABLE IF NOT EXISTS share_links (
 );
 CREATE INDEX IF NOT EXISTS share_links_folder ON share_links (folder_id);
 
+-- ---------- 친구 ----------
+-- 친구는 폴더 공유(folder_members)와 따로다: 친구가 되어도 공유한 폴더만 보이고, 친구를 끊어도 공유는 그대로다.
+-- 요청: 보낸 사람 → 받는 사람 한 쌍에 하나. 수락하면 지우고 friendships에 한 줄. 거절·취소는 지우기만(알리지 않는다).
+CREATE TABLE IF NOT EXISTS friend_requests (
+    id         UUID PRIMARY KEY,
+    from_id    UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    to_id      UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (from_id, to_id),
+    CHECK (from_id <> to_id)
+);
+CREATE INDEX IF NOT EXISTS friend_requests_to ON friend_requests (to_id);
+-- 친구 한 쌍은 한 줄(작은 id가 a). 계정을 지우면 함께 지워진다.
+CREATE TABLE IF NOT EXISTS friendships (
+    a          UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    b          UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (a, b),
+    CHECK (a < b)
+);
+CREATE INDEX IF NOT EXISTS friendships_b ON friendships (b);
+
 -- Independent of users: retry revoking a deleted account's Kakao connection.
 -- Contains only the provider subject and account UUID; expire within 7 days.
 CREATE TABLE IF NOT EXISTS kakao_unlink_jobs (

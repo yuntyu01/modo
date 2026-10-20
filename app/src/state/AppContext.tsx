@@ -410,7 +410,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     bridge.call('setDefaults', [{ server: prefs.server }]);
     const apply = (st: { api: ServerApi | null; at: number }) => {
       if (!st.at) return; // 메인이 아직 묻기 전
-      setServerApi((cur) => (cur && st.api && cur.kakao === st.api.kakao && cur.google === st.api.google && cur.password === st.api.password ? cur : st.api));
+      setServerApi((cur) => (cur && st.api && cur.kakao === st.api.kakao && cur.google === st.api.google && cur.password === st.api.password && cur.storeReview === st.api.storeReview ? cur : st.api));
       setServerChecked(true);
     };
     probeNow.current = async () => {
@@ -436,7 +436,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           // 끊겼다가 다시 닿으면 쌓아 둔 변경을 바로 보낸다(동기화 재시도 간격을 기다리지 않게)
           if (!reachable.current) boot.sync.account().then((acc) => acc && boot.sync.syncNow());
           reachable.current = true;
-          setServerApi((cur) => (cur && cur.kakao === !!p.kakao && cur.google === !!p.google && cur.password === !!p.password ? cur : { kakao: !!p.kakao, google: !!p.google, password: !!p.password }));
+          setServerApi((cur) => (cur && cur.kakao === !!p.kakao && cur.google === !!p.google && cur.password === !!p.password && cur.storeReview === !!p.storeReview ? cur : { kakao: !!p.kakao, google: !!p.google, password: !!p.password, storeReview: !!p.storeReview }));
           setServerChecked(true);
         })
         .catch(() => {

@@ -109,6 +109,26 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	if s.passwordLoginOff(w) {
 		return
 	}
+	s.loginCredentials(w, r, false)
+}
+
+func (s *Server) storeReviewEnabled() bool {
+	email := strings.ToLower(strings.TrimSpace(s.cfg.StoreReviewEmail))
+	_, err := mail.ParseAddress(email)
+	return email != "" && err == nil && len(email) <= 254
+}
+
+// Reuses the existing review account's bcrypt credential and normal sessions.
+// Never enables ordinary email login, registration, or access to another account.
+func (s *Server) storeReviewLogin(w http.ResponseWriter, r *http.Request) {
+	if !s.storeReviewEnabled() {
+		errJSON(w, http.StatusNotFound, "review_unavailable", "Store review sign-in is unavailable")
+		return
+	}
+	s.loginCredentials(w, r, true)
+}
+
+func (s *Server) loginCredentials(w http.ResponseWriter, r *http.Request, review bool) {
 	var c credentials
 	if !decode(w, r, &c) {
 		return
@@ -119,6 +139,11 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	}
 	if !s.limiter.allow("login:"+s.clientIP(r)) || !s.limiter.allow("login:"+c.Email) {
 		errJSON(w, http.StatusTooManyRequests, "rate_limited", "잠시 후 다시 시도해 주세요")
+		return
+	}
+	if review && c.Email != strings.ToLower(strings.TrimSpace(s.cfg.StoreReviewEmail)) {
+		bcrypt.CompareHashAndPassword(dummyHash, bcryptInput(c.Password))
+		errJSON(w, http.StatusUnauthorized, "bad_credentials", "이메일 또는 비밀번호가 맞지 않습니다")
 		return
 	}
 	var u authUser

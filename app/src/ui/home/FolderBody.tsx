@@ -153,7 +153,8 @@ export function FolderBody({
   };
 
   const showCaret = !todoMode && composing && !search;
-  const showMemo = !search || paragraphs.length > 0;
+  // 보기만 공유된 폴더에 메모가 없으면 빈 '메모' 자리를 두지 않는다(눌러도 쓸 수 없다)
+  const showMemo = (!search || paragraphs.length > 0) && (writable || paragraphs.length > 0);
   // 메모 카드에 넘기는 것은 바뀔 때만 새로(memo): 할 일을 고쳐 저장할 때마다 문단 전부가 다시 그려졌다
   const onLongPressParagraph = useCallback((p: Paragraph) => setSheet({ type: 'paragraph', id: p.id }), [setSheet]);
   const onEmptyPress = useCallback(async () => {

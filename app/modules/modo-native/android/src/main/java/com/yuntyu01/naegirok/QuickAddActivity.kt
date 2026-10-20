@@ -44,7 +44,8 @@ class QuickAddActivity : Activity() {
     window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE or WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
     folderId = intent.getStringExtra(EXTRA_FOLDER)
     val prefs = getSharedPreferences("naegirok_quickadd", Context.MODE_PRIVATE)
-    todoMode = savedInstanceState?.getBoolean("todo") ?: prefs.getBoolean("todo", true)
+    // 위젯 할 일 쪽의 +는 늘 할 일로(예전엔 마지막에 쓴 모드를 따라 메모 이어 쓰기로 열리기도 했다). 앱 아이콘·타일은 마지막 모드
+    todoMode = savedInstanceState?.getBoolean("todo") ?: intent.getStringExtra(EXTRA_MODE)?.let { it == MODE_TODO } ?: prefs.getBoolean("todo", true)
 
     // DB는 한 번만 연다(예전엔 설정·보기 전용·폴더 이름을 따로 열어, 첫 화면 전에 세 번 열었다)
     // null(앱 아이콘·타일) = 기본 폴더. 보기 전용으로 공유받은 폴더(넣으면 서버가 거절한다)나 지워진 폴더를 가리키는 위젯도 기본으로
@@ -195,5 +196,8 @@ class QuickAddActivity : Activity() {
 
   companion object {
     const val EXTRA_FOLDER = "folder_id"
+    const val EXTRA_MODE = "mode"
+    const val MODE_TODO = "todo"
+    const val MODE_MEMO = "memo"
   }
 }

@@ -48,10 +48,11 @@ export function useCardStyles() {
     /** 카드 사이 간격(미니 6 · PC 8 · 휴대폰 8) */
     gap: CARD_GAP[kind],
     /**
-     * 동그라미 지름: 휴대폰 24, PC 큰 창 20.25, 미니창 19.2. 반복 동그라미도 바깥 크기가 같다.
-     * 2026-10-18에 약 20% 줄였다가(휴대폰 22.5 · PC 19 · 미니 18) 2026-10-19에 셋 다 같은 비율(×24/22.5)로 아주 조금 키웠다(사용자 요청)
+     * 동그라미 지름: 휴대폰 25.5, PC 큰 창 21.5, 미니창 20.4. 반복 동그라미도 바깥 크기가 같다.
+     * 2026-10-18에 약 20% 줄였다가(휴대폰 22.5 · PC 19 · 미니 18) 2026-10-19에 셋 다 같은 비율(×24/22.5)로, 2026-10-20에 한 번 더
+     * 같은 비율(×1.0625)로 키웠다(사용자 요청). 안의 체크도 같은 비율, 반복 표시는 지름의 0.6
      */
-    circle: (theme.desk ? 20.25 : theme.mini ? 19.2 : CIRCLE) * z * theme.scale,
+    circle: (theme.desk ? 21.5 : theme.mini ? 20.4 : CIRCLE) * z * theme.scale,
     /** 동그라미와 제목 사이 */
     circleGap: right ? 20 * z : theme.desk ? 20 : theme.mini ? 14 : 20 * z,
     /** 카드 좌우 안쪽 여백(모든 카드 같게: 제목 시작 자리·오른쪽 끝이 카드마다 같다) */
@@ -208,7 +209,7 @@ export const TodoCard = memo(function TodoCard({
       {ring ? <RingIcon color={theme.circle} size={circle} strokeWidth={stroke} /> : null}
       {repeatRing ? <RepeatRingIcon color={theme.circle} size={circle} strokeWidth={stroke} /> : null}
       {repeatDone ? <RepeatGlyphIcon color={theme.onAccent} size={circle * 0.6} strokeWidth={2.5} /> : null}
-      {done && !rule ? <CheckIcon color={theme.onAccent} size={(theme.desk ? 12.5 : theme.mini ? 15 : 12) * theme.zoom * theme.scale} /> : null}
+      {done && !rule ? <CheckIcon color={theme.onAccent} size={(theme.desk ? 13.25 : theme.mini ? 16 : 12.75) * theme.zoom * theme.scale} /> : null}
     </Pressable>
   );
 
@@ -320,7 +321,7 @@ export const MINI_RADIUS = 8;
 /** PC 큰 창 블록 모서리(시안) */
 const DESK_RADIUS = 12;
 /** 완료 동그라미 지름(dp). 22.5에서 아주 조금 키웠다(사용자 요청 2026-10-19) */
-const CIRCLE = 24;
+const CIRCLE = 25.5;
 
 /**
  * 완료 묶음 머리: 왼쪽 '완료 N', 오른쪽 '전체 지우기'(보이는 완료한 보통 할 일을 휴지통으로, 실행 취소 가능).

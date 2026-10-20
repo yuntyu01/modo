@@ -579,9 +579,9 @@ struct HomeWidgetView: View {
       Button(intent: ToggleTodoIntent(todoId: t.id, done: true)) {
         Group {
           if t.repeatFreq != nil {
-            RepeatRing().frame(width: 19.5, height: 19.5)
+            RepeatRing().frame(width: 20.5, height: 20.5)
           } else {
-            Circle().stroke(Self.circle, lineWidth: 1.4).frame(width: 19.5, height: 19.5)
+            Circle().stroke(Self.circle, lineWidth: 1.4).frame(width: 20.5, height: 20.5)
           }
         }
         .frame(width: Self.check, height: Self.check)

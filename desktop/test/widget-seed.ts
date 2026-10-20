@@ -5,18 +5,14 @@ import { DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
 
 import { keyBetween } from '../../app/src/core/frac';
+import { addDays, fmt, parse } from '../../app/src/core/repeat';
 
 const [file] = process.argv.slice(2);
 const db = new DatabaseSync(file);
 const now = Date.now();
-const day = (off: number) => {
-  const d = new Date();
-  d.setDate(d.getDate() + off);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
+const day = (off: number) => addDays(fmt(new Date()), off);
 const at = (off: number, h: number, m = 0) => {
-  const d = new Date();
-  d.setDate(d.getDate() + off);
+  const d = parse(day(off));
   d.setHours(h, m, 0, 0);
   return d.getTime();
 };

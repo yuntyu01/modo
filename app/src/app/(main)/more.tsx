@@ -13,6 +13,7 @@ import { Dropdown } from '../../ui/Dropdown';
 import { Group, Row, Switch } from '../../ui/primitives';
 import { loadPopular, recommendedAccents, withCurrent } from '../../state/popularThemes';
 import { localDate } from '../../ui/format';
+import { countTrash } from '../../ui/home/model';
 
 /**
  * 설정(시안): 로고 머리 → '설정' → 내 계정 카드 → 화면과 위젯 → 할 일 → 언어·도움말.
@@ -27,7 +28,7 @@ export default function More() {
   const [menuAnchor, setMenuAnchor] = useState<View | null>(null);
   // 시안: 줄 아이콘은 글자 높이쯤(언어·도움말 동그라미 아이콘은 조금 크다)
   const ic = (I: typeof GlobeIcon, size = 26) => <I color={theme.text} size={size} strokeWidth={1.4} />;
-  const trashCount = snap.todos.filter((x) => x.deleted_at).length + snap.paragraphs.filter((x) => x.deleted_at).length;
+  const trashCount = countTrash(snap);
   const syncLabel = !account
     ? t('notSignedIn')
     : status.state === 'offline'
@@ -74,7 +75,7 @@ export default function More() {
         <Group title={t('screenAndWidgets')}>
           {/* 꾸미기: 오른쪽에 추천 테마색 4개를 바로 고를 수 있게(누르면 바로 적용). 글자·›를 누르면 전체 꾸미기 */}
           <Row icon={ic(SlidersIcon)} label={t('customize')} onPress={() => router.push('/settings/customize')} right={<QuickAccents />} last={Platform.OS === 'web'} />
-          {Platform.OS !== 'web' ? <Row icon={ic(WidgetBoxIcon)} label={t('widgetSettings')} onPress={() => router.push('/settings/widgets')} last /> : null}
+          {Platform.OS !== 'web' ? <Row icon={ic(WidgetBoxIcon)} label={t('widgets')} onPress={() => router.push('/settings/widgets')} last /> : null}
         </Group>
         <Group title={t('todoSection')} style={{ marginBottom: 19 }} inset={[3.5, 3]}>
           <Row
@@ -82,8 +83,8 @@ export default function More() {
             right={<Switch label={t('addAtBottom')} value={prefs.newTodoAt === 'bottom'} onChange={(v) => setPrefs({ newTodoAt: v ? 'bottom' : 'top' })} />}
           />
           <Row
-            label={t('collapseDone')}
-            right={<Switch label={t('collapseDone')} value={!prefs.showDone} onChange={(v) => setPrefs({ showDone: !v })} />}
+            label={t('hideDone')}
+            right={<Switch label={t('hideDone')} value={!prefs.showDone} onChange={(v) => setPrefs({ showDone: !v })} />}
             last
           />
         </Group>
@@ -106,7 +107,7 @@ export default function More() {
         items={[
           { icon: <TrashIcon color={theme.text} size={20} />, label: trashCount ? `${t('trash')} · ${trashCount}` : t('trash'), onPress: () => go('/settings/trash') },
           { icon: <BoxIcon color={theme.text} size={20} />, label: t('backup'), onPress: () => go('/settings/backup') },
-          Platform.OS !== 'web' && { icon: <LockIcon color={theme.text} size={20} />, label: t('lockScreen'), onPress: () => go('/settings/lock') },
+          Platform.OS !== 'web' && { icon: <LockIcon color={theme.text} size={20} />, label: t('lockNotification'), onPress: () => go('/settings/lock') },
         ]}
       />
     </View>

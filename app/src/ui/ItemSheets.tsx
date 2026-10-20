@@ -3,9 +3,8 @@ import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { Folder } from '../core/types';
-import { resolveLang } from '../i18n';
 import { native } from '../native/bridge';
-import { useApp } from '../state/AppContext';
+import { useApp, useUi } from '../state/AppContext';
 import { ruleOf } from '../core/repeat';
 import { describeRepeat, formatDate, formatDateTime, localDate, parseLocalDate } from './format';
 import { BellIcon, CalendarIcon, ChevronIcon, EditIcon, FolderIcon, PeopleIcon, RepeatIcon, ShareIcon, TrashIcon } from './Icons';
@@ -29,10 +28,9 @@ export type SheetState =
 
 export function ItemSheets({ state, setState }: { state: SheetState; setState: (s: SheetState) => void }) {
   const app = useApp();
-  const { snap, repo, t, theme, prefs, showToast, canWrite, setFilter, filter } = app;
-  const lang = resolveLang(prefs.language);
+  const { snap, repo, t, theme, showToast, canWrite, setFilter, filter, lang } = app;
   const close = () => setState(null);
-  const folderName = (id: string | null) => (id ? (snap.folders.find((f) => f.id === id)?.name ?? t('unfiled')) : t('unfiled'));
+  const folderName = (id: string | null) => (id ? (snap.folders.find((f) => f.id === id)?.name ?? t('baseFolder')) : t('baseFolder'));
 
   const trashWithUndo = async (entity: 'todo' | 'paragraph', id: string) => {
     close();
@@ -199,11 +197,11 @@ export function ItemSheets({ state, setState }: { state: SheetState; setState: (
 }
 
 function FolderPick({ current, folders, onPick }: { current: string | null; folders: Folder[]; onPick: (id: string | null) => void }) {
-  const { theme, t } = useApp();
+  const { theme, t } = useUi();
   return (
     <>
       <SheetTitle title={t('classify')} />
-      {[{ id: null as string | null, name: t('unfiled') }, ...folders].map((f) => (
+      {[{ id: null as string | null, name: t('baseFolder') }, ...folders].map((f) => (
         <SheetButton
           key={f.id ?? 'none'}
           label={f.name}
@@ -217,7 +215,7 @@ function FolderPick({ current, folders, onPick }: { current: string | null; fold
 }
 
 function DatePick({ initial, onPick }: { initial: string | null; onPick: (d: string | null) => void }) {
-  const { theme, t } = useApp();
+  const { theme, t } = useUi();
   const [month, setMonth] = useState(initial ? parseLocalDate(initial) : new Date());
   return (
     <View style={{ padding: 14 }}>
@@ -233,7 +231,7 @@ function DatePick({ initial, onPick }: { initial: string | null; onPick: (d: str
 }
 
 function ReminderPick({ initial, due, onPick }: { initial: number | null; due: string | null; onPick: (at: number | null) => void }) {
-  const { theme, t } = useApp();
+  const { theme, t } = useUi();
   const base = initial ? new Date(initial) : due ? parseLocalDate(due) : new Date();
   if (!initial) base.setHours(9, 0, 0, 0);
   const [date, setDate] = useState(localDate(base));
@@ -292,7 +290,7 @@ function ReminderPick({ initial, due, onPick }: { initial: number | null; due: s
 }
 
 function Stepper({ value, onMinus, onPlus, unit }: { value: number; onMinus: () => void; onPlus: () => void; unit: 'hour' | 'minute' }) {
-  const { theme, t } = useApp();
+  const { theme, t } = useUi();
   return (
     <View style={styles.stepper}>
       <Pressable
@@ -315,7 +313,7 @@ function Stepper({ value, onMinus, onPlus, unit }: { value: number; onMinus: () 
 }
 
 function Chip({ label, onPress, color }: { label: string; onPress: () => void; color?: string }) {
-  const { theme } = useApp();
+  const { theme } = useUi();
   return (
     <Pressable onPress={onPress} style={[styles.chip, { backgroundColor: theme.raised }]}>
       <Text style={theme.font(14, { color: color ?? theme.text })}>{label}</Text>

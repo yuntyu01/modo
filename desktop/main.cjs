@@ -131,7 +131,8 @@ function createMini() {
     webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, sandbox: true },
   });
   protectWindow(mini, shell);
-  mini.setOpacity(state.opacity ?? 1);
+  // 창 전체 투명도(state.opacity)는 더 쓰지 않는다: 미니창 투명도는 꾸미기 설정으로 바탕만 비치게 그린다(mini.tsx).
+  // 예전에 저장된 값이 1보다 작으면 창 전체가 비친 채로 남고, 지금 화면에는 그걸 되돌릴 곳이 없었다
   mini.loadURL('app://local/mini');
   // 로그인 자동 실행인데 지난번에 미니창을 숨겨 두고(트레이만) 끝냈으면 그대로 트레이에만. 직접 켰으면 늘 보인다
   mini.once('ready-to-show', () => {
@@ -411,10 +412,10 @@ function toggleMini() {
 
 // 트레이 메뉴·로그인 창 문구. 앱의 언어 설정(kv prefs.language) → 시스템 언어 → 영어(앱 src/i18n.ts resolveLang과 같은 순서).
 const TRAY_TEXT = {
-  ko: { tip: 'modo · 떠오른 생각과 해야 할 일을 한곳에.', toggle: '미니창 보이기/숨기기', open: 'modo 열기', pin: '항상 위에 표시', login: '로그인 시 실행', quit: '종료', auth: 'modo 로그인' },
-  en: { tip: 'modo · Simple, modern Memo & ToDo.', toggle: 'Show/hide mini window', open: 'Open modo', pin: 'Always on top', login: 'Launch at login', quit: 'Quit', auth: 'Sign in to modo' },
-  ja: { tip: 'modo · メモとToDoを、ひとつに。', toggle: 'ミニウィンドウの表示/非表示', open: 'modo を開く', pin: '常に手前に表示', login: 'ログイン時に起動', quit: '終了', auth: 'modo にログイン' },
-  zh: { tip: 'modo · 备忘与待办，尽在一处。', toggle: '显示/隐藏迷你窗口', open: '打开 modo', pin: '始终置顶', login: '登录时启动', quit: '退出', auth: '登录 modo' },
+  ko: { tip: 'modo · 떠오른 생각과 해야 할 일을 한곳에.', toggle: '미니창 보이기/숨기기', open: 'modo 열기', pin: '항상 위에 표시', login: '로그인 시 실행', quit: '종료' },
+  en: { tip: 'modo · Simple, modern Memo & ToDo.', toggle: 'Show/hide mini window', open: 'Open modo', pin: 'Always on top', login: 'Launch at login', quit: 'Quit' },
+  ja: { tip: 'modo · メモとToDoを、ひとつに。', toggle: 'ミニウィンドウの表示/非表示', open: 'modo を開く', pin: '常に手前に表示', login: 'ログイン時に起動', quit: '終了' },
+  zh: { tip: 'modo · 备忘与待办，尽在一处。', toggle: '显示/隐藏迷你窗口', open: '打开 modo', pin: '始终置顶', login: '登录时启动', quit: '退出' },
 };
 function uiText() {
   let pref = 'system';
@@ -581,6 +582,7 @@ function registerIpc() {
     const id = wc.id;
     wc.on('destroyed', () => {
       pending.delete(id);
+      host?.windowGone(id);
       if (txOwner !== id) return;
       try {
         db.exec('ROLLBACK');
@@ -610,13 +612,6 @@ function registerIpc() {
   ipcMain.handle('win:setSheetHeight', (e, h) => {
     if (BrowserWindow.fromWebContents(e.sender) === mini) setSheetHeight(Number(h) || 0);
   });
-  ipcMain.handle('win:setOpacity', (_e, o) => {
-    state.opacity = Math.max(0.3, Math.min(1, Number(o) || 1));
-    mini?.setOpacity(state.opacity);
-    saveState();
-  });
-  ipcMain.handle('win:getLoginItem', () => loginItem());
-  ipcMain.handle('win:setLoginItem', (_e, on) => setLoginItem(on));
   ipcMain.handle('db:ready', () => dbReady.then(() => true));
   ipcMain.handle('sync:call', (e, method, args) => host.call(BrowserWindow.fromWebContents(e.sender), String(method), Array.isArray(args) ? args : []));
   ipcMain.handle('sync:serverState', () => host.serverState());
@@ -631,9 +626,7 @@ function registerIpc() {
       // 제목줄 겹치기를 지원하지 않는 OS(리눅스 일부)
     }
   });
-  ipcMain.handle('win:minimize', (e) => BrowserWindow.fromWebContents(e.sender)?.minimize());
   ipcMain.handle('win:toggleMini', toggleMini);
-  ipcMain.handle('win:isMini', (e) => !!mini && BrowserWindow.fromWebContents(e.sender) === mini);
   ipcMain.handle('file:save', async (e, name, text) => {
     const r = await dialog.showSaveDialog(BrowserWindow.fromWebContents(e.sender), {
       defaultPath: name,

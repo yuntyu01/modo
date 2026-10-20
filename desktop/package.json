@@ -6,9 +6,9 @@
   "main": "main.cjs",
   "scripts": {
     "renderer": "cd ../app && npx expo export -p web --output-dir ../desktop/renderer",
-    "start": "electron .",
+    "start": "npm run core && electron .",
     "dist:win": "npm run build && electron-builder --win zip --x64 --publish never",
-    "test:sync": "esbuild test/desktop-sync.e2e.ts --bundle --platform=node --format=cjs --external:node:sqlite --outfile=test/.out/desktop-sync.cjs && ELECTRON_RUN_AS_NODE=1 electron test/.out/desktop-sync.cjs",
+    "test:sync": "node scripts/test-sync.cjs",
     "core": "node scripts/build-core.cjs",
     "build": "npm run core:release && npm run renderer",
     "test:unit": "node scripts/test.cjs",

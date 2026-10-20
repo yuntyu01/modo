@@ -145,6 +145,41 @@ test('폴더를 지워도 내용은 기본 폴더(폴더 없음)로 남는다', 
   expect(s.paragraphs[0].folder_id).toBeNull();
 });
 
+test('이미 보낸 폴더를 지웠다 되돌리면 상쇄되어 큐에 아무것도 남지 않는다(폴더 만들기 op가 뒤에 있을 때만 안 합친다)', async () => {
+  const { repo } = await setup();
+  const work = await repo.createFolder('업무');
+  const ids = [];
+  for (const t of ['하나', '둘', '셋']) ids.push(await repo.addTodo(t, work, 'bottom'));
+  await repo.db.run(`DELETE FROM outbox`); // 전부 보냈다고 치자
+  const moved = await repo.deleteFolder(work);
+  await repo.undoDeleteFolder(work, moved);
+  expect(await outbox(repo)).toEqual([]);
+  // 아직 안 보낸 새 폴더로 옮기는 변경은 그 폴더 만들기 op 뒤에 따로 남는다(서버가 폴더를 먼저 알아야 한다)
+  await repo.setTodoText(ids[0], '하나!');
+  const fresh = await repo.createFolder('새 폴더');
+  await repo.setFolder('todo', ids[0], fresh);
+  const ob = await outbox(repo);
+  expect(ob.map((o) => o.entity_id)).toEqual([ids[0], fresh, ids[0]]);
+});
+
+test('백업은 남이 공유해 준 폴더와 그 항목을 빼고, 가져오기도 그런 행은 건너뛴다', async () => {
+  const { repo, db } = await setup();
+  const mine = await repo.addTodo('내 것', null, 'bottom');
+  await db.run(`INSERT INTO folders (id, name, position, created_at, updated_at) VALUES ('theirs', '남의 폴더', 'V', 1, 1)`);
+  await db.run(`INSERT INTO todos (id, folder_id, text, position, created_at, updated_at) VALUES ('t-theirs', 'theirs', '남의 것', 'V', 1, 1)`);
+  await repo.sweepForeign(['theirs', 't-theirs'], [{ folder_id: 'theirs', role: 'view', owner: { id: 'o', email: 'o@example.com', name: '' } }]);
+  const backup = await repo.exportAll();
+  expect(backup.folders.map((f) => f.id)).toEqual([]);
+  expect(backup.todos.map((t) => t.id)).toEqual([mine]);
+  await repo.db.run(`DELETE FROM outbox`);
+  const r = await repo.importAll({
+    folders: [{ id: 'theirs', name: '남의 폴더', position: 'V', created_at: 1, updated_at: 9 }],
+    todos: [{ id: 't-theirs', folder_id: 'theirs', text: '남의 것 고침', position: 'V', created_at: 1, updated_at: 9 }],
+  });
+  expect(r).toEqual({ added: 0, updated: 0 });
+  expect(await outbox(repo)).toEqual([]);
+});
+
 test('완료 정리는 그 폴더만: 기본(null)은 폴더 없는 항목과 지워진 폴더를 가리키는 항목만', async () => {
   const { repo } = await setup();
   const work = await repo.createFolder('업무');
@@ -327,6 +362,33 @@ test('다른 기기가 영구 삭제한 항목(deleted)을 지우고, 여기서 
   const row = (id: string, text: string) => ({ id, folder_id: null, text, position: 'a0', created_at: 1, updated_at: 1 });
   await repo.applyRemote({ folders: [], todos: [row(b, '서버에 아직 남은 b')], paragraphs: [], deleted: [{ id: a, entity: 'todo' }] }, new Set(), new Map());
   expect((await repo.snapshot()).todos).toHaveLength(0);
+});
+
+test('로그아웃은 공유가 끊긴 뒤 못 보낸 변경 때문에 남겨 둔 남의 항목(past_shared)도 지운다', async () => {
+  const { repo, db } = await setup();
+  await db.run(`INSERT INTO folders (id, name, position, created_at, updated_at) VALUES ('gone', '옛 공유', 'V', 1, 1)`);
+  await db.run(`INSERT INTO todos (id, folder_id, text, position, created_at, updated_at) VALUES ('ghost', 'gone', '남의 것', 'V', 1, 1)`);
+  await repo.write(() => repo.setKv('past_shared', ['gone']));
+  await repo.detachFromAccount();
+  const s = await repo.snapshot();
+  expect(s.todos.map((t) => t.id)).toEqual([]);
+  expect(s.folders.map((f) => f.id)).toEqual([]);
+  // 비어 있으면 쓰기 트랜잭션 없이 바로 빈 목록
+  expect(await repo.takeOutbox(10)).toEqual([]);
+});
+
+test('서버가 같은 값을 다시 보내면(내가 보낸 변경의 메아리, 처음부터 다시 받기) 행을 다시 쓰지 않고 화면도 다시 읽지 않는다', async () => {
+  const { repo } = await setup();
+  const row = { id: 'r1', folder_id: null, text: '받은 할 일', position: 'a0', created_at: 1, updated_at: 5 };
+  await repo.applyRemote({ folders: [], todos: [row], paragraphs: [] }, new Set(), new Map());
+  const seen: string[][] = [];
+  repo.subscribe((_source, tables) => seen.push([...tables]));
+  await repo.applyRemote({ folders: [], todos: [row], paragraphs: [] }, new Set(), new Map());
+  expect(seen).toEqual([]);
+  // 바뀐 칸만 쓴다
+  await repo.applyRemote({ folders: [], todos: [{ ...row, text: '고친 글', updated_at: 6 }], paragraphs: [] }, new Set(), new Map());
+  expect(seen).toEqual([['todos']]);
+  expect((await repo.snapshot()).todos.map((t) => t.text)).toEqual(['고친 글']);
 });
 
 test('공유가 끊긴 폴더의 항목은 지우되 방금 만들어 아직 못 보낸 항목은 남긴다', async () => {

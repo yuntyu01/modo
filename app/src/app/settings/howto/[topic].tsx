@@ -3,24 +3,23 @@ import { Text, View } from 'react-native';
 
 import type { StringKey } from '../../../i18n';
 import { native } from '../../../native/bridge';
-import { useApp } from '../../../state/AppContext';
+import { useUi } from '../../../state/AppContext';
 import { HOWTO_STEPS, HowToArt, type HowToKind } from '../../../ui/HowToArt';
 import { Group, Row } from '../../../ui/primitives';
 import { Note, SubScreen } from '../../../ui/SubScreen';
 
 const TITLE: Record<HowToKind, StringKey> = { widget: 'howtoWidget', tile: 'howtoTile', lock: 'howtoLock' };
-const STEP_KEY: Record<HowToKind, string> = { widget: 'howtoWidget', tile: 'howtoTile', lock: 'howtoLock' };
 
 /**
  * 홈 화면 위젯·빠른 설정 타일·잠금화면 위젯을 직접 넣는 방법(단계마다 그림 + 설명).
  * 앱에서 바로 추가할 수 없는 기기(런처)면 알림 대신 이 화면으로 온다(unsupported=1). 주소: /settings/howto/widget|tile|lock
  */
 export default function HowTo() {
-  const { theme, t, showToast } = useApp();
+  const { theme, t, showToast } = useUi();
   const params = useLocalSearchParams<{ topic?: string; unsupported?: string }>();
   const kind: HowToKind = params.topic === 'tile' || params.topic === 'lock' ? params.topic : 'widget';
   const unsupported = params.unsupported === '1';
-  const steps = Array.from({ length: HOWTO_STEPS[kind] }, (_, i) => `${STEP_KEY[kind]}${i + 1}` as StringKey);
+  const steps = Array.from({ length: HOWTO_STEPS[kind] }, (_, i) => `${TITLE[kind]}${i + 1}` as StringKey);
 
   const tryAdd = async () => {
     if (kind === 'widget') {

@@ -73,8 +73,11 @@ struct NotesProvider: AppIntentTimelineProvider {
   }
 
   func timeline(for configuration: NotesConfigIntent, in context: Context) async -> Timeline<NotesEntry> {
-    // 앱·위젯 버튼이 바꾸면 바로 다시 읽는다(버튼은 늘 다시 읽게 된다). 그 외엔 30분마다(시스템이 횟수를 제한함)
-    Timeline(entries: [entry(configuration, context)], policy: .after(.now.addingTimeInterval(1800)))
+    // 앱·위젯 버튼이 바꾸면 바로 다시 읽는다(버튼은 늘 다시 읽게 된다). 그 밖에 바뀌는 것은 날짜('오늘'·'내일', 다시 올라오는 반복)뿐이라
+    // 자정 조금 뒤에 다시 읽는다. 예전엔 30분마다 읽어, 시스템이 하루에 허락하는 횟수를 써 버려 정작 바뀐 뒤 다시 읽기가 밀릴 수 있었다
+    let cal = Calendar.current
+    let midnight = cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: .now)) ?? .now.addingTimeInterval(3600)
+    return Timeline(entries: [entry(configuration, context)], policy: .after(midnight.addingTimeInterval(2)))
   }
 
   private func entry(_ c: NotesConfigIntent, _ context: Context) -> NotesEntry {
@@ -315,6 +318,7 @@ extension L {
   var collapseMemo: String { pick("눌러서 메모 접기", "Tap to collapse the memo", "タップでメモを閉じる", "点按收起备忘") }
   var noTodosLeft: String { pick("남은 할 일이 없어요", "No to-dos left", "残りのToDoはありません", "没有剩余待办") }
   var emptyWidget: String { pick("비어 있어요. + 로 바로 적어 보세요", "Empty. Tap + to add one", "空です。+ で追加できます", "空空如也，点 + 添加") }
+  var loginFirst: String { pick("앱에서 로그인하면 쓸 수 있어요", "Sign in to modo to use this", "アプリでログインすると使えます", "在应用中登录后即可使用") }
   var add: String { pick("추가", "Add", "追加", "添加") }
   var openApp: String { pick("modo 열기", "Open modo", "modoを開く", "打开 modo") }
   func folderTab(_ name: String) -> String { pick("\(name) 폴더", "\(name) folder", "\(name)フォルダ", "\(name)文件夹") }
@@ -457,7 +461,7 @@ struct HomeWidgetView: View {
         } else {
           let slice = Array(todos.dropFirst(todoPage * perPage).prefix(perPage))
           if slice.isEmpty {
-            Text(hasMemo ? l.noTodosLeft : l.emptyWidget).font(.system(size: 14)).foregroundStyle(Self.muted)
+            Text(s?.signedIn == false ? l.loginFirst : hasMemo ? l.noTodosLeft : l.emptyWidget).font(.system(size: 14)).foregroundStyle(Self.muted)
               .frame(maxWidth: .infinity, maxHeight: .infinity)
           } else {
             VStack(spacing: 0) {

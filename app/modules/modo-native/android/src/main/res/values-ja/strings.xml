@@ -5,10 +5,8 @@
   <string name="add">追加</string>
   <string name="widget_empty">空です。+ ですぐに書いてみましょう</string>
   <string name="mark_done">%1$s を完了</string>
-  <string name="mark_undone">%1$s の完了を取り消す</string>
   <string name="mark_done_short">完了</string>
   <string name="quick_add">クイック追加</string>
-  <string name="quick_add_to">クイック追加 · %1$s</string>
   <string name="tile_label">modo クイック追加</string>
   <string name="new_todo">新しいToDo</string>
   <string name="continue_memo">メモに追記</string>
@@ -18,6 +16,7 @@
   <string name="added_todo">ToDoを追加しました</string>
   <string name="added_memo">メモに追記しました</string>
   <string name="open_app_first">先に一度アプリを開いてください</string>
+  <string name="login_first">アプリでログインすると使えます</string>
   <string name="widget_settings">ウィジェット設定</string>
   <string name="folder">フォルダ</string>
   <string name="widget_show">表示する内容</string>
@@ -37,11 +36,9 @@
   <string name="channel_reminders">ToDoのリマインダー</string>
   <string name="reminder_title">ToDoのリマインダー</string>
   <string name="preview_memo">会議でリリース日程を確認する</string>
-  <string name="preview_todo">会議資料を整理</string>
   <string name="prev_folder">前のフォルダ</string>
   <string name="next_folder">次のフォルダ</string>
   <string name="lock_hidden">ロックを解除すると表示されます</string>
-  <string name="more">もっと見る</string>
   <string name="edit_todo">ToDoを編集</string>
   <string name="edit_memo">メモを編集</string>
   <string name="save">保存</string>

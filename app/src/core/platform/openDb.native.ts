@@ -4,9 +4,9 @@ import { Platform } from 'react-native';
 
 import type { Db } from '../db';
 
-export const DB_NAME = 'naegirok.db';
+const DB_NAME = 'naegirok.db';
 /** iOS 위젯 확장과 DB를 같이 쓰는 App Group. app.json의 entitlements와 같아야 한다. */
-export const APP_GROUP = 'group.com.yuntyu01.naegirok';
+const APP_GROUP = 'group.com.yuntyu01.naegirok';
 
 /**
  * Android: <filesDir>/SQLite/naegirok.db (Kotlin 위젯·빠른 추가·타일이 같은 경로를 연다)

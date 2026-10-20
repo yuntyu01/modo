@@ -46,14 +46,23 @@ data class WidgetPrefs(
     private const val FILE = "naegirok_widgets"
     val SIZES = listOf(13f, 15f, 18f)
 
+    private const val MIGRATED = "opacity_migrated_v2"
+    private val OLD_OPACITY = listOf(0.92f, 0.7f, 0.45f, 0.65f)
+
     fun load(ctx: Context, id: Int): WidgetPrefs {
       val p = ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+      // 예전 기본값(92%, 70%, 45%, 65%)을 그대로 저장해 둔 위젯은 새 기본값(꾸미기의 위젯 투명도)을 따른다: 한 번만.
+      // 예전엔 읽을 때마다 값으로 판단해, 사용자가 직접 고른 70% 같은 값도 매번 버렸다
+      if (!p.getBoolean(MIGRATED, false)) {
+        val e = p.edit()
+        for ((k, v) in p.all) if (k.startsWith("opacity_") && v is Float && v in OLD_OPACITY) e.remove(k)
+        e.putBoolean(MIGRATED, true).apply()
+      }
       return WidgetPrefs(
         folderId = p.getString("folder_$id", null),
         show = runCatching { Show.valueOf(p.getString("show_$id", "BOTH")!!) }.getOrDefault(Show.BOTH),
         textSize = p.getFloat("size_$id", 15f),
-        // 예전 기본값(92%, 70%, 45%)을 그대로 저장해 둔 위젯은 새 기본값(꾸미기의 위젯 투명도)을 따른다.
-        opacity = p.getFloat("opacity_$id", -1f).takeIf { it >= 0f && it !in listOf(0.92f, 0.7f, 0.45f, 0.65f) },
+        opacity = p.getFloat("opacity_$id", -1f).takeIf { it >= 0f },
         page = p.getInt("page_$id", 0),
         anchorTodo = p.getString("anchor_todo_$id", null),
         anchorIndex = p.getInt("anchor_index_$id", -1),

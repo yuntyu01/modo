@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Text, View } from 'react-native';
 
-import { useApp } from '../state/AppContext';
+import { useUi } from '../state/AppContext';
 import type { TextTip } from './textTip';
 
 /** 마우스를 올리고 이만큼 머물면 띄운다(목록 위를 지나가기만 할 때는 뜨지 않게) */
@@ -19,7 +19,7 @@ type At = { left: number; top?: number; bottom?: number; maxW: number };
  * 아래 자리가 모자라면 글 위로. 잘리지 않은 글이면 띄우지 않는다.
  */
 export function useTextTip(text: string, enabled: boolean): TextTip {
-  const { theme } = useApp();
+  const { theme } = useUi();
   const el = useRef<HTMLElement | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [at, setAt] = useState<At | null>(null);

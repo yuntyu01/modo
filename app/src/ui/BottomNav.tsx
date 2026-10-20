@@ -2,7 +2,7 @@ import { router, usePathname } from 'expo-router';
 import type { ReactNode } from 'react';
 import { Animated, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { useApp } from '../state/AppContext';
+import { useUi } from '../state/AppContext';
 import { CalendarIcon, DotsIcon, ListIcon } from './Icons';
 import { mix } from './color';
 import { GlassBackground } from './glass';
@@ -10,7 +10,7 @@ import { usePop, useSlidingPill } from './motion';
 import { TrashTargetIcon } from './trashFlight';
 
 const TABS = [
-  { href: '/', Icon: ListIcon, label: 'list', text: 'navTodos' },
+  { href: '/', Icon: ListIcon, label: 'list', text: 'todoSection' },
   { href: '/calendar', Icon: CalendarIcon, label: 'calendar', text: 'calendar' },
   { href: '/more', Icon: DotsIcon, label: 'more', text: 'more' },
 ] as const;
@@ -24,7 +24,7 @@ export const NAV_HEIGHT = 49.4;
  * PC 큰 창: 창 아래에 붙은 줄에 같은 크기의 아이콘만(고른 것만 테마색, 나머지 회색, 밑줄·선택 상자 없이). 마우스를 올리면 이름 말풍선.
  */
 export function BottomNav() {
-  const { theme, t } = useApp();
+  const { theme, t } = useUi();
   const path = usePathname();
   const web = Platform.OS === 'web';
   const idle = web ? theme.tab : theme.dark ? '#A3AAB8' : '#656A76';

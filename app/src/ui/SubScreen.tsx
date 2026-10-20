@@ -5,7 +5,7 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { desktop } from '../native/bridge';
-import { useApp } from '../state/AppContext';
+import { useUi } from '../state/AppContext';
 import { ChevronIcon } from './Icons';
 import { contentColumn, useTop } from './layout';
 import { ToastHost } from './primitives';
@@ -34,7 +34,7 @@ export function SubScreen({
   padLeft?: number;
   padRight?: number;
 }) {
-  const { theme, t } = useApp();
+  const { theme, t } = useUi();
   const insets = useSafeAreaInsets();
   const top = useTop();
   return (
@@ -69,7 +69,7 @@ export function SubScreen({
 }
 
 export function Note({ children }: { children: ReactNode }) {
-  const { theme } = useApp();
+  const { theme } = useUi();
   return <Text style={theme.font(13, { color: theme.muted, lineHeight: 20, marginHorizontal: 12, marginBottom: 18 })}>{children}</Text>;
 }
 

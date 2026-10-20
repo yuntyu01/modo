@@ -1,7 +1,7 @@
 import type { ReactNode, Ref } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { useApp } from '../state/AppContext';
+import { useUi } from '../state/AppContext';
 
 type Tip = 'below' | 'belowEnd' | 'left';
 
@@ -26,7 +26,7 @@ export function IconButton({
   hitSlop?: number;
   buttonRef?: Ref<View>;
 }) {
-  const { theme } = useApp();
+  const { theme } = useUi();
   return (
     <Pressable ref={buttonRef} accessibilityRole="button" accessibilityLabel={label} onPress={onPress} hitSlop={hitSlop} style={[styles.button, style]}>
       {(state) => (

@@ -1,6 +1,7 @@
 package com.yuntyu01.naegirok
 
 import com.yuntyu01.naegirok.nativelib.R
+import android.app.PendingIntent
 import android.app.StatusBarManager
 import android.content.BroadcastReceiver
 import android.content.IntentFilter
@@ -25,6 +26,8 @@ import expo.modules.kotlin.modules.ModuleDefinition
 class ModoNativeModule : Module() {
   private companion object {
     const val PERMS = "naegirok_permissions"
+    // 위젯이 홈 화면에 실제로 놓였을 때 런처가 보내 주는 알림(requestPinWidget)
+    const val ACTION_WIDGET_PINNED = "com.yuntyu01.naegirok.WIDGET_PINNED"
   }
 
   private val ctx: Context
@@ -39,19 +42,34 @@ class ModoNativeModule : Module() {
     OnCreate {
       val c = appContext.reactContext ?: return@OnCreate
       val r = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) = sendEvent("onDataChanged", emptyMap<String, Any>())
+        // 바꾼 표를 함께 보내 앱이 그 표만 다시 읽게 한다(예전엔 위젯에서 체크 하나에도 모든 표를 다시 읽었다)
+        override fun onReceive(context: Context, intent: Intent) {
+          val tables = intent.getStringArrayListExtra(ModoEvents.EXTRA_TABLES)
+          sendEvent("onDataChanged", if (tables != null) mapOf("tables" to tables) else emptyMap<String, Any>())
+        }
       }
       ContextCompat.registerReceiver(c, r, IntentFilter(ModoEvents.ACTION_DATA_CHANGED), ContextCompat.RECEIVER_NOT_EXPORTED)
       receiver = r
+      // 위젯을 놓았으면 앱을 내리고 홈 화면으로 가서 방금 놓인 위젯을 보여 준다(사용자 요청 2026-10-19)
+      val p = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+          val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+          runCatching { (appContext.currentActivity ?: context).startActivity(home) }
+        }
+      }
+      ContextCompat.registerReceiver(c, p, IntentFilter(ACTION_WIDGET_PINNED), ContextCompat.RECEIVER_NOT_EXPORTED)
+      pinnedReceiver = p
       ModoEvents.requestRefresh(c)
     }
     OnDestroy {
       receiver?.let { r -> runCatching { appContext.reactContext?.unregisterReceiver(r) } }
       receiver = null
+      pinnedReceiver?.let { r -> runCatching { appContext.reactContext?.unregisterReceiver(r) } }
+      pinnedReceiver = null
     }
 
     // 앱 프로세스에서는 DB를 직접 열지 않는다(위 ModoEvents 설명). 갱신은 :native에 맡긴다.
-    AsyncFunction("refresh") { ModoEvents.requestRefresh(ctx) }
+    AsyncFunction("refresh") { tables: List<String>? -> ModoEvents.requestRefresh(ctx, tables) }
 
     // null means Talk is unavailable: JS keeps the existing browser/PKCE flow.
     AsyncFunction("loginWithKakaoTalk") { promise: Promise ->
@@ -66,7 +84,10 @@ class ModoNativeModule : Module() {
     AsyncFunction("requestPinWidget") {
       val mgr = AppWidgetManager.getInstance(ctx)
       if (Build.VERSION.SDK_INT < 26 || !mgr.isRequestPinAppWidgetSupported) return@AsyncFunction false
-      mgr.requestPinAppWidget(ComponentName(ctx, NotesWidgetProvider::class.java), null, null)
+      // 사용자가 '추가'를 눌러 위젯이 놓이면 런처가 이 알림을 보낸다(취소하면 오지 않는다)
+      val pinned = Intent(ACTION_WIDGET_PINNED).setPackage(ctx.packageName)
+      val callback = PendingIntent.getBroadcast(ctx, 0, pinned, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+      mgr.requestPinAppWidget(ComponentName(ctx, NotesWidgetProvider::class.java), null, callback)
     }
 
     AsyncFunction("requestAddTile") { promise: Promise ->
@@ -132,4 +153,5 @@ class ModoNativeModule : Module() {
   }
 
   private var receiver: BroadcastReceiver? = null
+  private var pinnedReceiver: BroadcastReceiver? = null
 }

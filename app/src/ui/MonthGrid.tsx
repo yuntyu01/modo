@@ -1,10 +1,9 @@
-import { useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { PanResponder, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInLeft, FadeInRight } from 'react-native-reanimated';
 import Svg, { Circle } from 'react-native-svg';
 
-import { resolveLang } from '../i18n';
-import { useApp } from '../state/AppContext';
+import { useUi } from '../state/AppContext';
 import { localDate, monthTitle, weekNames } from './format';
 import { ChevronIcon } from './Icons';
 
@@ -13,7 +12,7 @@ import { ChevronIcon } from './Icons';
  * 고른 날은 강조색 동그라미, 오늘(고르지 않았을 때)은 강조색 굵은 숫자. 숫자 아래 점: 그날 끝낸 할 일이 있으면 테마색, 할 일만 있으면 옅은 색.
  * 날짜 칸을 좌우로 밀면 한 달씩 넘어가고, 넘어간 방향에서 새 달이 미끄러져 들어온다.
  */
-export function MonthGrid({
+export const MonthGrid = memo(function MonthGrid({
   month,
   setMonth,
   selected,
@@ -32,16 +31,18 @@ export function MonthGrid({
   /** 달력 안 머리(연·월 + ‹ ›) */
   header?: boolean;
 }) {
-  const { theme, prefs, t } = useApp();
-  const lang = resolveLang(prefs.language);
-  const today = localDate(new Date());
+  const { theme, t, lang, today } = useUi();
   const weeks = useMemo(() => {
     const y = month.getFullYear();
     const m = month.getMonth();
     const first = new Date(y, m, 1).getDay();
     const days = new Date(y, m + 1, 0).getDate();
     const total = Math.ceil((first + days) / 7) * 7;
-    const cells = Array.from({ length: total }, (_, i) => new Date(y, m, i - first + 1));
+    // 칸마다 날짜 글자·이번 달 여부·날을 한 번만 계산해 둔다(그릴 때마다 42칸을 다시 만들었다)
+    const cells = Array.from({ length: total }, (_, i) => {
+      const d = new Date(y, m, i - first + 1);
+      return { d, k: localDate(d), inMonth: d.getMonth() === m, day: d.getDate() };
+    });
     return Array.from({ length: total / 7 }, (_, w) => cells.slice(w * 7, w * 7 + 7));
   }, [month]);
   const shift = (n: number) => setMonth(new Date(month.getFullYear(), month.getMonth() + n, 1));
@@ -102,9 +103,7 @@ export function MonthGrid({
         <Animated.View key={key} entering={Platform.OS !== 'web' && dir ? (dir > 0 ? FadeInRight : FadeInLeft).duration(220) : undefined} style={slide}>
           {weeks.map((week, wi) => (
             <View key={wi} style={[styles.week, styles.grid]}>
-              {week.map((d) => {
-                const k = localDate(d);
-                const inMonth = d.getMonth() === month.getMonth();
+              {week.map(({ d, k, inMonth, day }) => {
                 const on = k === selected;
                 return (
                   <Pressable
@@ -130,7 +129,7 @@ export function MonthGrid({
                           fontWeight: on || k === today ? '700' : '400',
                         })}
                       >
-                        {d.getDate()}
+                        {day}
                       </Text>
                     </View>
                     {/* 숫자 아래 점(고른 날은 동그라미만): 끝낸 할 일이 있으면 테마색, 할 일만 있으면 옅은 색. SVG로(배경 둥글리기는 네모로 그려질 때가 있다) */}
@@ -148,7 +147,7 @@ export function MonthGrid({
       </View>
     </View>
   );
-}
+});
 
 // PC(웹): 달을 넘길 때 새 달이 옆에서 미끄러져 들어오는 움직임(휴대폰은 Reanimated의 entering)
 const webSlide = StyleSheet.create({

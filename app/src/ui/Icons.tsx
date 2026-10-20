@@ -122,6 +122,18 @@ export const RepeatRingIcon = ({ color, size = 24, strokeWidth = 1.6 }: P) => {
 /** 화살 하나의 호 길이(도). 두 화살 + 두 화살촉 + 두 틈 = 360° */
 const REPEAT_ARC = 138;
 
+/**
+ * 완료한 반복 할 일의 채운 동그라미 안 표시(사용자 시안 2026-10-19): 시계 방향으로 도는 가는 두 곡선 화살표,
+ * 화살촉은 꺾쇠로 오른쪽 위·왼쪽 아래에서 끝난다(흔히 쓰는 '새로 고침' 모양). 빈 반복 동그라미(RepeatRingIcon)의
+ * 채운 삼각 화살촉은 이 크기에서 뭉개져 화살로 읽히지 않았다.
+ */
+export const RepeatGlyphIcon = ({ color, size, strokeWidth = 2.2 }: P) => (
+  <S size={size}>
+    <Path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8M21 3v5h-5" stroke={color} strokeWidth={strokeWidth} {...base} />
+    <Path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16M8 16H3v5" stroke={color} strokeWidth={strokeWidth} {...base} />
+  </S>
+);
+
 export const CheckIcon = ({ color, size, strokeWidth = 2.6 }: P) => (
   <S size={size}>
     <Path d="M5 12.5l4.5 4.5L19 7.5" stroke={color} strokeWidth={strokeWidth} {...base} />
@@ -199,43 +211,10 @@ export const BellIcon = ({ color, size, strokeWidth = 1.7 }: P) => (
   </S>
 );
 
-export const SparkleIcon = ({ color, size, strokeWidth = 1.7 }: P) => (
-  <S size={size}>
-    <Path d="M10 3.5l1.6 4.9 4.9 1.6-4.9 1.6L10 16.5 8.4 11.6 3.5 10l4.9-1.6zM17.5 14l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z" stroke={color} strokeWidth={strokeWidth} {...base} />
-  </S>
-);
-
 export const GlobeIcon = ({ color, size, strokeWidth = 1.7 }: P) => (
   <S size={size}>
     <Circle cx={12} cy={12} r={8.5} stroke={color} strokeWidth={strokeWidth} {...base} />
     <Path d="M3.5 12h17M12 3.5c2.4 2.4 3.5 5.2 3.5 8.5s-1.1 6.1-3.5 8.5c-2.4-2.4-3.5-5.2-3.5-8.5s1.1-6.1 3.5-8.5z" stroke={color} strokeWidth={strokeWidth} {...base} />
-  </S>
-);
-
-export const CloudIcon = ({ color, size, strokeWidth = 1.7 }: P) => (
-  <S size={size}>
-    <Path d="M7 18.5h10a4 4 0 0 0 .6-8 5.5 5.5 0 0 0-10.6-1A4.5 4.5 0 0 0 7 18.5z" stroke={color} strokeWidth={strokeWidth} {...base} />
-  </S>
-);
-
-export const PaletteIcon = ({ color, size, strokeWidth = 1.7 }: P) => (
-  <S size={size}>
-    <Path d="M12 3.5a8.5 8.5 0 0 0 0 17c1.2 0 1.8-.8 1.8-1.7 0-1.2-1-1.6-1-2.6 0-1 .8-1.7 1.8-1.7h2a3.9 3.9 0 0 0 3.9-3.9C20.5 6.8 16.7 3.5 12 3.5z" stroke={color} strokeWidth={strokeWidth} {...base} />
-    {[
-      [7.8, 11],
-      [9.6, 7.4],
-      [14, 7.2],
-    ].map(([x, y]) => (
-      <Circle key={x} cx={x} cy={y} r={1.1} fill={color} />
-    ))}
-  </S>
-);
-
-export const WidgetIcon = ({ color, size, strokeWidth = 1.7 }: P) => (
-  <S size={size}>
-    <Rect x={3.5} y={3.5} width={7} height={7} rx={1.8} stroke={color} strokeWidth={strokeWidth} {...base} />
-    <Rect x={13.5} y={3.5} width={7} height={7} rx={1.8} stroke={color} strokeWidth={strokeWidth} {...base} />
-    <Rect x={3.5} y={13.5} width={17} height={7} rx={1.8} stroke={color} strokeWidth={strokeWidth} {...base} />
   </S>
 );
 
@@ -344,13 +323,6 @@ export const PopOutIcon = ({ color, size, strokeWidth = 1.8 }: P) => (
   <S size={size}>
     <Path d="M19 13.5v4.1a2.4 2.4 0 0 1-2.4 2.4H6.4A2.4 2.4 0 0 1 4 17.6V7.4A2.4 2.4 0 0 1 6.4 5h4.1" stroke={color} strokeWidth={strokeWidth} {...base} />
     <Path d="M14.5 4H20v5.5M20 4l-7.5 7.5" stroke={color} strokeWidth={strokeWidth} {...base} />
-  </S>
-);
-
-/** 최소화(가로줄) */
-export const MinusIcon = ({ color, size, strokeWidth = 1.8 }: P) => (
-  <S size={size}>
-    <Path d="M5 12h14" stroke={color} strokeWidth={strokeWidth} {...base} />
   </S>
 );
 

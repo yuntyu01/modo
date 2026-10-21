@@ -178,7 +178,8 @@ class QuickAddActivity : Activity() {
     val app = applicationContext
     Work.run {
       val ok = NotesDb.write(app) { db ->
-        if (asTodo) NotesDb.addTodo(db, text.replace('\n', ' '), folder, newTodoTop) else NotesDb.appendMemo(db, text, folder)
+        // 빠른 추가 글은 꾸밈이 없다: 태그처럼 보이는 글자만 바꿔 적어 글자 그대로 남긴다(Rich)
+        if (asTodo) NotesDb.addTodo(db, Rich.escape(text.replace('\n', ' ')), folder, newTodoTop) else NotesDb.appendMemo(db, Rich.escape(text), folder)
       } != null
       // 창은 저장되자마자 닫고, 위젯·알림은 그 뒤에 맞춘다(예전엔 위젯을 다 그릴 때까지 창이 남아 있었다)
       runOnUiThread {

@@ -7,6 +7,7 @@ import android.net.Uri
 import android.util.TypedValue
 import android.widget.RemoteViews
 import com.yuntyu01.naegirok.NotesDb
+import com.yuntyu01.naegirok.Rich
 import com.yuntyu01.naegirok.SurfaceTheme
 import com.yuntyu01.naegirok.WidgetEditActivity
 import com.yuntyu01.naegirok.nativelib.R
@@ -60,7 +61,7 @@ object WidgetRows {
 
   private fun memoRow(ctx: Context, widgetId: Int, folderId: String?, text: String, theme: SurfaceTheme, size: Float, lines: Int) =
     RemoteViews(ctx.packageName, R.layout.widget_item_memo).apply {
-      setTextViewText(R.id.item_text, text)
+      setTextViewText(R.id.item_text, Rich.spanned(text))
       setInt(R.id.item_text, "setMaxLines", lines)
       setTextColor(R.id.item_text, theme.text)
       // 시안: 메모는 할 일보다 한 단계 크다
@@ -74,7 +75,7 @@ object WidgetRows {
 
   private fun todoRow(ctx: Context, widgetId: Int, t: NotesDb.Todo, theme: SurfaceTheme, size: Float) =
     RemoteViews(ctx.packageName, R.layout.widget_item_todo).apply {
-      setTextViewText(R.id.item_text, t.text)
+      setTextViewText(R.id.item_text, Rich.spanned(t.text))
       setTextViewTextSize(R.id.item_text, TypedValue.COMPLEX_UNIT_SP, size)
       setTextColor(R.id.item_text, theme.text)
       // 홈 위젯·앱 카드와 같은 아래 줄: '매일 · 오늘 오후 5:00', '10월 16일 · 2일 지남'(지난 것은 빨간색)
@@ -93,7 +94,7 @@ object WidgetRows {
       // 반복 할 일은 같은 크기의 동그라미를 두 곡선 화살표로(앱 카드와 같은 모양)
       setImageViewResource(R.id.item_check, if (t.repeatFreq != null) R.drawable.naegirok_check_repeat else R.drawable.naegirok_check_off)
       setInt(R.id.item_check, "setColorFilter", theme.circle)
-      setContentDescription(R.id.item_check, ctx.getString(R.string.mark_done, t.text))
+      setContentDescription(R.id.item_check, ctx.getString(R.string.mark_done, Rich.plain(t.text)))
       // 동그라미 한 번 = 완료(반복은 이번 회차만)
       val toggle = Intent(ctx, NotesWidgetProvider::class.java).setAction(NotesWidgetProvider.ACTION_TOGGLE)
         .putExtra(NotesWidgetProvider.EXTRA_TODO, t.id)
@@ -108,7 +109,7 @@ object WidgetRows {
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
         .setData(Uri.parse("naegirok://edit/todo/${t.id}/$widgetId"))
       setOnClickPendingIntent(R.id.item_body, activity(ctx, edit))
-      setContentDescription(R.id.item_body, ctx.getString(R.string.edit_todo) + ": " + t.text)
+      setContentDescription(R.id.item_body, ctx.getString(R.string.edit_todo) + ": " + Rich.plain(t.text))
     }
 
   private fun dp(ctx: Context, v: Float) = (v * ctx.resources.displayMetrics.density).toInt()

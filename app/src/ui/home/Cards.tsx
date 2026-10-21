@@ -2,6 +2,7 @@ import { memo, useEffect, useState } from 'react';
 import { Animated, PixelRatio, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ruleOf } from '../../core/repeat';
+import { toPlain } from '../../core/rich';
 import type { Paragraph, Todo } from '../../core/types';
 import { useApp, useDrafts, useUi } from '../../state/AppContext';
 import { EditableText } from '../EditableText';
@@ -137,6 +138,8 @@ export const TodoCard = memo(function TodoCard({
     setChecking(false);
   }
   const done = todo.done || checking;
+  // 읽어 주기·밀어 지우기 이름표는 꾸밈 태그를 뺀 글
+  const plain = toPlain(todo.text);
   const overdue = !!todo.due_date && !done && todo.due_date < today;
   const rule = ruleOf(todo);
   const toggle = () => {
@@ -192,7 +195,7 @@ export const TodoCard = memo(function TodoCard({
     <Pressable
       accessibilityRole="checkbox"
       accessibilityState={{ checked: done, disabled: readOnly }}
-      accessibilityLabel={rule ? `${todo.text}, ${t('repeat')}` : todo.text}
+      accessibilityLabel={rule ? `${plain}, ${t('repeat')}` : plain}
       disabled={readOnly}
       hitSlop={12}
       onPress={toggle}
@@ -219,7 +222,7 @@ export const TodoCard = memo(function TodoCard({
       enabled={!readOnly && !isEditing && !active}
       onDelete={remove}
       onInfo={onInfo}
-      label={todo.text}
+      label={plain}
       sweepKey={todo.id}
       radius={theme.mini ? MINI_RADIUS : theme.desk ? DESK_RADIUS : styles.card.borderRadius}
       // 카드 사이(미니 6 · PC 8 · 휴대폰 8). 카드 위·목록 쪽에는 따로 여백을 두지 않아 겹쳐 커지지 않는다
@@ -284,7 +287,7 @@ export const TodoCard = memo(function TodoCard({
           ) : null}
         </View>
         {onSetDate ? (
-          <Pressable onPress={onSetDate} hitSlop={10} accessibilityRole="button" accessibilityLabel={`${todo.text} ${t('setDate')}`} style={{ marginLeft: 10 }}>
+          <Pressable onPress={onSetDate} hitSlop={10} accessibilityRole="button" accessibilityLabel={`${plain} ${t('setDate')}`} style={{ marginLeft: 10 }}>
             <Text style={theme.kfont(13.5 * theme.zoom, { color: theme.subtle })}>{t('setDate')}</Text>
           </Pressable>
         ) : null}
@@ -430,7 +433,7 @@ export const MemoBlock = memo(function MemoBlock({ paragraphs: all, editing, set
                   onMergeBack={
                     prev && canWrite(prev.folder_id)
                       ? async (text) => {
-                          const caret = prev.text.length;
+                          const caret = toPlain(prev.text).length;
                           await repo.setParagraphText(p.id, text);
                           await repo.mergeParagraphInto(prev.id, p.id);
                           setEditing({ id: prev.id, caret });

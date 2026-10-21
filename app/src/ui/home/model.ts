@@ -1,4 +1,5 @@
 import { compareKey } from '../../core/frac';
+import { toPlain } from '../../core/rich';
 import type { Folder, FolderFilter, Paragraph, Snapshot, Todo } from '../../core/types';
 
 export type Block =
@@ -66,7 +67,7 @@ function matches(text: string, q: string) {
 /** 그 폴더의 메모 문단(찾는 중이면 찾은 것만). 홈은 할 일과 따로 memo한다(할 일을 저장해도 문단 배열이 새로 생기지 않게) */
 export function visibleParagraphs(snap: Pick<Snapshot, 'paragraphs' | 'folders'>, filter: FolderFilter, query: string): Paragraph[] {
   const live = liveFolderIds(snap.folders);
-  return snap.paragraphs.filter((p) => !p.deleted_at && homeFolder(p.folder_id, live) === filter && (!query || matches(p.text, query)));
+  return snap.paragraphs.filter((p) => !p.deleted_at && homeFolder(p.folder_id, live) === filter && (!query || matches(toPlain(p.text), query)));
 }
 
 /**
@@ -78,7 +79,7 @@ export function buildBlocks(args: { snap: Snapshot; filter: FolderFilter; showDo
   const { snap, filter, showDone, query } = args;
   const live = liveFolderIds(snap.folders);
   const inView = (folderId: string | null) => homeFolder(folderId, live) === filter;
-  const all = snap.todos.filter((t) => !t.deleted_at && inView(t.folder_id) && matches(t.text, query));
+  const all = snap.todos.filter((t) => !t.deleted_at && inView(t.folder_id) && matches(toPlain(t.text), query));
   // 완료 항목을 숨기면(⋯ 메뉴) 보통 할 일만 숨는다. 완료한 반복 할 일은 다음 회차까지 묶음 맨 위에 체크된 채로 보인다
   // (매월 반복을 만들면 목록에서 사라진 것처럼 보였다, 사용자 제보 2026-10-18). 찾는 중이면 다 보인다.
   const doneOpen = showDone || !!query;

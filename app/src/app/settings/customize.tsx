@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { toPlain } from '../../core/rich';
 import { useApp, useUi } from '../../state/AppContext';
 import { DEFAULT_PREFS, MAIN_ACCENTS, type Prefs } from '../../state/prefs';
 import { contrast, hexToRgb, rgbToHsv } from '../../ui/color';
@@ -28,7 +29,7 @@ export function Preview() {
       <View style={[styles.ptodo, { backgroundColor: inner }]}>
         {!right && circle}
         <Text style={theme.kfont(16, { color: theme.text, flex: 1 })} numberOfLines={1}>
-          {todo?.text ?? t('previewTodo')}
+          {todo ? toPlain(todo.text) : t('previewTodo')}
         </Text>
         {right && circle}
       </View>

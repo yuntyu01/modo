@@ -73,6 +73,7 @@ class WidgetEditActivity : Activity() {
     findViewById<View>(R.id.qa_toggle).visibility = View.GONE
     input.setTextColor(theme.text)
     input.setHintTextColor(theme.muted)
+    input.setLinkTextColor(theme.accent)
     if (Build.VERSION.SDK_INT >= 29) {
       input.textCursorDrawable?.setTint(theme.accent)
       input.textSelectHandle?.setTint(theme.accent)
@@ -97,8 +98,9 @@ class WidgetEditActivity : Activity() {
     }
     // 빠른 추가 칸의 5000자 제한은 새로 쓰는 글에만: 이미 있는 긴 메모·할 일을 열면 잘리지 않게(앱의 고치기에도 제한이 없다)
     input.filters = emptyArray()
-    input.setText(original)
-    intact = input.text.toString() == original
+    // 굵게·밑줄·취소선·링크는 꾸민 그대로 보이고 고쳐도 지켜진다(Rich). 저장할 때 다시 저장 형식으로
+    input.setText(Rich.spanned(original, edit = true))
+    intact = input.text.toString() == Rich.plain(original)
     input.setSelection(input.length())
 
     send.setOnClickListener { saveAndClose() }
@@ -131,9 +133,9 @@ class WidgetEditActivity : Activity() {
   private fun save() {
     if (!intact || !::input.isInitialized) return
     input.clearComposingText()
-    val text = input.text.toString().let { if (todoId != null) it.replace('\n', ' ').trim() else it.trimEnd() }
+    val text = Rich.fromSpanned(input.text).let { if (todoId != null) it.replace('\n', ' ').trim() else it.trimEnd() }
     // 할 일을 다 지우면 지우지 않고 그대로 둔다(삭제는 앱에서 실행 취소와 함께)
-    if (text == original || (todoId != null && text.isBlank())) return
+    if (text == original || (todoId != null && Rich.plain(text).isBlank())) return
     // 홈 버튼으로 나갔다 돌아와 더 고치면 그것도 저장한다(예전엔 한 번 저장하면 그 창에선 다시 저장하지 않았다)
     original = text
     val id = todoId

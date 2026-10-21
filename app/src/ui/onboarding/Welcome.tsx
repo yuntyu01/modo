@@ -5,6 +5,7 @@ import { Animated, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollVi
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BRAND } from '../../brand';
+import { escapePlain } from '../../core/rich';
 import { useApp } from '../../state/AppContext';
 import { luminance } from '../color';
 import { CheckIcon } from '../Icons';
@@ -64,7 +65,7 @@ export function Welcome({ onStart, onHidden }: { onStart: (todoId: string, from:
     const from = await new Promise<Rect | null>((res) =>
       field.current ? field.current.measureInWindow((x, y, w, h) => res(w > 0 ? { x, y, w, h } : null)) : res(null),
     );
-    const id = await repo.addTodo(v, filter, prefs.newTodoAt);
+    const id = await repo.addTodo(escapePlain(v), filter, prefs.newTodoAt);
     onStart(id, from);
     Animated.timing(fade, { toValue: 0, duration: 320, useNativeDriver: true }).start(() => onHidden());
   };

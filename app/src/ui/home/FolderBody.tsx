@@ -3,6 +3,7 @@ import { Platform, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInLeft, FadeInRight } from 'react-native-reanimated';
 import { BlurTargetView } from 'expo-blur';
 
+import { escapePlain } from '../../core/rich';
 import type { FolderFilter, Paragraph } from '../../core/types';
 import { useApp } from '../../state/AppContext';
 import type { SheetState } from '../ItemSheets';
@@ -227,8 +228,9 @@ export function FolderBody({
               onSubmit={async (asTodo, text) => {
                 // 지금 보고 있는 폴더(초안이 묶인 폴더)에만 저장한다. 쓸 수 없는 폴더면 입력창이 잠겨 있다.
                 if (!writable) return false;
-                if (asTodo) await repo.addTodo(text, filter, prefs.newTodoAt);
-                else await repo.appendParagraphs(text, filter);
+                // 입력창 글은 꾸밈이 없다: 태그처럼 보이는 글자만 바꿔 적어 글자 그대로 남긴다(core/rich.ts)
+                if (asTodo) await repo.addTodo(escapePlain(text), filter, prefs.newTodoAt);
+                else await repo.appendParagraphs(escapePlain(text), filter);
                 return true;
               }}
             />

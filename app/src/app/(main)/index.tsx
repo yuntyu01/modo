@@ -2,6 +2,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Keyboard, View } from 'react-native';
 
+import { toPlain } from '../../core/rich';
 import { useApp } from '../../state/AppContext';
 import { ItemSheets, type SheetState } from '../../ui/ItemSheets';
 import type { Editing } from '../../ui/home/Cards';
@@ -49,7 +50,7 @@ export default function Home() {
     if (!params.folder) return;
     setFilter(params.folder === 'base' ? null : params.folder);
     const todo = params.edit ? snapRef.current.todos.find((x) => x.id === params.edit) : undefined;
-    if (todo) setEditing({ id: todo.id, caret: todo.text.length });
+    if (todo) setEditing({ id: todo.id, caret: toPlain(todo.text).length });
     // 링크가 바뀔 때만(스냅샷이 바뀔 때마다 폴더를 다시 고르지 않게)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [linkKey]);

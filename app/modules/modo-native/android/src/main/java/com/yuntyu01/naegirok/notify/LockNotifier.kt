@@ -11,6 +11,7 @@ import androidx.core.app.NotificationManagerCompat
 import com.yuntyu01.naegirok.NotesDb
 import com.yuntyu01.naegirok.QuickAddActivity
 import com.yuntyu01.naegirok.nativelib.R
+import com.yuntyu01.naegirok.Rich
 import com.yuntyu01.naegirok.SurfaceTheme
 
 /**
@@ -56,14 +57,14 @@ object LockNotifier {
       PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
     val style = NotificationCompat.InboxStyle().setBigContentTitle(title)
-    todos.forEach { style.addLine("○  ${it.text}") }
+    todos.forEach { style.addLine("○  ${Rich.plain(it.text)}") }
     if (data.count > todos.size) style.setSummaryText(ctx.getString(R.string.lock_more, data.count - todos.size))
 
     val builder = NotificationCompat.Builder(ctx, CHANNEL)
       .setSmallIcon(R.drawable.naegirok_tile)
       .setColor(theme.accent)
       .setContentTitle(title)
-      .setContentText(todos.firstOrNull()?.text ?: ctx.getString(R.string.lock_empty))
+      .setContentText(todos.firstOrNull()?.text?.let(Rich::plain) ?: ctx.getString(R.string.lock_empty))
       .setStyle(style)
       .setOngoing(true)
       .setOnlyAlertOnce(true)

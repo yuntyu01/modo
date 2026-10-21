@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { toPlain } from '../core/rich';
 import type { Folder } from '../core/types';
 import { native } from '../native/bridge';
 import { errorText } from '../i18n';
@@ -71,7 +72,7 @@ export function ItemSheets({ state, setState }: { state: SheetState; setState: (
       <Sheet visible={state?.type === 'todo' && !!todo} onClose={close}>
         {todo ? (
           <>
-            <SheetTitle title={t('todoInfo')} subtitle={todo.text} />
+            <SheetTitle title={t('todoInfo')} subtitle={toPlain(todo.text)} />
             <View style={styles.info}>
               {/* 완료한 할 일은 '언제 했는지'를 맨 위에 */}
               {todo.done_at ? <InfoRow label={t('doneAt')} value={formatDateTime(todo.done_at, lang)} /> : null}
@@ -110,7 +111,7 @@ export function ItemSheets({ state, setState }: { state: SheetState; setState: (
       <Sheet visible={state?.type === 'paragraph' && !!para} onClose={close}>
         {para ? (
           <>
-            <SheetTitle title={t('paragraphInfo')} subtitle={para.text || ' '} />
+            <SheetTitle title={t('paragraphInfo')} subtitle={toPlain(para.text) || ' '} />
             <View style={styles.info}>
               <InfoRow label={t('createdAt')} value={formatDateTime(para.created_at, lang)} />
               <InfoRow label={t('updatedAt')} value={formatDateTime(para.updated_at, lang)} />

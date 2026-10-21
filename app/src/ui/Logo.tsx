@@ -10,13 +10,20 @@ import symbol from '../../assets/brand/symbol-path.json';
  */
 /** 동일한 닫힌 외곽선을 앱 로고·안내 그림·네이티브 위젯이 공유한다. */
 export const MARK_PATH = { d: symbol.d, x: symbol.x, y: symbol.y, width: symbol.width, height: symbol.height };
-const VB = `${MARK_PATH.x} ${MARK_PATH.y} ${MARK_PATH.width} ${MARK_PATH.height}`;
+/**
+ * 그림 둘레 여백(심볼 높이 대비). 체크 꼬리의 둥근 끝이 그림 칸 오른쪽 위 끝에 딱 붙어 있어서,
+ * PC(웹)에서 칸을 화면 픽셀에 맞추면 그 끝이 깎여 보였다. 여백까지 그리고 바깥 여백만큼 당겨 자리·크기는 그대로.
+ */
+const BLEED = 0.08;
+const BLEED_VB = MARK_PATH.height * BLEED;
+const VB = `${MARK_PATH.x - BLEED_VB} ${MARK_PATH.y - BLEED_VB} ${MARK_PATH.width + BLEED_VB * 2} ${MARK_PATH.height + BLEED_VB * 2}`;
 const ASPECT = MARK_PATH.width / MARK_PATH.height;
 const WORD_ASPECT = 894 / 278;
 
 export function Mark({ height, color = LOGO_BLUE }: { height: number; color?: string }) {
+  const bleed = height * BLEED;
   return (
-    <Svg width={height * ASPECT} height={height} viewBox={VB}>
+    <Svg width={height * ASPECT + bleed * 2} height={height + bleed * 2} viewBox={VB} style={{ margin: -bleed }}>
       <Path d={MARK_PATH.d} fill={color} />
     </Svg>
   );

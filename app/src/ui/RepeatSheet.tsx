@@ -3,6 +3,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { dayBit, firstOnOrAfter, ruleOf, type RepeatFreq, type RepeatRule } from '../core/repeat';
+import { toPlain } from '../core/rich';
 import type { Todo } from '../core/types';
 import { useUi } from '../state/AppContext';
 import { formatDate, formatDue, localDate, parseLocalDate, weekNamesMonFirst } from './format';
@@ -79,7 +80,7 @@ function Body({ todo, onClose }: { todo: Todo; onClose: () => void }) {
                 {t('repeatSettings')}
               </Text>
               <Text style={theme.kfont(16, { color: theme.subtle, marginTop: 5 })} numberOfLines={1}>
-                {todo.text}
+                {toPlain(todo.text)}
               </Text>
             </View>
             <Pressable onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('cancel')} style={styles.close}>

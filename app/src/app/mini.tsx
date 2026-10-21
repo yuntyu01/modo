@@ -2,6 +2,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { escapePlain, toPlain } from '../core/rich';
 import type { FolderFilter, Paragraph } from '../core/types';
 import { desktop } from '../native/bridge';
 import { useApp, useDrafts, useSyncStatus, useUi } from '../state/AppContext';
@@ -461,7 +462,7 @@ function MiniWindow() {
                     onMergeBack={
                       prev && canWrite(prev.folder_id)
                         ? async (text) => {
-                            const caret = prev.text.length;
+                            const caret = toPlain(prev.text).length;
                             await repo.setParagraphText(p.id, text);
                             await repo.mergeParagraphInto(prev.id, p.id);
                             setEditing({ id: prev.id, caret });
@@ -629,8 +630,8 @@ function MiniComposerSlot({
         }}
         onSubmit={async (asTodo, text) => {
           if (!writable) return false;
-          if (asTodo) await repo.addTodo(text, filter, prefs.newTodoAt);
-          else await repo.appendParagraphs(text, filter);
+          if (asTodo) await repo.addTodo(escapePlain(text), filter, prefs.newTodoAt);
+          else await repo.appendParagraphs(escapePlain(text), filter);
           return true;
         }}
       />

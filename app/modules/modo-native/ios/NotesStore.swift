@@ -153,6 +153,25 @@ public enum NotesStore {
     return String(cString: c)
   }
 
+  private static let richToken = try? NSRegularExpression(pattern: "</?[bus]>|<a href=\"[^\"<>]*\">|</a>|&(lt|amp);")
+
+  /// 글 꾸미기(굵게·밑줄·취소선·링크) 태그를 뺀 글. 위젯·알림은 꾸밈 없이 글만 보여 준다.
+  /// 저장 형식은 앱(app/src/core/rich.ts)·Android(Rich.kt)와 같다: <b> <u> <s> <a href="…">, 글 속 '<'·'&'는 &lt; &amp;
+  public static func plain(_ s: String) -> String {
+    guard s.contains("<") || s.contains("&"), let re = richToken else { return s }
+    let ns = s as NSString
+    var out = ""
+    var last = 0
+    for m in re.matches(in: s, range: NSRange(location: 0, length: ns.length)) {
+      out += ns.substring(with: NSRange(location: last, length: m.range.location - last))
+      let tok = ns.substring(with: m.range)
+      if tok == "&lt;" { out += "<" } else if tok == "&amp;" { out += "&" }
+      last = m.range.location + m.range.length
+    }
+    out += ns.substring(from: last)
+    return out
+  }
+
   public static func snapshot(folderId: String?, limit: Int = 300) -> Snapshot? {
     guard let db = open() else { return nil }
     defer { sqlite3_close(db) }
@@ -178,7 +197,7 @@ public enum NotesStore {
     s.folderCount = ids.count
     s.pageIndex = fid.flatMap { ids.firstIndex(of: $0).map { $0 + 1 } } ?? 0
     query(db, "SELECT text FROM paragraphs WHERE deleted_at IS NULL\(live)\(folderWhere) ORDER BY position, id", args) { st in
-      s.memo.append(text(st, 0) ?? "")
+      s.memo.append(plain(text(st, 0) ?? ""))
     }
     // 위젯은 남은 할 일만 보여 준다(시안). 완료한 것은 앱에서 본다.
     // 완료: done_at이 있고, 반복이면 다음 예정일이 아직 안 왔을 때만(체크하면 그날까지 완료, 그날이 되면 다시 할 일 — 앱 repo.isDoneNow와 같다).
@@ -191,7 +210,7 @@ public enum NotesStore {
     todoArgs += [today]
     query(db, "SELECT id, text, CASE WHEN \(doneNow) THEN done_at END, due_date, remind_at, repeat_freq, repeat_days FROM todos WHERE deleted_at IS NULL\(live)\(folderWhere)\(doneWhere) ORDER BY position, id LIMIT \(limit)", todoArgs) { st in
       s.todos.append(Todo(
-        id: text(st, 0) ?? "", text: text(st, 1) ?? "",
+        id: text(st, 0) ?? "", text: plain(text(st, 1) ?? ""),
         doneAt: sqlite3_column_type(st, 2) == SQLITE_NULL ? nil : sqlite3_column_int64(st, 2),
         due: text(st, 3),
         remindAt: sqlite3_column_type(st, 4) == SQLITE_NULL ? nil : sqlite3_column_int64(st, 4),
@@ -209,7 +228,7 @@ public enum NotesStore {
     var out: [(String, String, Int64)] = []
     // 반복은 알림이 다음 회차 것이라 완료 표시와 상관없이 예약한다
     query(db, "SELECT id, text, remind_at FROM todos WHERE remind_at > ? AND (done_at IS NULL OR repeat_freq IS NOT NULL) AND deleted_at IS NULL\(live)", [now]) { st in
-      out.append((text(st, 0) ?? "", text(st, 1) ?? "", sqlite3_column_int64(st, 2)))
+      out.append((text(st, 0) ?? "", plain(text(st, 1) ?? ""), sqlite3_column_int64(st, 2)))
     }
     return out.map { (id: $0.0, text: $0.1, at: $0.2) }
   }

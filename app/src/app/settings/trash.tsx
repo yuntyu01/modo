@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { toPlain } from '../../core/rich';
 import { useApp } from '../../state/AppContext';
 import { formatDateTime } from '../../ui/format';
 import { ConfirmDialog } from '../../ui/primitives';
@@ -11,8 +12,8 @@ export default function Trash() {
   const { snap, theme, t, repo, lang } = useApp();
   const [confirm, setConfirm] = useState<null | { entity: 'todo' | 'paragraph'; ids: string[] } | 'all'>(null);
   const items = [
-    ...snap.todos.filter((x) => x.deleted_at).map((x) => ({ entity: 'todo' as const, id: x.id, text: x.text, at: x.deleted_at! })),
-    ...snap.paragraphs.filter((x) => x.deleted_at).map((x) => ({ entity: 'paragraph' as const, id: x.id, text: x.text, at: x.deleted_at! })),
+    ...snap.todos.filter((x) => x.deleted_at).map((x) => ({ entity: 'todo' as const, id: x.id, text: toPlain(x.text), at: x.deleted_at! })),
+    ...snap.paragraphs.filter((x) => x.deleted_at).map((x) => ({ entity: 'paragraph' as const, id: x.id, text: toPlain(x.text), at: x.deleted_at! })),
   ].sort((a, b) => b.at - a.at);
 
   return (

@@ -18,6 +18,8 @@ android {
 dependencies {
   implementation 'com.kakao.sdk:v2-user:2.25.1'
   implementation 'androidx.core:core-ktx:1.13.1'
-  // 홈 위젯 쪽 계산·보조 줄 표기(Android 의존 없는 코드)의 JVM 단위 테스트
+  // 홈 위젯의 위아래로 굴리는 목록(RemoteViewsCompat: Android 12+는 시스템 목록, 그 아래는 이 라이브러리의 목록 서비스)
+  implementation 'androidx.core:core-remoteviews:1.1.0'
+  // 위젯 보조 줄 표기·글 꾸미기 형식(Android 의존 없는 코드)의 JVM 단위 테스트
   testImplementation 'junit:junit:4.13.2'
 }

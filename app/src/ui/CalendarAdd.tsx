@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Keyboard, Platform, Pressable, StyleSheet, Text, TextInput, View, type LayoutChangeEvent } from 'react-native';
 
+import { escapePlain } from '../core/rich';
 import { useApp } from '../state/AppContext';
 import { useCardStyles } from './home/Cards';
 import { ChevronIcon, PlusIcon } from './Icons';
@@ -77,7 +78,7 @@ export function CalendarAdd({ date, onLayout, onFocus, onBlur, openSignal, hideI
     busy.current = true;
     last.current = { text: value, at: now };
     try {
-      await repo.addTodo(value, folder, prefs.newTodoAt, date);
+      await repo.addTodo(escapePlain(value), folder, prefs.newTodoAt, date);
       change('');
     } finally {
       busy.current = false;

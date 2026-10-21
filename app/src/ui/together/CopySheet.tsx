@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { toPlain } from '../../core/rich';
 import { errorText } from '../../i18n';
 import { useApp } from '../../state/AppContext';
 import { liveFolders, visibleParagraphs } from '../home/model';
@@ -102,7 +103,7 @@ export function CopySheet({ source, onClose, onCopied }: { source: CopySource | 
       {paragraphs.length ? (
         <View style={styles.switchRow}>
           <Text style={theme.kfont(16, { color: theme.text, flex: 1 })} numberOfLines={1}>
-            {t('copyMemo')} <Text style={{ color: theme.muted }}>{paragraphs[0].text.slice(0, 30)}</Text>
+            {t('copyMemo')} <Text style={{ color: theme.muted }}>{toPlain(paragraphs[0].text).slice(0, 30)}</Text>
           </Text>
           <Switch value={memo} onChange={setMemo} label={t('copyMemo')} size="sm" />
         </View>
@@ -111,7 +112,7 @@ export function CopySheet({ source, onClose, onCopied }: { source: CopySource | 
       {todos.map((x) => (
         <SheetButton
           key={x.id}
-          label={x.text}
+          label={toPlain(x.text)}
           selected={picked.has(x.id)}
           icon={<View style={styles.check}>{picked.has(x.id) ? <CheckIcon color={theme.accent} size={18} /> : null}</View>}
           onPress={() => toggle(x.id)}

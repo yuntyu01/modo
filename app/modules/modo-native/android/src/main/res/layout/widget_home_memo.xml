@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  홈 위젯 목록 맨 위의 메모(전체, 문단 사이 빈 줄 그대로). 누르면 메모 고치기 창(HomeWidget.memoItem).
+  글꼴·줄 간격은 예전 메모 쪽(시안)과 같다. 아래 할 일과는 12dp 띄운다.
+-->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+  android:id="@+id/memo_text"
+  android:layout_width="match_parent"
+  android:layout_height="wrap_content"
+  android:breakStrategy="simple"
+  android:fontFamily="sans-serif"
+  android:gravity="top|start"
+  android:hyphenationFrequency="none"
+  android:letterSpacing="-0.016"
+  android:lineSpacingMultiplier="1.3"
+  android:paddingTop="4dp"
+  android:paddingBottom="12dp"
+  android:textColor="#FFFFFF"
+  android:textSize="16sp" />

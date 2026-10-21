@@ -2,6 +2,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { escapePlain } from '../core/rich';
 import { useApp } from '../state/AppContext';
 import { Composer } from '../ui/home/Composer';
 import { contentColumn } from '../ui/layout';
@@ -34,8 +35,8 @@ export default function QuickAdd() {
             draft={draft}
             setDraft={setDraft}
             onSubmit={async (asTodo, text) => {
-              if (asTodo) await repo.addTodo(text, folderId, prefs.newTodoAt);
-              else await repo.appendParagraphs(text, folderId);
+              if (asTodo) await repo.addTodo(escapePlain(text), folderId, prefs.newTodoAt);
+              else await repo.appendParagraphs(escapePlain(text), folderId);
               showToast({ message: asTodo ? t('newTodo') : t('continueMemo') });
               close();
               return true;

@@ -41,13 +41,7 @@
   <string name="edit_todo">编辑待办</string>
   <string name="edit_memo">编辑备忘</string>
   <string name="save">保存</string>
-  <string name="widget_page_todo">待办 第%1$d页，共%2$d页</string>
-  <string name="widget_page_memo">备忘 第%1$d页，共%2$d页</string>
-  <string name="widget_page_current">%1$s，当前页</string>
-  <string name="widget_memo_expand">%1$s。点按展开备忘</string>
-  <string name="widget_memo_collapse">%1$s。点按收起备忘</string>
   <string name="widget_open_app">打开 modo</string>
-  <string name="widget_page_memo_only">备忘页</string>
   <string name="widget_folder_tab">%1$s文件夹</string>
   <string name="widget_folder_tab_current">%1$s文件夹，当前</string>
 </resources>

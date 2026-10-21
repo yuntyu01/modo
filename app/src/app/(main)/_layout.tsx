@@ -9,6 +9,7 @@ import { useApp, useSyncStatus } from '../../state/AppContext';
 import { FriendsProvider } from '../../state/friends';
 import { desktop } from '../../native/bridge';
 import { BottomNav, NAV_HEIGHT } from '../../ui/BottomNav';
+import { FormatBarHost } from '../../ui/FormatBar';
 import { BlurTargetContext } from '../../ui/glass';
 import { BottomInsetContext, contentColumn, useWide } from '../../ui/layout';
 import { LoginGate } from '../../ui/LoginGate';
@@ -84,6 +85,8 @@ export default function MainLayout() {
             <BottomInsetContext.Provider value={navInset}>
               <Slot />
             </BottomInsetContext.Provider>
+            {/* 휴대폰: 글자를 고르면 키보드 바로 위에 뜨는 꾸미기 막대(굵게·밑줄·취소선·링크) */}
+            {web ? null : <FormatBarHost />}
           </BlurTargetContext.Provider>
         </BlurTargetView>
         {web ? (

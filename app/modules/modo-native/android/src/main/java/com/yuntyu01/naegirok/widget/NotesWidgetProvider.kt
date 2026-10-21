@@ -15,13 +15,14 @@ import com.yuntyu01.naegirok.ModoEvents
 import com.yuntyu01.naegirok.NotesDb
 import com.yuntyu01.naegirok.nativelib.R
 import com.yuntyu01.naegirok.SurfaceTheme
+import com.yuntyu01.naegirok.WidgetEditActivity
 import com.yuntyu01.naegirok.Work
 import kotlin.math.roundToInt
 
 /**
  * 홈 화면(지원하면 잠금화면) 위젯. 폴더의 메모와 남은 할 일을 보여 준다. 동그라미를 한 번 누르면 완료(목록에서 빠진다),
  * 할 일 글자를 누르면 그 자리에서 고치는 작은 입력창(WidgetEditActivity)이 뜬다.
- * 홈 화면 모양·쪽 넘기기는 HomeWidget(메모 쪽 + 할 일 쪽, 메모 읽기 모드). 잠금화면은 이 파일의 예전 모양(widget_notes_lock).
+ * 홈 화면 모양은 HomeWidget(메모 + 할 일을 위아래로 굴리는 목록). 잠금화면은 이 파일의 예전 모양(widget_notes_lock).
  * 데이터는 앱과 같은 SQLite 파일을 직접 읽고, 바꾼 내용은 outbox에 남아 앱이 열릴 때 동기화된다.
  */
 open class NotesWidgetProvider : AppWidgetProvider() {
@@ -42,46 +43,43 @@ open class NotesWidgetProvider : AppWidgetProvider() {
     Work.run(this) { update(ctx, mgr, id) }
   }
 
+  /** 할 일 완료(반복은 이번 회차만). 로그아웃한 뒤 남은 위젯 화면을 눌러도 바꾸지 않는다 */
+  private fun complete(ctx: Context, todoId: String) = Work.run(this) {
+    NotesDb.write(ctx) { if (NotesDb.signedIn(it)) NotesDb.complete(it, todoId) }
+    ModoEvents.afterWrite(ctx, "todos")
+  }
+
   override fun onReceive(ctx: Context, intent: Intent) {
     if (intent.action == ACTION_TOGGLE) {
-      val todoId = intent.getStringExtra(EXTRA_TODO) ?: return
-      Work.run(this) {
-        // 로그아웃한 뒤 남은 위젯 화면을 눌러도 바꾸지 않는다
-        NotesDb.write(ctx) { if (NotesDb.signedIn(it)) NotesDb.complete(it, todoId) }
-        ModoEvents.afterWrite(ctx, "todos")
+      intent.getStringExtra(EXTRA_TODO)?.let { complete(ctx, it) }
+      return
+    }
+    // 홈 위젯 목록 안을 누름(HomeWidget.fill): 완료는 여기서, 고치기·앱 열기는 그 화면을 띄운다
+    // (위젯을 누른 손짓이라 런처가 화면을 띄울 권한을 넘겨 준다)
+    if (intent.action == ACTION_ITEM) {
+      val id = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
+      val todo = intent.getStringExtra(EXTRA_TODO)
+      val folder = intent.getStringExtra(EXTRA_FOLDER)?.takeIf { it.isNotEmpty() }
+      val edit = Intent(ctx, WidgetEditActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+      when (intent.getStringExtra(EXTRA_ITEM)) {
+        ITEM_TOGGLE -> todo?.let { complete(ctx, it) }
+        ITEM_EDIT -> if (todo != null) ctx.startActivity(edit.putExtra(WidgetEditActivity.EXTRA_TODO, todo).setData(Uri.parse("naegirok://edit/todo/$todo/$id")))
+        ITEM_MEMO -> ctx.startActivity(
+          edit.putExtra(WidgetEditActivity.EXTRA_MEMO_FOLDER, folder ?: WidgetEditActivity.BASE).setData(Uri.parse("naegirok://edit/memo/${folder ?: "base"}/$id")),
+        )
+        ITEM_OPEN -> ctx.startActivity(openFolder(ctx, folder).setData(Uri.parse("naegirok://?folder=${folder ?: "base"}&w=$id")))
       }
       return
     }
-    // 홈 위젯: 폴더 탭을 누르면 그 폴더의 첫 쪽으로(위젯마다 따로 저장)
+    // 홈 위젯: 폴더 탭을 누르면 그 폴더로, 목록은 맨 위로(위젯마다 따로 저장)
     if (intent.action == ACTION_FOLDER) {
       val id = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
       if (id == AppWidgetManager.INVALID_APPWIDGET_ID) return
       val folder = intent.getStringExtra(EXTRA_FOLDER)?.takeIf { it.isNotEmpty() }
       Work.run(this) {
-        // 지금 폴더를 다시 눌러도 첫 쪽으로(읽기 모드도 끈다). 예전엔 같은 폴더면 아무 일도 없었다
-        WidgetPrefs.load(ctx, id).withFolder(folder)
-          .copy(page = 0, anchorTodo = null, anchorIndex = -1, reading = false, readPage = 0, readOffset = -1)
-          .save(ctx, id)
-        update(ctx, AppWidgetManager.getInstance(ctx), id)
-      }
-      return
-    }
-    // 홈 위젯: 메모 읽기 켜기/끄기, 점으로 쪽 고르기(위젯마다 따로 저장)
-    if (intent.action == ACTION_MEMO || intent.action == ACTION_GO) {
-      val id = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
-      if (id == AppWidgetManager.INVALID_APPWIDGET_ID) return
-      Work.run(this) {
-        val wp = WidgetPrefs.load(ctx, id)
-        val next = when {
-          // 읽기 모드에서 다시 누르면 기본 모드의 메모 쪽으로
-          intent.action == ACTION_MEMO && wp.reading -> wp.copy(reading = false, page = 0, anchorTodo = null, anchorIndex = -1)
-          intent.action == ACTION_MEMO -> wp.copy(reading = true, readPage = 0, readOffset = 0)
-          intent.getStringExtra(EXTRA_KIND) == HomeWidget.KIND_READ -> wp.copy(readPage = intent.getIntExtra(EXTRA_INDEX, 0), readOffset = -1)
-          // 점으로 고른 쪽: 그 쪽의 첫 할 일은 그릴 때 정해 둔다
-          else -> wp.copy(page = intent.getIntExtra(EXTRA_INDEX, 0), anchorTodo = null, anchorIndex = -1)
-        }
-        next.save(ctx, id)
-        update(ctx, AppWidgetManager.getInstance(ctx), id)
+        // 지금 폴더를 다시 눌러도 목록 맨 위로
+        WidgetPrefs.load(ctx, id).withFolder(folder).save(ctx, id)
+        update(ctx, AppWidgetManager.getInstance(ctx), id, scrollTop = true)
       }
       return
     }
@@ -108,11 +106,15 @@ open class NotesWidgetProvider : AppWidgetProvider() {
   companion object {
     const val ACTION_TOGGLE = "com.yuntyu01.naegirok.widget.TOGGLE"
     const val ACTION_PAGE = "com.yuntyu01.naegirok.widget.PAGE"
-    const val ACTION_MEMO = "com.yuntyu01.naegirok.widget.MEMO"
-    const val ACTION_GO = "com.yuntyu01.naegirok.widget.GO"
+    const val ACTION_ITEM = "com.yuntyu01.naegirok.widget.ITEM"
     const val ACTION_FOLDER = "com.yuntyu01.naegirok.widget.FOLDER"
     const val EXTRA_FOLDER = "folder"
-    const val EXTRA_KIND = "kind"
+    const val EXTRA_ITEM = "item"
+    /** 목록 안을 누름(EXTRA_ITEM): 완료 · 할 일 고치기 · 메모 고치기 · 앱의 그 폴더 */
+    const val ITEM_TOGGLE = "toggle"
+    const val ITEM_EDIT = "edit"
+    const val ITEM_MEMO = "memo"
+    const val ITEM_OPEN = "open"
     const val EXTRA_STEP = "step"
     const val EXTRA_INDEX = "index"
     const val EXTRA_TODO = "todo_id"
@@ -140,28 +142,29 @@ open class NotesWidgetProvider : AppWidgetProvider() {
         .setPackage(ctx.packageName)
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
-    fun update(base: Context, mgr: AppWidgetManager, id: Int) = draw(AppLocale.wrap(base), mgr, id)
+    fun update(base: Context, mgr: AppWidgetManager, id: Int, scrollTop: Boolean = false) = draw(AppLocale.wrap(base), mgr, id, scrollTop)
+
 
     /**
      * ctx: 앱 언어로 맞춘 Context. 위젯 하나가 실패해도(읽을 수 없는 DB 값 등) 나머지는 그리고, 그 위젯은 흰 빈 상자로 남지 않게
      * 로고만 있는 기본 모양(누르면 앱)으로 둔다. 예전엔 한 위젯의 오류가 refreshAll·onUpdate의 반복을 끊어 모든 위젯이 그대로 남았다
      */
-    private fun draw(ctx: Context, mgr: AppWidgetManager, id: Int) {
+    private fun draw(ctx: Context, mgr: AppWidgetManager, id: Int, scrollTop: Boolean = false) {
       try {
-        drawOrThrow(ctx, mgr, id)
+        drawOrThrow(ctx, mgr, id, scrollTop)
       } catch (e: Exception) {
         android.util.Log.w("modo", "widget $id draw failed", e)
         runCatching { mgr.updateAppWidget(id, HomeWidget.fallback(ctx, id)) }
       }
     }
 
-    private fun drawOrThrow(ctx: Context, mgr: AppWidgetManager, id: Int) {
+    private fun drawOrThrow(ctx: Context, mgr: AppWidgetManager, id: Int, scrollTop: Boolean) {
       // 잠금화면에 놓인 위젯인지(배치·공개 범위가 다르다)
       val options = mgr.getAppWidgetOptions(id)
       val keyguard = options.getInt(AppWidgetManager.OPTION_APPWIDGET_HOST_CATEGORY, -1) ==
         android.appwidget.AppWidgetProviderInfo.WIDGET_CATEGORY_KEYGUARD
-      // 홈 화면은 새 시안(HomeWidget: 메모 쪽 + 할 일 쪽). 잠금화면은 아래의 예전 모양(widget_notes_lock)
-      if (!keyguard) return mgr.updateAppWidget(id, HomeWidget.render(ctx, mgr, id))
+      // 홈 화면은 새 시안(HomeWidget: 메모 + 할 일 목록). 잠금화면은 아래의 예전 모양(widget_notes_lock)
+      if (!keyguard) return mgr.updateAppWidget(id, HomeWidget.render(ctx, mgr, id, scrollTop))
       val wp = WidgetPrefs.load(ctx, id)
       // 위젯마다 고른 폴더(null = 기본). 지워졌거나 공유가 끊긴 폴더면 기본으로.
       data class Head(

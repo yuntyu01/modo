@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 홈 위젯 목록 끝: 위젯에 다 싣지 않은 할 일 수('외 N개'). 누르면 앱의 그 폴더(HomeWidget.moreItem) -->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+  android:id="@+id/more_text"
+  android:layout_width="match_parent"
+  android:layout_height="wrap_content"
+  android:fontFamily="sans-serif"
+  android:gravity="center_vertical|start"
+  android:minHeight="40dp"
+  android:paddingStart="32dp"
+  android:textColor="#A1A1A6"
+  android:textSize="14sp" />

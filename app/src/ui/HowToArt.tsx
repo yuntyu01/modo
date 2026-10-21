@@ -2,6 +2,7 @@ import Svg, { Circle, G, Path, Rect, Text as SvgText } from 'react-native-svg';
 
 import { useUi } from '../state/AppContext';
 import { MARK_PATH } from './Logo';
+import type { Theme } from './theme';
 
 /**
  * '직접 넣는 방법'(settings/howto) 단계 그림: 단순한 휴대폰 화면 위에 누를 곳(손가락)·끄는 방향(화살표)·강조를 그린다.
@@ -17,9 +18,8 @@ const H = 220;
 /** 위젯 그림 바탕(실제 홈 위젯과 같은 파란 기 없는 차콜) */
 const WIDGET_BG = '#2A2A2C';
 
-export function HowToArt({ kind, step, width = 104 }: { kind: HowToKind; step: number; width?: number }) {
-  const { theme, t } = useUi();
-  const c = {
+function palette(theme: Theme) {
+  return {
     screen: theme.dark ? '#121316' : '#EEF1F5',
     frame: theme.dark ? '#3A3D44' : '#C5CBD4',
     block: theme.dark ? '#2B2E34' : '#D6DBE2',
@@ -29,6 +29,61 @@ export function HowToArt({ kind, step, width = 104 }: { kind: HowToKind; step: n
     muted: theme.muted,
     accent: theme.accent,
   };
+}
+
+/** modo 심볼(왼쪽 위 x, y, 높이 h) */
+function markAt(x: number, y: number, h: number, color: string) {
+  const s = h / MARK_PATH.height;
+  return <Path d={MARK_PATH.d} transform={`translate(${x - MARK_PATH.x * s} ${y - MARK_PATH.y * s}) scale(${s})`} fill={color} />;
+}
+
+/**
+ * 위젯 크기 고르기(설정 → 홈·잠금화면 → 홈 화면 위젯) 그림: 홈 화면 칸(가로 4칸) 위에서 위젯이 차지하는 크기를 대충 보여 준다
+ * (사용자 요청 2026-10-21). 위젯 안 할 일 줄 수도 크기를 따라 늘어난다. 칸 크기는 런처·기기마다 달라 실제와 똑같지는 않다.
+ */
+export function WidgetSizeArt({ cells, width = 92 }: { cells: 3 | 4; width?: number }) {
+  const { theme } = useUi();
+  const c = palette(theme);
+  const CELL = 24;
+  const X0 = 12;
+  const Y0 = 24;
+  const ROWS = 6;
+  const x = X0 + 2;
+  const y = Y0 + 2;
+  const side = cells * CELL - 4;
+  const icons = [];
+  for (let r = 0; r < ROWS; r++)
+    for (let col = 0; col < 4; col++)
+      if (r >= cells || col >= cells) icons.push(<Circle key={`${r}-${col}`} cx={X0 + col * CELL + CELL / 2} cy={Y0 + r * CELL + CELL / 2} r={7} fill={c.block} />);
+  const rows: number[] = [];
+  for (let ry = y + 21; ry + 6 < y + side - 3; ry += 11) rows.push(ry);
+  return (
+    <Svg width={width} height={(width * H) / W} viewBox={`0 0 ${W} ${H}`} accessible={false}>
+      <Rect x={3} y={3} width={W - 6} height={H - 6} rx={16} fill={c.screen} stroke={c.frame} strokeWidth={2} />
+      <Rect x={14} y={10} width={14} height={3} rx={1.5} fill={c.line} />
+      <Rect x={88} y={10} width={18} height={3} rx={1.5} fill={c.line} />
+      {icons}
+      <Rect x={14} y={178} width={92} height={1} fill={c.line} />
+      {[24, 48, 72, 96].map((cx) => (
+        <Circle key={cx} cx={cx} cy={196} r={7} fill={c.block} />
+      ))}
+      <Rect x={x} y={y} width={side} height={side} rx={9} fill={WIDGET_BG} stroke={c.accent} strokeWidth={1.4} />
+      {markAt(x + 6, y + 7, 4.5, theme.accent)}
+      <Rect x={x + 22} y={y + 7.5} width={10} height={3.5} rx={1.75} fill="#F5F5F7" />
+      <Rect x={x + 36} y={y + 7.5} width={10} height={3.5} rx={1.75} fill="#77787D" />
+      {rows.map((ry, i) => (
+        <G key={ry}>
+          <Circle cx={x + 9} cy={ry + 1.75} r={2.6} fill="none" stroke="#9A9BA0" strokeWidth={1} />
+          <Rect x={x + 16} y={ry} width={(side - 24) * (i % 2 ? 0.62 : 0.85)} height={3.5} rx={1.75} fill="#C9CACE" />
+        </G>
+      ))}
+    </Svg>
+  );
+}
+
+export function HowToArt({ kind, step, width = 104 }: { kind: HowToKind; step: number; width?: number }) {
+  const { theme, t } = useUi();
+  const c = palette(theme);
 
   /** 화면 틀과 위쪽 상태 표시줄 */
   const phone = (children: React.ReactNode, screen = c.screen) => (
@@ -68,17 +123,7 @@ export function HowToArt({ kind, step, width = 104 }: { kind: HowToKind; step: n
     );
   };
 
-  /** modo 심볼(왼쪽 위 x, y, 높이 h) */
-  const mark = (x: number, y: number, h: number, color = c.accent) => {
-    const s = h / MARK_PATH.height;
-    return (
-      <Path
-        d={MARK_PATH.d}
-        transform={`translate(${x - MARK_PATH.x * s} ${y - MARK_PATH.y * s}) scale(${s})`}
-        fill={color}
-      />
-    );
-  };
+  const mark = (x: number, y: number, h: number, color = c.accent) => markAt(x, y, h, color);
 
   /** 홈 위젯 모양(심볼 · 폴더 탭 · 메모 줄) */
   const widget = (x: number, y: number, w: number, h: number) => (

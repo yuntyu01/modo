@@ -14,6 +14,7 @@ import androidx.core.app.NotificationManagerCompat
 import com.yuntyu01.naegirok.ModoEvents
 import com.yuntyu01.naegirok.NotesDb
 import com.yuntyu01.naegirok.nativelib.R
+import com.yuntyu01.naegirok.Rich
 import com.yuntyu01.naegirok.SurfaceTheme
 import com.yuntyu01.naegirok.Work
 
@@ -147,8 +148,8 @@ class ReminderReceiver : BroadcastReceiver() {
       .setSmallIcon(R.drawable.naegirok_tile)
       .setColor(theme.accent)
       .setContentTitle(ctx.getString(R.string.reminder_title))
-      .setContentText(todo.text)
-      .setStyle(NotificationCompat.BigTextStyle().bigText(todo.text))
+      .setContentText(Rich.plain(todo.text))
+      .setStyle(NotificationCompat.BigTextStyle().bigText(Rich.plain(todo.text)))
       .setContentIntent(open)
       .setAutoCancel(true)
       .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)

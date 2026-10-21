@@ -1,10 +1,11 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Platform } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { native } from '../../native/bridge';
 import { useUi } from '../../state/AppContext';
-import { Group, Row, Sheet, SheetButton, SheetTitle } from '../../ui/primitives';
+import { WidgetSizeArt } from '../../ui/HowToArt';
+import { Group, Row, Sheet, SheetTitle } from '../../ui/primitives';
 import { Note, SubScreen } from '../../ui/SubScreen';
 
 /**
@@ -15,7 +16,7 @@ import { Note, SubScreen } from '../../ui/SubScreen';
  * 런처의 위젯 고르기 화면에도 두 크기가 따로 보인다(WidgetSizes.kt).
  */
 export default function Widgets() {
-  const { t } = useUi();
+  const { t, theme } = useUi();
   const [sizes, setSizes] = useState(false);
   if (Platform.OS === 'ios') {
     return (
@@ -37,21 +38,29 @@ export default function Widgets() {
       </Group>
       <Sheet visible={sizes} onClose={() => setSizes(false)}>
         <SheetTitle title={t('widgetSize')} />
-        {(
-          [
-            ['3x3', 'widgetSizeMid'],
-            ['4x4', 'widgetSizeLarge'],
-          ] as const
-        ).map(([size, label]) => (
-          <SheetButton
-            key={size}
-            label={t(label)}
-            onPress={async () => {
-              setSizes(false);
-              if (!(await native.requestPinWidget(size))) router.push({ pathname: '/settings/howto/[topic]', params: { topic: 'widget', unsupported: '1' } });
-            }}
-          />
-        ))}
+        {/* 크기마다 홈 화면에서 차지하는 모습을 그림으로(사용자 요청 2026-10-21) */}
+        <View style={styles.sizes}>
+          {(
+            [
+              [3, '3x3', 'widgetSizeMid'],
+              [4, '4x4', 'widgetSizeLarge'],
+            ] as const
+          ).map(([cells, size, label]) => (
+            <Pressable
+              key={size}
+              accessibilityRole="button"
+              accessibilityLabel={t(label)}
+              onPress={async () => {
+                setSizes(false);
+                if (!(await native.requestPinWidget(size))) router.push({ pathname: '/settings/howto/[topic]', params: { topic: 'widget', unsupported: '1' } });
+              }}
+              style={({ pressed }) => [styles.size, { borderColor: theme.outline }, pressed && { backgroundColor: theme.raised }]}
+            >
+              <WidgetSizeArt cells={cells} />
+              <Text style={theme.font(15, { color: theme.text, fontWeight: '600', marginTop: 10 })}>{t(label)}</Text>
+            </Pressable>
+          ))}
+        </View>
       </Sheet>
       {/* 잠금화면 알림과 공개 범위 */}
       <Group>
@@ -60,3 +69,8 @@ export default function Widgets() {
     </SubScreen>
   );
 }
+
+const styles = StyleSheet.create({
+  sizes: { flexDirection: 'row', gap: 12, paddingHorizontal: 22, paddingTop: 6, paddingBottom: 18 },
+  size: { flex: 1, alignItems: 'center', borderRadius: 16, borderWidth: 1, paddingTop: 16, paddingBottom: 14 },
+});

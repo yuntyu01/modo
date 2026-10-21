@@ -3,11 +3,12 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
 import { useEffect, useMemo } from 'react';
-import { Platform } from 'react-native';
+import { Platform, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AppProvider, useApp, useSyncStatus, useUi } from '../state/AppContext';
+import { LinkPopoverHost, linkPopover } from '../ui/LinkPopover';
 import { installThinScrollbars } from '../ui/thinScrollbar';
 import { TrashFlightHost } from '../ui/trashFlight';
 
@@ -60,19 +61,29 @@ function Themed() {
       </ThemeProvider>
       {/* 옆으로 밀어 지운 할 일이 ⋯(휴지통)로 날아가는 층: 모든 화면 위 */}
       <TrashFlightHost />
+      {/* 글 속 링크를 눌렀을 때 뜨는 말풍선(바로가기): 모든 화면 위 */}
+      <LinkPopoverHost />
       <AuthGuard />
     </>
   );
 }
 
+function linkTouch(e: { nativeEvent: { pageX: number; pageY: number } }) {
+  linkPopover.touch(e.nativeEvent.pageX, e.nativeEvent.pageY);
+  return false;
+}
+
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: Platform.OS === 'web' ? 'transparent' : '#000' }}>
-      <SafeAreaProvider>
-        <AppProvider>
-          <Themed />
-        </AppProvider>
-      </SafeAreaProvider>
+      {/* 휴대폰: 화면 어디든 누르기 시작하면 링크 말풍선에 알린다(말풍선 밖이면 닫기). 손짓은 가로채지 않는다 */}
+      <View style={{ flex: 1 }} onStartShouldSetResponderCapture={Platform.OS === 'web' ? undefined : linkTouch}>
+        <SafeAreaProvider>
+          <AppProvider>
+            <Themed />
+          </AppProvider>
+        </SafeAreaProvider>
+      </View>
     </GestureHandlerRootView>
   );
 }

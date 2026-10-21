@@ -1,0 +1,76 @@
+name: Recover Play closed-test upload
+
+on:
+  workflow_dispatch:
+    inputs:
+      artifact_id:
+        description: Exact Android artifact ID from a trusted main build
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+# Share the release lock with the normal Android publisher.
+concurrency:
+  group: mobile-release-release
+  cancel-in-progress: false
+
+jobs:
+  upload:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Verify original build and unchanged app source
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_ID: ${{ inputs.artifact_id }}
+          REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$REPO" == 'yuntyu01/modo' && "$ARTIFACT_ID" =~ ^[0-9]+$ ]]
+          gh api "repos/$REPO/actions/artifacts/$ARTIFACT_ID" > "$RUNNER_TEMP/artifact.json"
+          python - "$RUNNER_TEMP/artifact.json" "$GITHUB_OUTPUT" <<'PY'
+          import json, re, sys
+          a=json.load(open(sys.argv[1]))
+          w=a['workflow_run']
+          assert not a['expired'] and a['name'].startswith('modo-android-')
+          assert w['head_branch']=='main' and w['repository_id']==w['head_repository_id']==1424057292
+          assert re.fullmatch(r'[0-9a-f]{40}', w['head_sha'])
+          with open(sys.argv[2], 'a') as out:
+              out.write(f"sha={w['head_sha']}\nrun={w['id']}\n")
+          PY
+          sha=$(python -c 'import json,sys;print(json.load(open(sys.argv[1]))["workflow_run"]["head_sha"])' "$RUNNER_TEMP/artifact.json")
+          git merge-base --is-ancestor "$sha" HEAD
+          git diff --exit-code "$sha" HEAD -- app/
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: ${{ inputs.artifact_id }}
+          run-id: ${{ steps.source.outputs.run }}
+          github-token: ${{ github.token }}
+          path: recovery-aab
+          merge-multiple: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --quiet 'google-api-python-client>=2,<3' 'google-auth>=2,<3'
+      - run: python .github/scripts/test_play_release.py
+      - name: Upload existing verified bundle to alpha
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          BUILD_SHA: ${{ steps.source.outputs.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$PLAY_SERVICE_ACCOUNT_JSON"
+          test -f recovery-aab/app-release.aab
+          test "$(find recovery-aab -type f -name '*.aab' | wc -l)" -eq 1
+          sha256sum recovery-aab/app-release.aab
+          GITHUB_SHA="$BUILD_SHA" python .github/scripts/play_release.py upload recovery-aab/app-release.aab alpha

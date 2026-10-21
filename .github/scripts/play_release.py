@@ -10,9 +10,14 @@
   PLAY_PACKAGE               패키지 이름(기본 com.yuntyu01.naegirok)
 """
 import json
+import hashlib
 import os
+import ssl
 import sys
+import time
 
+import httplib2
+from google_auth_httplib2 import AuthorizedHttp
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
@@ -20,6 +25,9 @@ from googleapiclient.http import MediaFileUpload
 
 PACKAGE = os.environ.get('PLAY_PACKAGE', 'com.yuntyu01.naegirok')
 EXPECTED_PACKAGE = 'com.yuntyu01.naegirok'
+HTTP_TIMEOUT_SECONDS = 300
+UPLOAD_CHUNK_BYTES = 8 * 1024 * 1024
+UPLOAD_RETRIES = 5
 
 
 def require_closed_test(track='alpha'):
@@ -39,7 +47,28 @@ def edits():
     require_closed_test()
     info = json.loads(os.environ['PLAY_SERVICE_ACCOUNT_JSON'])
     creds = service_account.Credentials.from_service_account_info(info, scopes=['https://www.googleapis.com/auth/androidpublisher'])
-    return build('androidpublisher', 'v3', credentials=creds, cache_discovery=False).edits()
+    http = AuthorizedHttp(creds, http=httplib2.Http(timeout=HTTP_TIMEOUT_SECONDS))
+    return build('androidpublisher', 'v3', http=http, cache_discovery=False).edits()
+
+
+def bundle_sha256(aab):
+    with open(aab, 'rb') as stream:
+        return hashlib.file_digest(stream, 'sha256').hexdigest()
+
+
+def resumable_bundle_upload(request):
+    response = None
+    failures = 0
+    while response is None:
+        try:
+            _, response = request.next_chunk(num_retries=UPLOAD_RETRIES)
+        except (TimeoutError, ConnectionError, ssl.SSLError, httplib2.HttpLib2Error):
+            if failures >= UPLOAD_RETRIES:
+                raise
+            failures += 1
+            report(f'::warning::Transient bundle upload transport error; resuming the same session (retry {failures}/{UPLOAD_RETRIES}).')
+            time.sleep(min(2 ** failures, 30))
+    return response
 
 
 def next_version_code(api):
@@ -60,8 +89,20 @@ def upload(api, aab, track):
     edit = api.insert(packageName=PACKAGE, body={}).execute()['id']
     committed = False
     try:
-        media = MediaFileUpload(aab, mimetype='application/octet-stream', resumable=True)
-        code = str(api.bundles().upload(packageName=PACKAGE, editId=edit, media_body=media).execute()['versionCode'])
+        digest = bundle_sha256(aab)
+        bundles = api.bundles().list(packageName=PACKAGE, editId=edit).execute().get('bundles', [])
+        existing = next((b for b in bundles if b.get('sha256') == digest), None)
+        if existing:
+            code = str(existing['versionCode'])
+            report(f'Reusing already uploaded versionCode {code} with matching SHA-256.')
+        else:
+            media = MediaFileUpload(aab, mimetype='application/octet-stream',
+                                    chunksize=UPLOAD_CHUNK_BYTES, resumable=True)
+            try:
+                request = api.bundles().upload(packageName=PACKAGE, editId=edit, media_body=media)
+                code = str(resumable_bundle_upload(request)['versionCode'])
+            finally:
+                media.stream().close()
         current = api.tracks().get(packageName=PACKAGE, editId=edit, track=track).execute()
         prev = next((r for r in current.get('releases', []) if r.get('countryTargeting')), None)
         release = {'versionCodes': [code], 'status': 'completed'}

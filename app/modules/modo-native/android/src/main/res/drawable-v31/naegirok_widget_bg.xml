@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+: 모서리를 기기 기본 위젯과 같게(삼성 One UI 등 런처마다 다르다). 그 아래 버전은 drawable/의 19dp -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+  <solid android:color="#FFFFFFFF" />
+  <corners android:radius="@android:dimen/system_app_widget_background_radius" />
+</shape>

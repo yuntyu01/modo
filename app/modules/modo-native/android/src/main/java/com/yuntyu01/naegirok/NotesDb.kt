@@ -90,10 +90,16 @@ object NotesDb {
       if (c.moveToFirst()) runCatching { JSONObject(c.getString(0)) }.getOrDefault(JSONObject()) else JSONObject()
     }
 
-  fun folders(db: SQLiteDatabase): List<Folder> =
-    db.rawQuery("SELECT id, name FROM folders WHERE deleted_at IS NULL ORDER BY position, id", null).use { c ->
-      buildList { while (c.moveToNext()) add(Folder(c.getString(0), c.getString(1))) }
-    }
+  /**
+   * 홈에 보이는 폴더. 공유받았지만 '홈에서 숨기기'한 폴더는 뺀다(앱 홈·미니창과 같다, 함께 탭에서는 그대로 보인다).
+   * 공유 표나 그 home 열이 아직 없으면(앱을 새 버전으로 켜기 전) 모든 폴더
+   */
+  fun folders(db: SQLiteDatabase): List<Folder> {
+    fun read(sql: String) = db.rawQuery(sql, null).use { c -> buildList { while (c.moveToNext()) add(Folder(c.getString(0), c.getString(1))) } }
+    return runCatching {
+      read("SELECT id, name FROM folders WHERE deleted_at IS NULL AND id NOT IN (SELECT folder_id FROM shared_folders WHERE home = 0) ORDER BY position, id")
+    }.getOrElse { read("SELECT id, name FROM folders WHERE deleted_at IS NULL ORDER BY position, id") }
+  }
 
   fun folderName(db: SQLiteDatabase, id: String?): String? = id?.let {
     db.rawQuery("SELECT name FROM folders WHERE id = ? AND deleted_at IS NULL", arrayOf(it)).use { c ->

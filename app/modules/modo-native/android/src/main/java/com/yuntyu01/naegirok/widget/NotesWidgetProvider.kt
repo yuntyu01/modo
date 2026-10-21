@@ -58,7 +58,10 @@ open class NotesWidgetProvider : AppWidgetProvider() {
       if (id == AppWidgetManager.INVALID_APPWIDGET_ID) return
       val folder = intent.getStringExtra(EXTRA_FOLDER)?.takeIf { it.isNotEmpty() }
       Work.run(this) {
-        WidgetPrefs.load(ctx, id).withFolder(folder).save(ctx, id)
+        // 지금 폴더를 다시 눌러도 첫 쪽으로(읽기 모드도 끈다). 예전엔 같은 폴더면 아무 일도 없었다
+        WidgetPrefs.load(ctx, id).withFolder(folder)
+          .copy(page = 0, anchorTodo = null, anchorIndex = -1, reading = false, readPage = 0, readOffset = -1)
+          .save(ctx, id)
         update(ctx, AppWidgetManager.getInstance(ctx), id)
       }
       return
@@ -139,8 +142,20 @@ open class NotesWidgetProvider : AppWidgetProvider() {
 
     fun update(base: Context, mgr: AppWidgetManager, id: Int) = draw(AppLocale.wrap(base), mgr, id)
 
-    /** ctx: 앱 언어로 맞춘 Context */
+    /**
+     * ctx: 앱 언어로 맞춘 Context. 위젯 하나가 실패해도(읽을 수 없는 DB 값 등) 나머지는 그리고, 그 위젯은 흰 빈 상자로 남지 않게
+     * 로고만 있는 기본 모양(누르면 앱)으로 둔다. 예전엔 한 위젯의 오류가 refreshAll·onUpdate의 반복을 끊어 모든 위젯이 그대로 남았다
+     */
     private fun draw(ctx: Context, mgr: AppWidgetManager, id: Int) {
+      try {
+        drawOrThrow(ctx, mgr, id)
+      } catch (e: Exception) {
+        android.util.Log.w("modo", "widget $id draw failed", e)
+        runCatching { mgr.updateAppWidget(id, HomeWidget.fallback(ctx, id)) }
+      }
+    }
+
+    private fun drawOrThrow(ctx: Context, mgr: AppWidgetManager, id: Int) {
       // 잠금화면에 놓인 위젯인지(배치·공개 범위가 다르다)
       val options = mgr.getAppWidgetOptions(id)
       val keyguard = options.getInt(AppWidgetManager.OPTION_APPWIDGET_HOST_CATEGORY, -1) ==

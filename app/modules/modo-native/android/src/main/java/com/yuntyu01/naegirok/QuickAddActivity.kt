@@ -22,7 +22,7 @@ import android.widget.TextView
 import android.widget.Toast
 
 /**
- * '빠른 추가' 앱 아이콘(별도 런처 항목)·위젯 +·빠른 설정 타일이 여는 작은 입력창.
+ * 위젯 +와 잠금화면 알림의 '추가'가 여는 작은 입력창(따로 도는 '빠른 추가' 앱 아이콘·빠른 설정 타일은 2026-10-21에 뺐다).
  * React Native를 띄우지 않아 누르자마자 키보드와 함께 열린다.
  * 앱과 같은 규칙: 오른쪽 체크 토글 하나(켜면 할 일, 끄면 메모 이어 쓰기), 토글을 바꿔도 초안 유지,
  * 한글 조합 중 엔터나 연속 입력으로 두 번 추가되지 않게 막는다.
@@ -44,11 +44,11 @@ class QuickAddActivity : Activity() {
     window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE or WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
     folderId = intent.getStringExtra(EXTRA_FOLDER)
     val prefs = getSharedPreferences("naegirok_quickadd", Context.MODE_PRIVATE)
-    // 위젯 할 일 쪽의 +는 늘 할 일로(예전엔 마지막에 쓴 모드를 따라 메모 이어 쓰기로 열리기도 했다). 앱 아이콘·타일은 마지막 모드
+    // 위젯 할 일 쪽의 +는 늘 할 일로(예전엔 마지막에 쓴 모드를 따라 메모 이어 쓰기로 열리기도 했다). 잠금화면 알림은 마지막 모드
     todoMode = savedInstanceState?.getBoolean("todo") ?: intent.getStringExtra(EXTRA_MODE)?.let { it == MODE_TODO } ?: prefs.getBoolean("todo", true)
 
     // DB는 한 번만 연다(예전엔 설정·보기 전용·폴더 이름을 따로 열어, 첫 화면 전에 세 번 열었다)
-    // null(앱 아이콘·타일) = 기본 폴더. 보기 전용으로 공유받은 폴더(넣으면 서버가 거절한다)나 지워진 폴더를 가리키는 위젯도 기본으로
+    // null(잠금화면 알림) = 기본 폴더. 보기 전용으로 공유받은 폴더(넣으면 서버가 거절한다)나 지워진 폴더를 가리키는 위젯도 기본으로
     data class Start(val theme: SurfaceTheme, val top: Boolean, val name: String?, val signedIn: Boolean)
     val start = NotesDb.use(this) { db ->
       val p = NotesDb.prefs(db)

@@ -6,6 +6,7 @@
   android:layout_height="match_parent"
   android:fontFamily="sans-serif"
   android:gravity="center_vertical"
+  android:ellipsize="end"
   android:maxLines="1"
   android:paddingEnd="18dp"
   android:textColor="#A1A1A6"

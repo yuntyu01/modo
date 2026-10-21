@@ -231,7 +231,7 @@ export const ja: Record<StringKey, string> = {
   widgetTheme: 'ウィジェットのテーマ',
   miniTheme: 'デスクトップミニウィンドウのテーマ',
   followApp: 'アプリのテーマに合わせる',
-  bgOpacity: '背景の不透明度',
+  bgOpacity: '背景の透明度',
   email: 'メールアドレス',
   kakaoLogin: 'カカオでログイン',
   googleLogin: "Google で続行",

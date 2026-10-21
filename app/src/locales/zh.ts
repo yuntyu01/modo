@@ -231,7 +231,7 @@ export const zh: Record<StringKey, string> = {
   widgetTheme: '小组件主题',
   miniTheme: '桌面迷你窗口主题',
   followApp: '跟随应用主题',
-  bgOpacity: '背景不透明度',
+  bgOpacity: '背景透明度',
   email: '邮箱',
   kakaoLogin: '使用 Kakao 登录',
   googleLogin: "使用 Google 继续",

@@ -166,5 +166,7 @@ class ReminderReceiver : BroadcastReceiver() {
 class BootReceiver : BroadcastReceiver() {
   override fun onReceive(ctx: Context, intent: Intent) {
     Work.run(this) { ModoEvents.refresh(ctx, null) }
+    // 앱을 새 버전으로 바꾼 직후에는 런처가 위젯을 처음 모양으로 다시 펼칠 수 있어(흰 빈 상자) 3초 뒤 한 번 더 그린다
+    if (intent.action == Intent.ACTION_MY_PACKAGE_REPLACED) ModoEvents.refreshLater(ctx, 3_000)
   }
 }

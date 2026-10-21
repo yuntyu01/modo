@@ -120,10 +120,11 @@ function SurfaceSettings({ title, value, onChange }: { title: string; value: Sur
         </>
       ) : null}
       <View style={{ paddingHorizontal: 20, paddingBottom: 14, paddingTop: 10 }}>
+        {/* 꾸미기 첫 화면과 같게 '투명도'로(오른쪽 = 더 투명, 0~100%). 저장 값은 불투명도 */}
         <Text style={theme.font(14, { color: theme.muted })}>
-          {t('bgOpacity')} {Math.round(value.opacity * 100)}%
+          {t('bgOpacity')} {Math.round((1 - value.opacity) * 100)}%
         </Text>
-        <Slider label={t('bgOpacity')} value={value.opacity} onChange={(opacity) => onChange({ ...value, opacity: Math.max(0.2, opacity) })} />
+        <Slider label={t('bgOpacity')} value={1 - value.opacity} onChange={(x) => onChange({ ...value, opacity: Math.round((1 - x) * 100) / 100 })} />
       </View>
     </Group>
   );

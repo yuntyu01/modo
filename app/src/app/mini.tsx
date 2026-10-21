@@ -202,9 +202,10 @@ function MiniWindow() {
   const trashCount = countTrash(snap);
   const writable = canWrite(filter);
   // 색은 휴대폰 앱과 같다(사용자 요청): 바탕은 위쪽 테마색 그라데이션에서 바탕색으로(뒤가 살짝 비친다), 블록(메모·할 일 같은 재질)은 카드색,
-  // '+' 바와 입력칸은 입력창 색. 투명도 설정(기본 80%)이 바탕과 블록을 함께 움직인다: 기본값에서 바탕 80%(뒤가 비친다), 블록은 덜 투명하게 90%.
-  const frameAlpha = 0.6 + 0.25 * opacity;
-  const blockAlpha = Math.min(1, 0.7 + 0.25 * opacity);
+  // '+' 바와 입력칸은 입력창 색. 투명도 설정이 바탕과 블록을 함께 움직인다(위젯과 같은 0~100%: 100%면 바탕·블록 없이 글자만,
+  // 0%면 전혀 비치지 않음). 기본(투명 20%)에서 바탕 80%·블록 90%로 예전과 같은 모습(사용자 요청 2026-10-21)
+  const frameAlpha = opacity;
+  const blockAlpha = Math.min(1, opacity * 1.125);
   // 블록(메모·할 일)은 앱 할 일 카드와 같은 색(다크는 테마색이 살짝 밴 카드색)에 미니창 투명도
   const block = withAlpha(theme.todoCardSolid, blockAlpha);
   const addPill = withAlpha(theme.composer, blockAlpha);

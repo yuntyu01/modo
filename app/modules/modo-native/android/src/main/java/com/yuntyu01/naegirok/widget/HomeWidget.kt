@@ -86,9 +86,10 @@ object HomeWidget {
   private val LATE = Color.parseColor("#FF6B6B")
 
   /** memo = 읽기 모드 본문(문단 사이 빈 줄 그대로), preview = 메모 쪽 미리보기(빈 문단을 빼고 이어서) */
+  /** readOk = DB를 읽었고 로그인돼 있다(아니면 고른 폴더를 잊지 않는다), readOnly = 보기만 공유된 폴더 */
   private data class Data(
     val colors: Colors, val folderId: String?, val memo: String, val preview: String, val todos: List<NotesDb.Todo>,
-    val folders: List<NotesDb.Folder>, val signedIn: Boolean = true,
+    val folders: List<NotesDb.Folder>, val signedIn: Boolean = true, val readOk: Boolean = false, val readOnly: Boolean = false,
   )
 
   /** 위젯 색 한 벌(라이트 또는 다크) */
@@ -99,7 +100,6 @@ object HomeWidget {
     val text = if (neutral) NEUTRAL_TEXT else t.text
     val muted = if (neutral) NEUTRAL_MUTED else t.muted
     val circle = if (neutral) NEUTRAL_CIRCLE else t.circle
-    val dotOff = SurfaceTheme.mixInt(text, card, 0.62)
     val mark = t.mark
     val opacity = t.opacity
   }
@@ -144,9 +144,9 @@ object HomeWidget {
     val data = NotesDb.use(ctx) { db ->
       // 로그인하지 않았으면 내용 없이 안내만(누르면 앱의 로그인 화면)
       if (!NotesDb.signedIn(db)) return@use Data(Colors.of(ctx, NotesDb.prefs(db)), null, "", "", emptyList(), emptyList(), signedIn = false)
-      val name = NotesDb.folderName(db, saved.folderId)
-      // 지워졌거나 공유 권한이 사라진 폴더(앱이 지운 것으로 남긴다)는 기본 폴더로
-      val fid = if (name != null) saved.folderId else null
+      val folders = NotesDb.folders(db)
+      // 지워졌거나 공유 권한이 사라진 폴더(앱이 지운 것으로 남긴다), 홈에서 숨긴 공유 폴더는 기본 폴더로
+      val fid = saved.folderId?.takeIf { f -> folders.any { it.id == f } }
       val memo = NotesDb.memo(db, fid)
       Data(
         Colors.of(ctx, NotesDb.prefs(db)),
@@ -154,10 +154,14 @@ object HomeWidget {
         memo.let(::memoText),
         memo.flatMap { it.split('\n') }.filter { it.isNotBlank() }.joinToString("\n"),
         NotesDb.todos(db, fid, limit = 500),
-        NotesDb.folders(db),
+        folders,
+        readOk = true,
+        readOnly = NotesDb.viewOnly(db, fid),
       )
     } ?: Data(Colors.of(ctx, org.json.JSONObject()), null, "", "", emptyList(), emptyList(), signedIn = false)
-    var wp = saved.withFolder(data.folderId)
+    // 고른 폴더를 기본으로 바꿔 남기는 것은 DB를 제대로 읽어 그 폴더가 정말 없을 때만(잠깐 못 읽었거나 로그아웃 중이면 그대로 둔다:
+    // 예전엔 한 번 못 읽으면 위젯이 기본 폴더로 영영 바뀌었다)
+    var wp = if (data.readOk) saved.withFolder(data.folderId) else saved
 
     // 크기: 세로 화면에서 위젯 폭 = 최소 폭, 높이 = 최대 높이(AppWidgetManager 옵션 설명)
     val dm = ctx.resources.displayMetrics
@@ -269,10 +273,13 @@ object HomeWidget {
       first = fit.first
       last = fit.second
     }
+    // 지금 폴더 이름이 줄보다 길면 끝을 …로(옆 폴더 탭이 들어갈 자리를 남긴다)
+    val curMax = (room - peekRoom(first, last)).coerceAtLeast(dp(48f)).toInt()
     fun addTab(i: Int, layout: Int = R.layout.widget_home_tab) {
       val (fid, name) = tabs[i]
       val tab = RemoteViews(ctx.packageName, layout)
       val sel = i == curTab
+      if (sel) tab.setInt(R.id.tab, "setMaxWidth", curMax)
       tab.setTextViewText(R.id.tab, if (sel) SpannableString(name).apply { setSpan(StyleSpan(Typeface.BOLD), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) } else name)
       c.set(tab, R.id.tab, "setTextColor") { if (sel) it.text else it.muted }
       val go = Intent(ctx, NotesWidgetProvider::class.java).setAction(NotesWidgetProvider.ACTION_FOLDER)
@@ -311,18 +318,22 @@ object HomeWidget {
       // 메모가 메모 쪽에 다 보이면(잘린 곳 없음) 누르면 메모 고치기 창(할 일 글자처럼 앱을 띄우지 않는다). 메모만 보이는 위젯도.
       // 넘쳐 …로 잘렸으면 누르면 읽기 모드 켜기/끄기(긴 메모를 위젯에서 끝까지). 예전엔 짧은 메모도 읽기 모드로 바뀌어
       // 점만 생겼다 사라져 아무 일도 안 일어난 것처럼 보였다(사용자 제보 2026-10-21)
-      if (!showTodos || (!reading && previewPages.size <= 1)) {
+      if (data.readOnly && (!showTodos || (!reading && previewPages.size <= 1))) {
+        // 보기만 공유된 폴더: 고칠 수 없으니 앱의 그 폴더로(앱도 입력창이 없다)
+        v.setOnClickPendingIntent(R.id.widget_memo, activity(ctx, id, openApp(ctx, data.folderId, id)))
+        v.setContentDescription(R.id.widget_memo, body.take(200))
+      } else if (!showTodos || (!reading && previewPages.size <= 1)) {
         val edit = Intent(ctx, WidgetEditActivity::class.java)
           .putExtra(WidgetEditActivity.EXTRA_MEMO_FOLDER, data.folderId ?: WidgetEditActivity.BASE)
           .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
           .setData(Uri.parse("naegirok://edit/memo/${data.folderId ?: "base"}/$id"))
         v.setOnClickPendingIntent(R.id.widget_memo, activity(ctx, id, edit))
-        v.setContentDescription(R.id.widget_memo, ctx.getString(R.string.edit_memo) + ": " + body)
+        v.setContentDescription(R.id.widget_memo, ctx.getString(R.string.edit_memo) + ": " + body.take(200))
       } else {
         val tap = Intent(ctx, NotesWidgetProvider::class.java).setAction(NotesWidgetProvider.ACTION_MEMO)
           .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id).setData(Uri.parse("naegirok://widget-memo/$id"))
         v.setOnClickPendingIntent(R.id.widget_memo, broadcast(ctx, id, tap))
-        v.setContentDescription(R.id.widget_memo, ctx.getString(if (reading) R.string.widget_memo_collapse else R.string.widget_memo_expand, body))
+        v.setContentDescription(R.id.widget_memo, ctx.getString(if (reading) R.string.widget_memo_collapse else R.string.widget_memo_expand, body.take(200)))
       }
     } else {
       v.setViewVisibility(R.id.widget_memo, View.GONE)
@@ -333,7 +344,7 @@ object HomeWidget {
     val lang = ctx.resources.configuration.locales[0].language
     val slice = if (todoPage >= 0) data.todos.drop(todoPage * perPage).take(perPage) else emptyList()
     v.setViewVisibility(R.id.widget_rows, if (slice.isNotEmpty()) View.VISIBLE else View.GONE)
-    for (todo in slice) v.addView(R.id.widget_rows, todoRow(ctx, id, todo, lang, c, titleSp, metaSp, titleH, metaH, blockH, plainLines, rowPad))
+    for (todo in slice) v.addView(R.id.widget_rows, todoRow(ctx, id, todo, lang, c, titleSp, metaSp, titleH, metaH, blockH, plainLines, rowPad, data.readOnly))
     // 빈 할 일 쪽(메모만 있을 때 둘째 쪽, 또는 둘 다 없을 때)은 아무 글 없이 비워 둔다(+만). 예전 '비어 있어요. + 로 바로 적어 보세요'·
     // '남은 할 일이 없어요'는 뺐다(사용자 요청 2026-10-21). 로그인하지 않았을 때의 안내만 남긴다
     v.setViewVisibility(R.id.widget_empty, if (!data.signedIn) View.VISIBLE else View.GONE)
@@ -361,7 +372,9 @@ object HomeWidget {
             else -> R.layout.widget_home_dot
           },
         )
-        c.set(d, R.id.dot, "setColorFilter") { if (i == cur) it.text else it.dotOff }
+        c.set(d, R.id.dot, "setColorFilter") { it.text }
+        // 꺼진 점은 글자색을 반투명하게: 카드가 비쳐 보여도(투명도 0~100%) 늘 뒤 배경과 글자색 사이라 보인다
+        if (i != cur) d.setInt(R.id.dot, "setImageAlpha", 105)
         if ((i == win.first && i > 0) || (i == win.last && i < pages - 1)) d.setViewPadding(R.id.dot, small, small, small, small)
         val label = when {
           reading -> ctx.getString(R.string.widget_page_memo, i + 1, pages)
@@ -380,11 +393,13 @@ object HomeWidget {
     }
 
     // +: 할 일 쪽에서만(이 폴더의 할 일 입력). 메모 쪽·읽기 모드에서는 숨긴다
-    val showAdd = data.signedIn && (todoPage >= 0 || (!hasMemo && !showTodos))
+    val showAdd = data.signedIn && !data.readOnly && (todoPage >= 0 || (!hasMemo && !showTodos))
     v.setViewVisibility(R.id.widget_add, if (showAdd) View.VISIBLE else View.GONE)
     // 레이아웃에 적힌 글은 런처 언어로 풀려서, 앱 언어로 다시 넣는다
     v.setContentDescription(R.id.widget_add, ctx.getString(R.string.add))
     c.set(v, R.id.widget_add, "setColorFilter") { it.text }
+    // +는 글자색을 조금 연하게(굵어진 선이 너무 진해 보였다, 사용자 요청 2026-10-21)
+    v.setInt(R.id.widget_add, "setImageAlpha", 165)
     val add = Intent(ctx, QuickAddActivity::class.java)
       .putExtra(QuickAddActivity.EXTRA_FOLDER, data.folderId)
       // 할 일 쪽이면 할 일, 메모만 보이는 위젯(메모가 비었을 때)이면 메모 이어 쓰기로
@@ -395,9 +410,22 @@ object HomeWidget {
     return v
   }
 
+  /** 그리기에 실패한 위젯: 바탕 + 로고(누르면 앱)만. 흰 빈 상자로 남아 눌러도 아무 일이 없지 않게 */
+  fun fallback(ctx: Context, id: Int): RemoteViews {
+    val c = Colors.of(ctx, org.json.JSONObject())
+    val v = RemoteViews(ctx.packageName, R.layout.widget_home)
+    c.set(v, R.id.widget_bg, "setColorFilter") { it.card }
+    c.set(v, R.id.widget_mark, "setColorFilter") { it.mark }
+    v.setViewVisibility(R.id.widget_add, View.GONE)
+    v.setOnClickPendingIntent(R.id.widget_brand, activity(ctx, id, openApp(ctx, null, id)))
+    v.setOnClickPendingIntent(R.id.widget_root, activity(ctx, id, openApp(ctx, null, id)))
+    v.setContentDescription(R.id.widget_brand, ctx.getString(R.string.widget_open_app))
+    return v
+  }
+
   private fun todoRow(
     ctx: Context, widgetId: Int, t: NotesDb.Todo, lang: String, c: Colors,
-    titleSp: Float, metaSp: Float, titleH: Int, metaH: Int, blockH: Int, plainLines: Int, rowPad: Int,
+    titleSp: Float, metaSp: Float, titleH: Int, metaH: Int, blockH: Int, plainLines: Int, rowPad: Int, readOnly: Boolean,
   ) = RemoteViews(ctx.packageName, R.layout.widget_home_todo).apply {
     setViewPadding(R.id.item_row, 0, rowPad, 0, rowPad)
     setTextViewText(R.id.item_text, t.text)
@@ -423,17 +451,21 @@ object HomeWidget {
     // 일반은 빈 원, 반복은 원 테두리가 두 곡선 화살표(앱 카드와 같은 모양)
     setImageViewResource(R.id.item_check, if (t.repeatFreq != null) R.drawable.naegirok_check_repeat else R.drawable.naegirok_check_off)
     c.set(this, R.id.item_check, "setColorFilter") { it.circle }
-    setContentDescription(R.id.item_check, ctx.getString(R.string.mark_done, t.text))
+    setContentDescription(R.id.item_check, if (readOnly) ctx.getString(R.string.widget_open_app) else ctx.getString(R.string.mark_done, t.text))
     // 동그라미 = 완료(반복은 이번 회차만, 앱과 같은 저장·동기화 경로), 글자 = 그 할 일 고치기
     val toggle = Intent(ctx, NotesWidgetProvider::class.java).setAction(NotesWidgetProvider.ACTION_TOGGLE)
       .putExtra(NotesWidgetProvider.EXTRA_TODO, t.id)
       .setData(Uri.parse("naegirok://toggle/$widgetId/${t.id}"))
-    setOnClickPendingIntent(R.id.item_check, broadcast(ctx, widgetId, toggle))
+    // 보기만 공유된 폴더: 완료·고치기 대신 앱의 그 폴더로(위젯에서 바꿔도 서버가 받지 않는다)
+    val open = activity(ctx, widgetId, openApp(ctx, t.folderId, widgetId))
+    setOnClickPendingIntent(R.id.item_check, if (readOnly) open else broadcast(ctx, widgetId, toggle))
     val edit = Intent(ctx, WidgetEditActivity::class.java)
       .putExtra(WidgetEditActivity.EXTRA_TODO, t.id)
       .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
       .setData(Uri.parse("naegirok://edit/todo/${t.id}/$widgetId"))
-    setOnClickPendingIntent(R.id.item_body, activity(ctx, widgetId, edit))
+    // 글자뿐 아니라 줄 위아래 빈 곳을 눌러도 고치기(동그라미는 따로 완료). 예전엔 줄 사이 띠가 아무 반응이 없었다
+    setOnClickPendingIntent(R.id.item_row, if (readOnly) open else activity(ctx, widgetId, edit))
+    setOnClickPendingIntent(R.id.item_body, if (readOnly) open else activity(ctx, widgetId, edit))
     setContentDescription(R.id.item_body, ctx.getString(R.string.edit_todo) + ": " + t.text)
   }
 

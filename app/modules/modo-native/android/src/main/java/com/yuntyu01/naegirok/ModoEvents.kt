@@ -57,6 +57,16 @@ object ModoEvents {
     ctx.getSystemService(AlarmManager::class.java).setWindow(AlarmManager.RTC, at, 10 * 60 * 1000L, pi)
   }
 
+  /** 조금 뒤 위젯·알림을 다시 맞춘다(기기를 깨우지 않는 알람) */
+  fun refreshLater(ctx: Context, delayMs: Long) {
+    val pi = PendingIntent.getBroadcast(
+      ctx, 1, Intent(ctx, RefreshReceiver::class.java).setAction(ACTION_LATER),
+      PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+    )
+    ctx.getSystemService(AlarmManager::class.java).set(AlarmManager.ELAPSED_REALTIME, android.os.SystemClock.elapsedRealtime() + delayMs, pi)
+  }
+
+  const val ACTION_LATER = "com.yuntyu01.naegirok.REFRESH_LATER"
   const val ACTION_MIDNIGHT = "com.yuntyu01.naegirok.MIDNIGHT"
 
   /** 앱을 연다(로그인하지 않았으면 로그인 화면이 보인다) */

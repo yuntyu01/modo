@@ -2,6 +2,8 @@ import importlib.util
 import json
 import socket
 import tempfile
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 import unittest
 from unittest.mock import MagicMock, patch
@@ -51,6 +53,60 @@ class PlayReleaseTests(unittest.TestCase):
         api.commit.assert_called_once()
         api.delete.assert_not_called()
 
+    def test_real_http_transport_accepts_308_without_location_and_continues_chunks(self):
+        class Handler(BaseHTTPRequestHandler):
+            put_count = 0
+
+            def log_message(self, *_args):
+                pass
+
+            def do_POST(self):
+                self.rfile.read(int(self.headers.get('Content-Length', 0)))
+                self.send_response(200)
+                self.send_header('Location', f'http://127.0.0.1:{self.server.server_port}/upload')
+                self.send_header('Content-Length', '0')
+                self.end_headers()
+
+            def do_PUT(self):
+                self.rfile.read(int(self.headers.get('Content-Length', 0)))
+                Handler.put_count += 1
+                if Handler.put_count == 1:
+                    self.send_response(308)
+                    self.send_header('Range', 'bytes=0-262143')
+                    self.send_header('Content-Length', '0')
+                    self.end_headers()
+                else:
+                    data = b'{"versionCode": 24}'
+                    self.send_response(200)
+                    self.send_header('Content-Length', str(len(data)))
+                    self.end_headers()
+                    self.wfile.write(data)
+
+        server = HTTPServer(('127.0.0.1', 0), Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            with tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / 'test.aab'
+                path.write_bytes(b'x' * (262144 + 1))
+                media = MediaFileUpload(str(path), chunksize=262144, resumable=True)
+                http = release.build_transport()
+                http.proxy_info = None
+                request = HttpRequest(http, lambda _response, body: json.loads(body),
+                                      f'http://127.0.0.1:{server.server_port}/start',
+                                      method='POST', body='{}', headers={}, resumable=media)
+                try:
+                    result = release.resumable_bundle_upload(request)
+                finally:
+                    media.stream().close()
+                    http.close()
+                self.assertEqual(result['versionCode'], 24)
+                self.assertEqual(Handler.put_count, 2)
+        finally:
+            server.shutdown()
+            thread.join(timeout=3)
+            server.server_close()
+
     @patch.object(release, 'MediaFileUpload')
     def test_persistent_timeout_is_bounded_and_does_not_commit(self, _media):
         api = self.api()
@@ -78,6 +134,7 @@ class PlayReleaseTests(unittest.TestCase):
         with patch.dict(release.os.environ, {'PLAY_SERVICE_ACCOUNT_JSON': '{}'}):
             release.edits()
         self.assertEqual(authorized.call_args.kwargs['http'].timeout, 300)
+        self.assertNotIn(308, authorized.call_args.kwargs['http'].redirect_codes)
 
     def test_other_apps_and_production_rejected_before_any_api_mutation(self):
         api = self.api()

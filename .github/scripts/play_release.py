@@ -43,11 +43,19 @@ def report(message):
             stream.write(message + '\n')
 
 
+def build_transport():
+    http = httplib2.Http(timeout=HTTP_TIMEOUT_SECONDS)
+    # Google's resumable protocol uses 308 without Location, unlike a web redirect.
+    # Keep the same exclusion as googleapiclient.http.build_http().
+    http.redirect_codes = http.redirect_codes.difference({308})
+    return http
+
+
 def edits():
     require_closed_test()
     info = json.loads(os.environ['PLAY_SERVICE_ACCOUNT_JSON'])
     creds = service_account.Credentials.from_service_account_info(info, scopes=['https://www.googleapis.com/auth/androidpublisher'])
-    http = AuthorizedHttp(creds, http=httplib2.Http(timeout=HTTP_TIMEOUT_SECONDS))
+    http = AuthorizedHttp(creds, http=build_transport())
     return build('androidpublisher', 'v3', http=http, cache_discovery=False).edits()
 
 

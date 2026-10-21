@@ -56,7 +56,8 @@
         android:orientation="horizontal" />
     </LinearLayout>
 
-    <!-- 메모 + 할 일 목록(HomeWidget이 RemoteCollectionItems로 채운다). 아래 여백 40 = + 자리 -->
+    <!-- 메모 + 할 일 목록(HomeWidget이 RemoteCollectionItems로 채운다). 아래 여백 40 = + 자리.
+         오른쪽 끝의 가는 막대 = 지금 목록 어디쯤인지(늘 보인다, 사용자 요청 2026-10-22). 다 들어가면 막대가 없다 -->
     <ListView
       android:id="@+id/widget_list"
       android:layout_width="match_parent"
@@ -69,7 +70,11 @@
       android:overScrollMode="never"
       android:paddingEnd="10dp"
       android:paddingBottom="40dp"
-      android:scrollbars="none" />
+      android:fadeScrollbars="false"
+      android:scrollbarSize="3dp"
+      android:scrollbarStyle="outsideOverlay"
+      android:scrollbarThumbVertical="@drawable/naegirok_scroll_thumb"
+      android:scrollbars="vertical" />
 
     <TextView
       android:id="@+id/widget_empty"
@@ -83,19 +88,16 @@
       android:visibility="gone" />
   </LinearLayout>
 
-  <!-- +: 오른쪽 아래(아래 끝에서 4 + 32/2 = 20dp로 머리 로고 가운데가 위 끝에서 떨어진 만큼과 같다). 오른쪽 끝에서 8dp 더 안쪽
-       (실기기에서 한쪽 끝에 몰려 보였다, 사용자 요청 2026-10-21). 목록 위에 떠 있다 -->
+  <!-- +: 오른쪽 아래, + 표시 끝이 위젯 오른쪽 끝과 아래 끝에서 똑같이 18dp(여백 6 + 안쪽 9 + 그림 안 여백 약 3,
+       사용자 요청 2026-10-22). 목록 위에 떠 있다 -->
   <ImageView
     android:id="@+id/widget_add"
     android:layout_width="40dp"
-    android:layout_height="32dp"
+    android:layout_height="40dp"
     android:layout_gravity="bottom|end"
-    android:layout_marginEnd="8dp"
-    android:layout_marginBottom="4dp"
+    android:layout_marginEnd="6dp"
+    android:layout_marginBottom="6dp"
     android:contentDescription="@string/add"
-    android:paddingStart="9dp"
-    android:paddingTop="5dp"
-    android:paddingEnd="9dp"
-    android:paddingBottom="5dp"
+    android:padding="9dp"
     android:src="@drawable/naegirok_add" />
 </FrameLayout>

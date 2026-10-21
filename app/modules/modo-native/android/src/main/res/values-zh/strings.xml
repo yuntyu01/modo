@@ -44,4 +44,6 @@
   <string name="widget_open_app">打开 modo</string>
   <string name="widget_folder_tab">%1$s文件夹</string>
   <string name="widget_folder_tab_current">%1$s文件夹，当前</string>
+  <string name="next_todo">下一个待办</string>
+  <string name="widget_description_strip">单行：选择文件夹，逐个查看待办。也适合锁屏。</string>
 </resources>

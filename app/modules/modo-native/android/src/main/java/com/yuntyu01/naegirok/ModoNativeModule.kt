@@ -15,6 +15,8 @@ import android.provider.Settings
 import androidx.core.app.NotificationManagerCompat
 import com.yuntyu01.naegirok.notify.Reminders
 import com.yuntyu01.naegirok.widget.NotesWidgetProvider
+import com.yuntyu01.naegirok.widget.NotesWidgetProvider2x2
+import com.yuntyu01.naegirok.widget.NotesWidgetProvider4x1
 import com.yuntyu01.naegirok.widget.NotesWidgetProvider4x4
 import expo.modules.kotlin.Promise
 import expo.modules.kotlin.exception.CodedException
@@ -87,7 +89,12 @@ class ModoNativeModule : Module() {
       // 사용자가 '추가'를 눌러 위젯이 놓이면 런처가 이 알림을 보낸다(취소하면 오지 않는다)
       val pinned = Intent(ACTION_WIDGET_PINNED).setPackage(ctx.packageName)
       val callback = PendingIntent.getBroadcast(ctx, 0, pinned, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-      val provider = if (size == "4x4") NotesWidgetProvider4x4::class.java else NotesWidgetProvider::class.java
+      val provider = when (size) {
+        "2x2" -> NotesWidgetProvider2x2::class.java
+        "4x4" -> NotesWidgetProvider4x4::class.java
+        "4x1" -> NotesWidgetProvider4x1::class.java
+        else -> NotesWidgetProvider::class.java
+      }
       mgr.requestPinAppWidget(ComponentName(ctx, provider), null, callback)
     }
 

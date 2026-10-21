@@ -11,13 +11,41 @@
   android:orientation="horizontal"
   android:paddingTop="4dp"
   android:paddingBottom="4dp">
-  <ImageView
+  <!-- 동그라미(누르면 완료): 빈 동그라미 → 채운 동그라미 + 체크로 바뀌며(톡 커지는 움직임) 잠시 뒤 줄이 빠진다.
+       동그라미는 25dp(예전 21dp는 작아 보였다, 사용자 요청 2026-10-22) -->
+  <ViewFlipper
     android:id="@+id/item_check"
     android:layout_width="44dp"
     android:layout_height="44dp"
     android:layout_marginStart="-12dp"
-    android:padding="11.5dp"
-    android:src="@drawable/naegirok_check_off" />
+    android:inAnimation="@anim/widget_check_in"
+    android:outAnimation="@anim/widget_check_out">
+    <ImageView
+      android:id="@+id/item_ring"
+      android:layout_width="match_parent"
+      android:layout_height="match_parent"
+      android:importantForAccessibility="no"
+      android:padding="9.5dp"
+      android:src="@drawable/naegirok_check_off" />
+    <FrameLayout
+      android:layout_width="match_parent"
+      android:layout_height="match_parent">
+      <ImageView
+        android:id="@+id/item_fill"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no"
+        android:padding="11dp"
+        android:src="@drawable/naegirok_circle" />
+      <ImageView
+        android:id="@+id/item_tick"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no"
+        android:padding="12dp"
+        android:src="@drawable/naegirok_tick" />
+    </FrameLayout>
+  </ViewFlipper>
   <LinearLayout
     android:id="@+id/item_body"
     android:layout_width="0dp"

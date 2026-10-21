@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 홈 위젯 목록의 위치 막대(가늘고 둥근 회색: 라이트·다크 위젯 바탕 모두에서 보이게 반투명) -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+  <corners android:radius="1.5dp" />
+  <solid android:color="#8CA1A1A6" />
+  <size android:width="3dp" />
+</shape>

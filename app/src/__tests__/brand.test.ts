@@ -40,8 +40,16 @@ test('체크 위치는 처음 설치하면 오른쪽, 이미 저장된 설정은
 });
 
 test('위젯·미니창 투명도: 기본은 투명 20%(불투명 0.8), 완전 투명(0)·완전 불투명(1)도 그대로 남는다', () => {
-  expect(mergePrefs(null).widget.opacity).toBe(0.8);
+  // 위젯은 홈·잠금화면 모두 투명도 60%(불투명도 0.4)가 기본, 미니창은 20%
+  expect(mergePrefs(null).widget.opacity).toBe(0.4);
+  expect(mergePrefs(null).widget.lockOpacity).toBe(0.4);
+  expect(mergePrefs(null).mini.opacity).toBe(0.8);
+  // 예전 기본(0.8)을 그대로 두던 홈 위젯은 한 번 새 기본으로, 직접 고른 값은 그대로
+  const old = { linked: true, accent: BRAND, card: null };
+  expect(mergePrefs({ prefsVersion: 2, widget: { ...old, opacity: 0.8 } }).widget.opacity).toBe(0.4);
+  expect(mergePrefs({ prefsVersion: 2, widget: { ...old, opacity: 0.55 } }).widget.opacity).toBe(0.55);
+  expect(mergePrefs({ prefsVersion: 3, widget: { ...old, opacity: 0.8 } }).widget.opacity).toBe(0.8);
   const w = { linked: true, accent: BRAND, card: null, opacity: 0 };
-  const p = mergePrefs({ prefsVersion: 2, widget: w, mini: { ...w, opacity: 1 } });
+  const p = mergePrefs({ prefsVersion: 3, widget: w, mini: { ...w, opacity: 1 } });
   expect([p.widget.opacity, p.mini.opacity]).toEqual([0, 1]);
 });

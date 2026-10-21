@@ -6,3 +6,12 @@ package com.yuntyu01.naegirok.widget
  * 사용자 요청 2026-10-21: 위젯을 넣을 때 3×3·4×4 같은 크기를 고를 수 있게
  */
 class NotesWidgetProvider4x4 : NotesWidgetProvider()
+
+/** 2×2(작게, 사용자 요청 2026-10-22): 좁으면 폴더 이름 · 할 일 하나씩, 넉넉하면 목록(HomeWidget.responsive) */
+class NotesWidgetProvider2x2 : NotesWidgetProvider()
+
+/**
+ * 한 줄(4×1): 폴더 고르기와 할 일 하나씩 넘기기(HomeWidget.strip). 삼성 잠금화면의 넓은 칸처럼 낮은 자리에 알맞다.
+ * 크게 늘리면 다른 위젯처럼 목록이 된다(사용자 요청 2026-10-21)
+ */
+class NotesWidgetProvider4x1 : NotesWidgetProvider()

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 위젯 동그라미를 눌러 완료: 채운 동그라미 + 체크가 톡 커지며 나타난다(사용자 요청 2026-10-22) -->
+<set xmlns:android="http://schemas.android.com/apk/res/android" android:interpolator="@android:anim/overshoot_interpolator">
+  <scale
+    android:duration="260"
+    android:fromXScale="0.4"
+    android:fromYScale="0.4"
+    android:pivotX="50%"
+    android:pivotY="50%"
+    android:toXScale="1"
+    android:toYScale="1" />
+  <alpha
+    android:duration="160"
+    android:fromAlpha="0"
+    android:toAlpha="1" />
+</set>

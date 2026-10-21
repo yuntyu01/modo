@@ -43,10 +43,23 @@ open class NotesWidgetProvider : AppWidgetProvider() {
     Work.run(this) { update(ctx, mgr, id) }
   }
 
-  /** 할 일 완료(반복은 이번 회차만). 로그아웃한 뒤 남은 위젯 화면을 눌러도 바꾸지 않는다 */
-  private fun complete(ctx: Context, todoId: String) = Work.run(this) {
-    NotesDb.write(ctx) { if (NotesDb.signedIn(it)) NotesDb.complete(it, todoId) }
-    ModoEvents.afterWrite(ctx, "todos")
+  /**
+   * 할 일 완료(반복은 이번 회차만). 먼저 그 줄의 동그라미가 채워지며 체크가 톡 나타나는 모습을 잠깐 보여 주고
+   * (COMPLETE_MS, 사용자 요청 2026-10-22) 저장해 목록에서 뺀다. 그사이 또 눌러도 한 번만. 로그아웃한 뒤 남은 위젯 화면을 눌러도 바꾸지 않는다
+   */
+  private fun complete(ctx: Context, todoId: String) {
+    if (!completing.add(todoId)) return
+    Work.run(this) {
+      try {
+        if (NotesDb.use(ctx) { NotesDb.signedIn(it) } != true) return@run
+        refreshAll(ctx)
+        Thread.sleep(COMPLETE_MS)
+        NotesDb.write(ctx) { if (NotesDb.signedIn(it)) NotesDb.complete(it, todoId) }
+      } finally {
+        completing.remove(todoId)
+      }
+      ModoEvents.afterWrite(ctx, "todos")
+    }
   }
 
   override fun onReceive(ctx: Context, intent: Intent) {
@@ -95,7 +108,18 @@ open class NotesWidgetProvider : AppWidgetProvider() {
         val cur = pages.indexOf(wp.folderId).coerceAtLeast(0)
         // 점을 누르면 그 자리로, ‹ ›는 한 칸씩
         val next = if (target in pages.indices) target else Math.floorMod(cur + step, pages.size)
-        wp.copy(folderId = pages[next]).save(ctx, id)
+        wp.withFolder(pages[next]).save(ctx, id)
+        update(ctx, AppWidgetManager.getInstance(ctx), id)
+      }
+      return
+    }
+    // 한 줄 모양: 다음 할 일(끝에서 누르면 처음으로)
+    if (intent.action == ACTION_NEXT) {
+      val id = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
+      if (id == AppWidgetManager.INVALID_APPWIDGET_ID) return
+      Work.run(this) {
+        val wp = WidgetPrefs.load(ctx, id)
+        wp.copy(pos = wp.pos + 1).save(ctx, id)
         update(ctx, AppWidgetManager.getInstance(ctx), id)
       }
       return
@@ -107,6 +131,7 @@ open class NotesWidgetProvider : AppWidgetProvider() {
     const val ACTION_TOGGLE = "com.yuntyu01.naegirok.widget.TOGGLE"
     const val ACTION_PAGE = "com.yuntyu01.naegirok.widget.PAGE"
     const val ACTION_ITEM = "com.yuntyu01.naegirok.widget.ITEM"
+    const val ACTION_NEXT = "com.yuntyu01.naegirok.widget.NEXT"
     const val ACTION_FOLDER = "com.yuntyu01.naegirok.widget.FOLDER"
     const val EXTRA_FOLDER = "folder"
     const val EXTRA_ITEM = "item"
@@ -119,8 +144,15 @@ open class NotesWidgetProvider : AppWidgetProvider() {
     const val EXTRA_INDEX = "index"
     const val EXTRA_TODO = "todo_id"
 
+    /** 동그라미를 눌러 완료하는 중인 할 일(그릴 때 채운 동그라미 + 체크로, HomeWidget) */
+    val completing: MutableSet<String> = java.util.Collections.synchronizedSet(mutableSetOf())
+    /** 완료 모습을 보여 주는 시간: 체크가 나타나는 움직임(0.26초) 뒤 잠깐 머문다 */
+    private const val COMPLETE_MS = 650L
+
     /** 크기별로 따로 놓는 같은 위젯들(WidgetSizes.kt): 다시 그릴 때 모두 */
-    val PROVIDERS = listOf(NotesWidgetProvider::class.java, NotesWidgetProvider4x4::class.java)
+    val PROVIDERS = listOf(
+      NotesWidgetProvider::class.java, NotesWidgetProvider2x2::class.java, NotesWidgetProvider4x4::class.java, NotesWidgetProvider4x1::class.java,
+    )
 
     fun refreshAll(base: Context) {
       val mgr = AppWidgetManager.getInstance(base)
@@ -163,8 +195,13 @@ open class NotesWidgetProvider : AppWidgetProvider() {
       val options = mgr.getAppWidgetOptions(id)
       val keyguard = options.getInt(AppWidgetManager.OPTION_APPWIDGET_HOST_CATEGORY, -1) ==
         android.appwidget.AppWidgetProviderInfo.WIDGET_CATEGORY_KEYGUARD
-      // 홈 화면은 새 시안(HomeWidget: 메모 + 할 일 목록). 잠금화면은 아래의 예전 모양(widget_notes_lock)
-      if (!keyguard) return mgr.updateAppWidget(id, HomeWidget.render(ctx, mgr, id, scrollTop))
+      // 큰 칸: 홈 화면은 새 시안(HomeWidget: 메모 + 할 일 목록), 잠금화면은 아래의 예전 모양(widget_notes_lock).
+      // 작은 칸(동그라미·낮은 칸)은 둘 다 HomeWidget.responsive가 크기에 맞는 모양으로
+      val full = if (keyguard) lockViews(ctx, id, options) else HomeWidget.render(ctx, mgr, id, scrollTop)
+      mgr.updateAppWidget(id, HomeWidget.responsive(ctx, mgr, id, keyguard, full))
+    }
+
+    private fun lockViews(ctx: Context, id: Int, options: android.os.Bundle): RemoteViews {
       val wp = WidgetPrefs.load(ctx, id)
       // 위젯마다 고른 폴더(null = 기본). 지워졌거나 공유가 끊긴 폴더면 기본으로.
       data class Head(
@@ -190,7 +227,8 @@ open class NotesWidgetProvider : AppWidgetProvider() {
 
       // 배경(시안): 카드색을 투명도만큼 깐다
       v.setInt(R.id.widget_bg, "setColorFilter", theme.card)
-      v.setInt(R.id.widget_bg, "setImageAlpha", ((wp.opacity ?: theme.opacity) * 255).roundToInt())
+      // 잠금화면 위젯은 꾸미기의 잠금화면 위젯 투명도(홈과 따로)
+      v.setInt(R.id.widget_bg, "setImageAlpha", ((wp.opacity ?: theme.lockOpacity) * 255).roundToInt())
       v.setInt(R.id.widget_mark, "setColorFilter", theme.mark)
       v.setTextViewText(R.id.widget_title, head.title)
       v.setTextColor(R.id.widget_title, theme.text)
@@ -233,7 +271,7 @@ open class NotesWidgetProvider : AppWidgetProvider() {
       v.setTextViewText(R.id.widget_empty, emptyText)
       v.setViewVisibility(R.id.widget_empty, if (rows.isEmpty() && emptyText.isNotEmpty()) View.VISIBLE else View.GONE)
       v.setViewVisibility(R.id.widget_rows, if (rows.isEmpty()) View.GONE else View.VISIBLE)
-      mgr.updateAppWidget(id, v)
+      return v
     }
   }
 }

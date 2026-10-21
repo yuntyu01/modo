@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 위젯 추가 화면의 미리보기(Android 12+). 실제 홈 위젯의 첫 쪽(메모 쪽)과 같은 배치에 예시 글. -->
+<!-- 위젯 추가 화면의 미리보기(Android 12+). 실제 홈 위젯(메모 + 할 일 목록, 오른쪽 아래 +)과 같은 배치에 예시 글. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
   android:layout_width="match_parent"
   android:layout_height="match_parent">
@@ -47,23 +47,17 @@
       android:text="@string/preview_memo"
       android:textColor="#F5F5F7"
       android:textSize="16sp" />
-    <LinearLayout
-      android:layout_width="wrap_content"
-      android:layout_height="40dp"
-      android:layout_gravity="center_horizontal"
-      android:gravity="center"
-      android:orientation="horizontal">
-      <ImageView
-        android:layout_width="8dp"
-        android:layout_height="8dp"
-        android:layout_marginEnd="18dp"
-        android:src="@drawable/naegirok_dot"
-        android:tint="#F5F5F7" />
-      <ImageView
-        android:layout_width="8dp"
-        android:layout_height="8dp"
-        android:src="@drawable/naegirok_dot"
-        android:tint="#78787B" />
-    </LinearLayout>
+    <ImageView
+      android:layout_width="40dp"
+      android:layout_height="32dp"
+      android:layout_gravity="end"
+      android:layout_marginBottom="4dp"
+      android:alpha="0.65"
+      android:paddingStart="9dp"
+      android:paddingTop="5dp"
+      android:paddingEnd="9dp"
+      android:paddingBottom="5dp"
+      android:src="@drawable/naegirok_add"
+      android:tint="#F5F5F7" />
   </LinearLayout>
 </FrameLayout>

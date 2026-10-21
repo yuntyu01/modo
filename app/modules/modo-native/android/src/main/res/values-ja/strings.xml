@@ -44,4 +44,6 @@
   <string name="widget_open_app">modoを開く</string>
   <string name="widget_folder_tab">%1$sフォルダ</string>
   <string name="widget_folder_tab_current">%1$sフォルダ、表示中</string>
+  <string name="next_todo">次のToDo</string>
+  <string name="widget_description_strip">1行でフォルダを選び、ToDoを1つずつ見られます。ロック画面にも。</string>
 </resources>

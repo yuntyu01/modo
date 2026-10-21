@@ -22,12 +22,16 @@ data class SurfaceTheme(
   val muted: Int,
   val circle: Int,
   val opacity: Float,
+  /** 잠금화면 위젯의 배경 불투명도(홈과 따로, 사용자 요청 2026-10-22). 미니창 등 다른 곳은 opacity와 같다 */
+  val lockOpacity: Float = opacity,
   /** 꾸미기에서 카드색을 직접 골랐는지(홈 위젯은 고르지 않았을 때만 파란 기 없는 차콜을 쓴다) */
   val tinted: Boolean = false,
 ) {
   companion object {
     /** 대표색: src/brand.ts와 같은 값(src/__tests__/brand.test.ts가 확인). 테마 설정이 아직 없으면 이 색 */
     const val BRAND = "#85ADE2"
+    /** 위젯 배경 불투명도 기본값(투명도 60%) */
+    const val DEFAULT_OPACITY = 0.4
     /** 예전 기본색은 앱처럼 대표색으로(prefs.ts mergePrefs) */
     private fun brandAccent(hex: String) = if (hex.uppercase() in listOf("#72CDF4", "#96D3FD", "#85ADE2") - BRAND) BRAND else hex
 
@@ -60,8 +64,9 @@ data class SurfaceTheme(
         text = Color.parseColor(if (dark) "#FFFFFF" else "#15171A"),
         muted = Color.parseColor(if (dark) "#9C9FA6" else "#7A7F87"),
         circle = Color.parseColor(if (dark) "#A9ADB8" else "#9AA0A8"),
-        // 앱 기본값(state/prefs.ts DEFAULT_PREFS.widget.opacity)과 같게. 0(배경 완전 투명)부터 1까지
-        opacity = (surface?.optDouble("opacity", 0.8) ?: 0.8).toFloat().coerceIn(0f, 1f),
+        // 앱 기본값(state/prefs.ts DEFAULT_PREFS.widget.opacity·lockOpacity, 투명도 60%)과 같게. 0(배경 완전 투명)부터 1까지
+        opacity = (surface?.optDouble("opacity", DEFAULT_OPACITY) ?: DEFAULT_OPACITY).toFloat().coerceIn(0f, 1f),
+        lockOpacity = (surface?.optDouble("lockOpacity", DEFAULT_OPACITY) ?: DEFAULT_OPACITY).toFloat().coerceIn(0f, 1f),
         tinted = cardHex != null,
       )
     }

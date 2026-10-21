@@ -87,7 +87,10 @@ class WidgetConfigActivity : Activity() {
     val opacityLabel = label("")
     root.addView(opacityLabel)
     // 앱 꾸미기와 같게 '투명도'로 보인다(오른쪽 = 더 투명, 0~100%). 저장 값은 불투명도(1 - 투명도)
-    val start = 100 - ((cur.opacity ?: theme.opacity) * 100).roundToInt()
+    // 잠금화면에 놓인 위젯이면 꾸미기의 잠금화면 위젯 투명도에서 시작한다
+    val keyguard = AppWidgetManager.getInstance(this).getAppWidgetOptions(widgetId)
+      .getInt(AppWidgetManager.OPTION_APPWIDGET_HOST_CATEGORY, -1) == android.appwidget.AppWidgetProviderInfo.WIDGET_CATEGORY_KEYGUARD
+    val start = 100 - ((cur.opacity ?: if (keyguard) theme.lockOpacity else theme.opacity) * 100).roundToInt()
     fun showOpacity(v: Int) {
       opacityLabel.text = getString(R.string.bg_transparency, v)
     }

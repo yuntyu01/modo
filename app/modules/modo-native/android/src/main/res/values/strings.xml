@@ -45,4 +45,6 @@
   <string name="widget_open_app">modo 열기</string>
   <string name="widget_folder_tab">%1$s 폴더</string>
   <string name="widget_folder_tab_current">%1$s 폴더, 지금 보는 폴더</string>
+  <string name="next_todo">다음 할 일</string>
+  <string name="widget_description_strip">한 줄로 폴더를 고르고 할 일을 하나씩 넘겨 봐요. 잠금화면에도 알맞아요.</string>
 </resources>

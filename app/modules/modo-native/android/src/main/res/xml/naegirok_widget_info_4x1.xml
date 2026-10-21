@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  한 줄(4×1) 위젯: 위젯 고르기 화면에 따로 보이는 같은 위젯(WidgetSizes.kt). 삼성 잠금화면의 넓은 칸처럼 낮은 자리에 맞게
+  폴더 고르기(이전/다음 폴더)와 할 일 하나씩 넘기기(다음 할 일)를 보여 준다(HomeWidget.strip, 사용자 요청 2026-10-21).
+  어느 위젯이든 놓인 크기에 맞는 모양을 고른다(동그라미 칸 = 개수, 낮은 칸 = 한 줄, 큰 칸 = 목록).
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+  android:minWidth="250dp"
+  android:minHeight="40dp"
+  android:minResizeWidth="110dp"
+  android:minResizeHeight="40dp"
+  android:targetCellWidth="4"
+  android:targetCellHeight="1"
+  android:resizeMode="horizontal|vertical"
+  android:updatePeriodMillis="0"
+  android:initialLayout="@layout/widget_strip"
+  android:initialKeyguardLayout="@layout/widget_strip"
+  android:previewLayout="@layout/widget_strip_preview"
+  android:description="@string/widget_description_strip"
+  android:configure="com.yuntyu01.naegirok.widget.WidgetConfigActivity"
+  android:widgetFeatures="reconfigurable|configuration_optional"
+  android:widgetCategory="home_screen|keyguard" />

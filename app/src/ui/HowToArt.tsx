@@ -38,25 +38,36 @@ function markAt(x: number, y: number, h: number, color: string) {
 }
 
 /**
- * 위젯 크기 고르기(설정 → 홈·잠금화면 → 홈 화면 위젯) 그림: 홈 화면 칸(가로 4칸) 위에서 위젯이 차지하는 크기를 대충 보여 준다
+ * 위젯 크기 고르기(설정 → 홈·잠금화면 → 홈 화면 위젯) 그림: 홈 화면 칸(가로 4칸) 위에서 위젯이 차지하는 크기(2×2 · 3×3 · 4×4 · 한 줄 4×1)를 대충 보여 준다
  * (사용자 요청 2026-10-21). 위젯 안 할 일 줄 수도 크기를 따라 늘어난다. 칸 크기는 런처·기기마다 달라 실제와 똑같지는 않다.
  */
-export function WidgetSizeArt({ cells, width = 92 }: { cells: 3 | 4; width?: number }) {
+export function WidgetSizeArt({ size, width = 92 }: { size: '2x2' | '3x3' | '4x4' | '4x1'; width?: number }) {
   const { theme } = useUi();
   const c = palette(theme);
   const CELL = 24;
   const X0 = 12;
   const Y0 = 24;
   const ROWS = 6;
+  const cols = size === '2x2' ? 2 : size === '3x3' ? 3 : 4;
+  const tall = size === '4x1' ? 1 : cols;
   const x = X0 + 2;
   const y = Y0 + 2;
-  const side = cells * CELL - 4;
+  const w = cols * CELL - 4;
+  const h = tall * CELL - 4;
   const icons = [];
   for (let r = 0; r < ROWS; r++)
     for (let col = 0; col < 4; col++)
-      if (r >= cells || col >= cells) icons.push(<Circle key={`${r}-${col}`} cx={X0 + col * CELL + CELL / 2} cy={Y0 + r * CELL + CELL / 2} r={7} fill={c.block} />);
+      if (r >= tall || col >= cols) icons.push(<Circle key={`${r}-${col}`} cx={X0 + col * CELL + CELL / 2} cy={Y0 + r * CELL + CELL / 2} r={7} fill={c.block} />);
   const rows: number[] = [];
-  for (let ry = y + 21; ry + 6 < y + side - 3; ry += 11) rows.push(ry);
+  for (let ry = y + 21; ry + 6 < y + h - 3; ry += 11) rows.push(ry);
+  // 한 줄(4×1): 동그라미 · 할 일 하나 · 다음 할 일(아래 화살표)
+  const strip = size === '4x1' ? (
+    <G>
+      <Circle cx={x + 9} cy={y + h / 2} r={3.2} fill="none" stroke="#9A9BA0" strokeWidth={1.1} />
+      <Rect x={x + 17} y={y + h / 2 - 1.75} width={w * 0.55} height={3.5} rx={1.75} fill="#C9CACE" />
+      <Path d={`M${x + w - 12} ${y + h / 2 - 1.5} l3 3 l3 -3`} fill="none" stroke="#F5F5F7" strokeWidth={1.2} strokeLinecap="round" strokeLinejoin="round" />
+    </G>
+  ) : null;
   return (
     <Svg width={width} height={(width * H) / W} viewBox={`0 0 ${W} ${H}`} accessible={false}>
       <Rect x={3} y={3} width={W - 6} height={H - 6} rx={16} fill={c.screen} stroke={c.frame} strokeWidth={2} />
@@ -67,16 +78,20 @@ export function WidgetSizeArt({ cells, width = 92 }: { cells: 3 | 4; width?: num
       {[24, 48, 72, 96].map((cx) => (
         <Circle key={cx} cx={cx} cy={196} r={7} fill={c.block} />
       ))}
-      <Rect x={x} y={y} width={side} height={side} rx={9} fill={WIDGET_BG} stroke={c.accent} strokeWidth={1.4} />
-      {markAt(x + 6, y + 7, 4.5, theme.accent)}
-      <Rect x={x + 22} y={y + 7.5} width={10} height={3.5} rx={1.75} fill="#F5F5F7" />
-      <Rect x={x + 36} y={y + 7.5} width={10} height={3.5} rx={1.75} fill="#77787D" />
-      {rows.map((ry, i) => (
-        <G key={ry}>
-          <Circle cx={x + 9} cy={ry + 1.75} r={2.6} fill="none" stroke="#9A9BA0" strokeWidth={1} />
-          <Rect x={x + 16} y={ry} width={(side - 24) * (i % 2 ? 0.62 : 0.85)} height={3.5} rx={1.75} fill="#C9CACE" />
+      <Rect x={x} y={y} width={w} height={h} rx={size === '4x1' ? 7 : 9} fill={WIDGET_BG} stroke={c.accent} strokeWidth={1.4} />
+      {strip ?? (
+        <G>
+          {markAt(x + 6, y + 7, 4.5, theme.accent)}
+          <Rect x={x + 22} y={y + 7.5} width={10} height={3.5} rx={1.75} fill="#F5F5F7" />
+          <Rect x={x + 36} y={y + 7.5} width={10} height={3.5} rx={1.75} fill="#77787D" />
+          {rows.map((ry, i) => (
+            <G key={ry}>
+              <Circle cx={x + 9} cy={ry + 1.75} r={2.6} fill="none" stroke="#9A9BA0" strokeWidth={1} />
+              <Rect x={x + 16} y={ry} width={(w - 24) * (i % 2 ? 0.62 : 0.85)} height={3.5} rx={1.75} fill="#C9CACE" />
+            </G>
+          ))}
         </G>
-      ))}
+      )}
     </Svg>
   );
 }

@@ -44,6 +44,22 @@
       </intent-filter>
       <meta-data android:name="android.appwidget.provider" android:resource="@xml/naegirok_widget_info_4x4" />
     </receiver>
+    <!-- 2×2(작게, WidgetSizes.kt) -->
+    <receiver android:name="com.yuntyu01.naegirok.widget.NotesWidgetProvider2x2"
+      android:process=":native" android:exported="true" android:label="@string/app_name_widget">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/naegirok_widget_info_2x2" />
+    </receiver>
+    <!-- 한 줄(4×1): 폴더 고르기 · 할 일 하나씩. 잠금화면의 넓은 칸에도(WidgetSizes.kt) -->
+    <receiver android:name="com.yuntyu01.naegirok.widget.NotesWidgetProvider4x1"
+      android:process=":native" android:exported="true" android:label="@string/app_name_widget">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/naegirok_widget_info_4x1" />
+    </receiver>
 
 
     <activity

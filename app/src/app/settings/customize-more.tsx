@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { useUi } from '../../state/AppContext';
-import { ACCENTS, CARD_SWATCHES, type SurfaceTheme } from '../../state/prefs';
+import { ACCENTS, CARD_SWATCHES, DEFAULT_PREFS, type SurfaceTheme } from '../../state/prefs';
 import { contrast, hexToRgb, hsvToRgb, isHex, rgbToHex, rgbToHsv } from '../../ui/color';
 import { CheckIcon } from '../../ui/Icons';
 import { Group, Row, Segmented, Slider, Switch } from '../../ui/primitives';
@@ -106,7 +106,8 @@ function CustomColor({ value, onChange }: { value: string; onChange: (c: string)
   );
 }
 
-function SurfaceSettings({ title, value, onChange }: { title: string; value: SurfaceTheme; onChange: (v: SurfaceTheme) => void }) {
+/** lock: 위젯이면 잠금화면 위젯 투명도도(홈과 따로) */
+function SurfaceSettings({ title, value, onChange, lock }: { title: string; value: SurfaceTheme; onChange: (v: SurfaceTheme) => void; lock?: boolean }) {
   const { theme, t } = useUi();
   return (
     <Group title={title}>
@@ -122,9 +123,21 @@ function SurfaceSettings({ title, value, onChange }: { title: string; value: Sur
       <View style={{ paddingHorizontal: 20, paddingBottom: 14, paddingTop: 10 }}>
         {/* 꾸미기 첫 화면과 같게 '투명도'로(오른쪽 = 더 투명, 0~100%). 저장 값은 불투명도 */}
         <Text style={theme.font(14, { color: theme.muted })}>
-          {t('bgOpacity')} {Math.round((1 - value.opacity) * 100)}%
+          {t(lock ? 'homeWidgetOpacity' : 'bgOpacity')} {Math.round((1 - value.opacity) * 100)}%
         </Text>
-        <Slider label={t('bgOpacity')} value={1 - value.opacity} onChange={(x) => onChange({ ...value, opacity: Math.round((1 - x) * 100) / 100 })} />
+        <Slider label={t(lock ? 'homeWidgetOpacity' : 'bgOpacity')} value={1 - value.opacity} onChange={(x) => onChange({ ...value, opacity: Math.round((1 - x) * 100) / 100 })} />
+        {lock ? (
+          <>
+            <Text style={theme.font(14, { color: theme.muted, marginTop: 10 })}>
+              {t('lockWidgetOpacity')} {Math.round((1 - (value.lockOpacity ?? DEFAULT_PREFS.widget.lockOpacity!)) * 100)}%
+            </Text>
+            <Slider
+              label={t('lockWidgetOpacity')}
+              value={1 - (value.lockOpacity ?? DEFAULT_PREFS.widget.lockOpacity!)}
+              onChange={(x) => onChange({ ...value, lockOpacity: Math.round((1 - x) * 100) / 100 })}
+            />
+          </>
+        ) : null}
       </View>
     </Group>
   );
@@ -175,7 +188,7 @@ export default function CustomizeMore() {
           />
         </View>
       </Group>
-      <SurfaceSettings title={t('widgetTheme')} value={prefs.widget} onChange={(widget) => setPrefs({ widget })} />
+      <SurfaceSettings title={t('widgetTheme')} value={prefs.widget} onChange={(widget) => setPrefs({ widget })} lock={Platform.OS !== 'web'} />
       {/* 미니창은 PC에만 있고 설정은 기기마다 따로라, 휴대폰에서는 바꿔도 아무 데도 쓰이지 않는다 */}
       {Platform.OS === 'web' ? <SurfaceSettings title={t('miniTheme')} value={prefs.mini} onChange={(mini) => setPrefs({ mini })} /> : null}
     </SubScreen>

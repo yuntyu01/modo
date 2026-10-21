@@ -9,8 +9,10 @@ export type SurfaceTheme = {
   linked: boolean;
   accent: string;
   card: string | null;
-  /** 배경 불투명도 0~1 */
+  /** 배경 불투명도 0~1(위젯은 홈 화면 위젯) */
   opacity: number;
+  /** 잠금화면 위젯의 배경 불투명도 0~1(위젯만, 홈과 따로: 사용자 요청 2026-10-22) */
+  lockOpacity?: number;
 };
 
 export type Prefs = {
@@ -86,15 +88,15 @@ export const DEFAULT_PREFS: Prefs = {
   logoAccent: true,
   accentAt: 0,
   language: 'system',
-  // 위젯·미니창 배경 불투명도. 꾸미기에는 '투명도 20%'로 보인다(0~100%까지 고를 수 있다). 35%로 올려 봤다가
-  // 예전(20%)이 낫다고 해서 되돌렸다(사용자 요청 2026-10-21)
-  widget: { linked: true, accent: ACCENTS[0], card: null, opacity: 0.8 },
+  // 배경 불투명도. 꾸미기에는 '투명도'로 보인다(0~100%). 위젯은 홈·잠금화면을 따로 정하고 기본은 둘 다 투명도 60%
+  // (사용자 요청 2026-10-22. 그 전 기본은 20%), 미니창은 그대로 20%
+  widget: { linked: true, accent: ACCENTS[0], card: null, opacity: 0.4, lockOpacity: 0.4 },
   mini: { linked: true, accent: ACCENTS[0], card: null, opacity: 0.8 },
   lock: { enabled: false, visibility: 'private' },
   hintSeen: false,
   onboarded: false,
   server: DEFAULT_SERVER,
-  prefsVersion: 2,
+  prefsVersion: 3,
 };
 
 // 예전에 기본색이었던 색들(대표색을 바꿨다 되돌려도 지금 대표색은 빼고)
@@ -119,6 +121,8 @@ export function mergePrefs(saved: Partial<Prefs> | null): Prefs {
     if (old(saved?.accent)) p.accent = DEFAULT_PREFS.accent;
     for (const k of ['widget', 'mini'] as const) if (old(saved?.[k]?.accent)) p[k].accent = DEFAULT_PREFS.accent;
   }
+  // 위젯 기본 투명도를 20% → 60%로 바꿨다(2026-10-22): 예전 기본(불투명도 0.8)을 그대로 두고 있던 홈 위젯만 한 번 새 기본값으로
+  if ((saved?.prefsVersion ?? 1) < 3 && (saved?.widget?.opacity ?? 0.8) === 0.8) p.widget.opacity = DEFAULT_PREFS.widget.opacity;
   p.prefsVersion = DEFAULT_PREFS.prefsVersion;
   return p;
 }

@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { toPlain } from '../../core/rich';
 import { useApp, useUi } from '../../state/AppContext';
@@ -157,10 +157,10 @@ export default function Customize() {
     { value: 'l', label: t('sizeL') },
     { value: 'xl', label: t('sizeXL') },
   ];
-  // 위젯·미니창 투명도는 둘을 함께 바꾼다(따로 바꾸려면 '더 많은 꾸미기')
+  // 투명도: 휴대폰은 홈 화면 위젯·잠금화면 위젯을 따로(사용자 요청 2026-10-22), PC는 미니창(위젯이 없다).
   // 끄는 동안은 화면의 값만 바꾸고, 손을 뗄 때 저장한다(끌 때마다 저장하면 매번 DB에 쓰고 앱 전체를 다시 그린다)
-  const [dragOpacity, setDragOpacity] = useState<number | null>(null);
-  const opacity = dragOpacity ?? prefs.widget.opacity;
+  const [drag, setDrag] = useState<{ key: OpacityKey; value: number } | null>(null);
+  const valueOf = (key: OpacityKey) => (drag?.key === key ? drag.value : opacityOf(prefs, key));
   return (
     <SubScreen title={t('customize')} titleSize={20} titleGap={10} headerShift={-2.5} contentTop={0} padLeft={19}>
       <Preview />
@@ -190,23 +190,30 @@ export default function Customize() {
         />
       </Group>
       <View style={[styles.opacityCard, { backgroundColor: theme.card }]}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <Text style={theme.kfont(15.5, { color: theme.text, flex: 1 })}>{t('widgetMiniOpacity')}</Text>
-          {/* 이름이 '투명도'라 숫자도 투명한 정도로(저장 값은 불투명도: 예전엔 불투명 80%를 '투명도 80%'로 보여 반대로 읽혔다) */}
-          <Text style={theme.kfont(14.5, { color: theme.subtle })}>{Math.round((1 - opacity) * 100)}%</Text>
-        </View>
-        <Slider
-          label={t('widgetMiniOpacity')}
-          // 오른쪽으로 밀수록 더 투명(투명도 0~100%: 왼쪽 끝은 배경이 전혀 비치지 않고, 오른쪽 끝은 배경 없이 글자만)
-          value={1 - opacity}
-          style={{ marginTop: 2.5, marginBottom: -2.5 }}
-          onChange={(x) => setDragOpacity(Math.round((1 - x) * 100) / 100)}
-          onEnd={(x) => {
-            const v = Math.round((1 - x) * 100) / 100;
-            setPrefs({ widget: { ...prefs.widget, opacity: v }, mini: { ...prefs.mini, opacity: v } });
-            setDragOpacity(null);
-          }}
-        />
+        {(Platform.OS === 'web' ? (['mini'] as const) : (['home', 'lock'] as const)).map((key, i) => {
+          const label = t(key === 'mini' ? 'miniOpacity' : key === 'home' ? 'homeWidgetOpacity' : 'lockWidgetOpacity');
+          const opacity = valueOf(key);
+          return (
+            <View key={key} style={i ? { marginTop: 12 } : null}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={theme.kfont(15.5, { color: theme.text, flex: 1 })}>{label}</Text>
+                {/* 이름이 '투명도'라 숫자도 투명한 정도로(저장 값은 불투명도: 예전엔 불투명 80%를 '투명도 80%'로 보여 반대로 읽혔다) */}
+                <Text style={theme.kfont(14.5, { color: theme.subtle })}>{Math.round((1 - opacity) * 100)}%</Text>
+              </View>
+              <Slider
+                label={label}
+                // 오른쪽으로 밀수록 더 투명(투명도 0~100%: 왼쪽 끝은 배경이 전혀 비치지 않고, 오른쪽 끝은 배경 없이 글자만)
+                value={1 - opacity}
+                style={{ marginTop: 2.5, marginBottom: -2.5 }}
+                onChange={(x) => setDrag({ key, value: Math.round((1 - x) * 100) / 100 })}
+                onEnd={(x) => {
+                  setPrefs(withOpacity(prefs, key, Math.round((1 - x) * 100) / 100));
+                  setDrag(null);
+                }}
+              />
+            </View>
+          );
+        })}
         <Text style={theme.kfont(13, { color: theme.subtle, marginTop: 2 })}>{t('opacityNote')}</Text>
       </View>
       {/* 맨 아래 블록 바로 밑 오른쪽: 기본값으로 되돌리기 */}
@@ -252,3 +259,15 @@ const styles = StyleSheet.create({
   labelRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 5 },
   moreLink: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingLeft: 8, paddingRight: 2 },
 });
+
+type OpacityKey = 'home' | 'lock' | 'mini';
+
+function opacityOf(prefs: Prefs, key: OpacityKey) {
+  if (key === 'mini') return prefs.mini.opacity;
+  return key === 'home' ? prefs.widget.opacity : (prefs.widget.lockOpacity ?? DEFAULT_PREFS.widget.lockOpacity!);
+}
+
+function withOpacity(prefs: Prefs, key: OpacityKey, v: number): Partial<Prefs> {
+  if (key === 'mini') return { mini: { ...prefs.mini, opacity: v } };
+  return { widget: { ...prefs.widget, ...(key === 'home' ? { opacity: v } : { lockOpacity: v }) } };
+}

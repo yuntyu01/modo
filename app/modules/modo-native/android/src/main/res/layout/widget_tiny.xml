@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 동그라미·아주 작은 칸용 위젯(HomeWidget.tiny): 로고 + 남은 할 일 수. 누르면 앱의 그 폴더 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  android:id="@+id/tiny_root"
+  android:layout_width="match_parent"
+  android:layout_height="match_parent">
+  <ImageView
+    android:id="@+id/widget_bg"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:importantForAccessibility="no"
+    android:scaleType="fitXY"
+    android:src="@drawable/naegirok_widget_bg" />
+  <LinearLayout
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layout_gravity="center"
+    android:gravity="center_horizontal"
+    android:orientation="vertical">
+    <ImageView
+      android:id="@+id/widget_mark"
+      android:layout_width="wrap_content"
+      android:layout_height="9dp"
+      android:adjustViewBounds="true"
+      android:importantForAccessibility="no"
+      android:src="@drawable/naegirok_mark" />
+    <TextView
+      android:id="@+id/tiny_count"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_marginTop="2dp"
+      android:fontFamily="sans-serif"
+      android:fontFeatureSettings="tnum"
+      android:includeFontPadding="false"
+      android:textColor="#FFFFFF"
+      android:textSize="20sp"
+      android:textStyle="bold" />
+  </LinearLayout>
+</FrameLayout>

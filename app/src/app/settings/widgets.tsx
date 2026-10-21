@@ -42,10 +42,13 @@ export default function Widgets() {
         <View style={styles.sizes}>
           {(
             [
-              [3, '3x3', 'widgetSizeMid'],
-              [4, '4x4', 'widgetSizeLarge'],
+              ['2x2', 'widgetSizeSmall'],
+              ['3x3', 'widgetSizeMid'],
+              ['4x4', 'widgetSizeLarge'],
+              // 한 줄: 폴더 고르기 · 할 일 하나씩(삼성 잠금화면의 넓은 칸에도 알맞다)
+              ['4x1', 'widgetSizeStrip'],
             ] as const
-          ).map(([cells, size, label]) => (
+          ).map(([size, label]) => (
             <Pressable
               key={size}
               accessibilityRole="button"
@@ -56,8 +59,8 @@ export default function Widgets() {
               }}
               style={({ pressed }) => [styles.size, { borderColor: theme.outline }, pressed && { backgroundColor: theme.raised }]}
             >
-              <WidgetSizeArt cells={cells} />
-              <Text style={theme.font(15, { color: theme.text, fontWeight: '600', marginTop: 10 })}>{t(label)}</Text>
+              <WidgetSizeArt size={size} width={68} />
+              <Text style={theme.font(13.5, { color: theme.text, fontWeight: '600', marginTop: 8, textAlign: 'center' })}>{t(label)}</Text>
             </Pressable>
           ))}
         </View>
@@ -71,6 +74,7 @@ export default function Widgets() {
 }
 
 const styles = StyleSheet.create({
-  sizes: { flexDirection: 'row', gap: 12, paddingHorizontal: 22, paddingTop: 6, paddingBottom: 18 },
-  size: { flex: 1, alignItems: 'center', borderRadius: 16, borderWidth: 1, paddingTop: 16, paddingBottom: 14 },
+  // 네 크기를 두 줄로(한 줄에 둘)
+  sizes: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: 18, paddingTop: 6, paddingBottom: 18 },
+  size: { flexBasis: '45%', flexGrow: 1, alignItems: 'center', borderRadius: 16, borderWidth: 1, paddingTop: 12, paddingBottom: 10, paddingHorizontal: 4 },
 });

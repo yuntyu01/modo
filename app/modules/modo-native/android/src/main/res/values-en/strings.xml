@@ -44,4 +44,6 @@
   <string name="widget_open_app">Open modo</string>
   <string name="widget_folder_tab">%1$s folder</string>
   <string name="widget_folder_tab_current">%1$s folder, current</string>
+  <string name="next_todo">Next to-do</string>
+  <string name="widget_description_strip">One line: pick a folder and go through to-dos one by one. Fits the lock screen.</string>
 </resources>

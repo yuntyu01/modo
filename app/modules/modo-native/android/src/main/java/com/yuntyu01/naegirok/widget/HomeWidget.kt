@@ -16,7 +16,9 @@ import android.text.Spanned
 import android.text.StaticLayout
 import android.text.TextPaint
 import android.text.style.ForegroundColorSpan
+import android.text.style.StrikethroughSpan
 import android.text.style.StyleSpan
+import android.util.SizeF
 import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
@@ -57,6 +59,10 @@ object HomeWidget {
   private const val ROW_CHECK = 44f
   /** 제목과 보조 줄 사이(앱 카드와 같이 0: 줄 높이 안의 글자 여백만으로 붙는다). widget_home_todo.xml과 같게 */
   private const val META_GAP = 0f
+  /** 작은 칸 모양을 고르는 크기(dp): 이 폭보다 좁으면 동그라미 모양, 이 높이부터 한 줄 모양의 위 줄(폴더), 이 높이부터 목록 */
+  private const val SMALL_W = 110f
+  private const val TWO_ROWS_H = 70f
+  private const val FULL_H = 150f
   /** 위젯 목록에 싣는 할 일 수(더 있으면 끝에 '외 N개'). 위젯 내용은 한 번에 시스템으로 넘어가서 너무 크면 그리지 못한다 */
   private const val MAX_ROWS = 150
 
@@ -84,7 +90,11 @@ object HomeWidget {
     val muted = if (neutral) NEUTRAL_MUTED else t.muted
     val circle = if (neutral) NEUTRAL_CIRCLE else t.circle
     val mark = t.mark
+    /** 완료하는 순간 채워지는 동그라미와 그 위 체크 */
+    val accent = t.accent
+    val onAccent = t.onAccent
     val opacity = t.opacity
+    val lockOpacity = t.lockOpacity
   }
 
   /**
@@ -312,6 +322,159 @@ object HomeWidget {
       setOnClickFillInIntent(R.id.more_text, fill(NotesWidgetProvider.ITEM_OPEN, folder = folderId))
     }
 
+  /**
+   * 놓인 칸 크기에 맞는 모양을 고른다. Android 12+는 크기별 모양을 함께 넘겨 런처·잠금화면이 실제 칸에 맞는 것을 고르고,
+   * 그 아래는 런처가 알려 준 크기로 고른다: 동그라미·아주 작은 칸 = 로고 + 남은 개수, 낮은 칸 = 한 줄(폴더 고르기 · 할 일 하나씩),
+   * 그보다 크면 full(홈은 메모 + 할 일 목록, 잠금화면은 예전 모양). 삼성 잠금화면 칸에 큰 위젯이 그대로 줄어 들어가
+   * 내용 없이 잘린 테두리만 보였다(사용자 제보 2026-10-21).
+   */
+  fun responsive(ctx: Context, mgr: AppWidgetManager, id: Int, keyguard: Boolean, full: RemoteViews): RemoteViews {
+    val s = loadSmall(ctx, id, keyguard)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+      return RemoteViews(
+        mapOf(
+          SizeF(40f, 40f) to tiny(ctx, id, s),
+          SizeF(SMALL_W, 40f) to strip(ctx, id, s, twoRows = false),
+          SizeF(SMALL_W, TWO_ROWS_H) to strip(ctx, id, s, twoRows = true),
+          SizeF(160f, FULL_H) to full,
+        ),
+      )
+    }
+    val o = mgr.getAppWidgetOptions(id)
+    val w = o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0)
+    val h = o.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0)
+    return when {
+      w in 1 until SMALL_W.toInt() -> tiny(ctx, id, s)
+      h in 1 until TWO_ROWS_H.toInt() -> strip(ctx, id, s, twoRows = false)
+      h in 1 until FULL_H.toInt() -> strip(ctx, id, s, twoRows = true)
+      else -> full
+    }
+  }
+
+  /** 작은 칸 모양에 쓰는 것: 지금 폴더·남은 할 일·보던 자리. privacy = 잠금화면 공개 범위(홈은 늘 public) */
+  private class Small(
+    val colors: Colors, val folderId: String?, val folderName: String, val todos: List<NotesDb.Todo>, val count: Int,
+    val signedIn: Boolean, val readOnly: Boolean, val privacy: String, val wp: WidgetPrefs, val keyguard: Boolean,
+  )
+
+  private fun loadSmall(ctx: Context, id: Int, keyguard: Boolean): Small {
+    val wp = WidgetPrefs.load(ctx, id)
+    val base = ctx.getString(R.string.base_folder)
+    return NotesDb.use(ctx) { db ->
+      val prefs = NotesDb.prefs(db)
+      // 잠금화면에서는 잠금화면 알림과 같은 공개 범위(내용 보이기 · 개수만 · 숨기기)를 따른다
+      val privacy = if (keyguard) prefs.optJSONObject("lock")?.optString("visibility", "private") ?: "private" else "public"
+      if (!NotesDb.signedIn(db)) return@use Small(Colors.of(ctx, prefs), null, base, emptyList(), 0, false, false, privacy, wp, keyguard)
+      // 홈에서 숨긴 공유 폴더·없어진 폴더는 기본 폴더로(큰 위젯과 같다)
+      val folder = NotesDb.folders(db).firstOrNull { it.id == wp.folderId }
+      val fid = folder?.id
+      Small(
+        Colors.of(ctx, prefs), fid, folder?.name ?: base, NotesDb.todos(db, fid, limit = 100), NotesDb.countTodos(db, fid),
+        true, NotesDb.viewOnly(db, fid), privacy, wp, keyguard,
+      )
+    } ?: Small(Colors.of(ctx, org.json.JSONObject()), null, base, emptyList(), 0, false, false, "private", wp, keyguard)
+  }
+
+  /** 바탕: 위젯마다 고른 투명도가 없으면 꾸미기의 위젯 투명도(잠금화면이면 잠금화면 위젯 투명도) */
+  private fun background(v: RemoteViews, c: Colors, s: Small) {
+    c.set(v, R.id.widget_bg, "setColorFilter") { it.card }
+    val base = if (s.keyguard) c.now.lockOpacity else c.now.opacity
+    v.setInt(R.id.widget_bg, "setImageAlpha", ((s.wp.opacity ?: base) * 255).roundToInt())
+    c.set(v, R.id.widget_mark, "setColorFilter") { it.mark }
+  }
+
+  /** 동그라미·아주 작은 칸: 로고 + 남은 할 일 수(숨기기면 로고만). 누르면 앱의 그 폴더 */
+  private fun tiny(ctx: Context, id: Int, s: Small) = RemoteViews(ctx.packageName, R.layout.widget_tiny).apply {
+    background(this, s.colors, s)
+    val show = s.signedIn && s.privacy != "secret"
+    setViewVisibility(R.id.tiny_count, if (show) View.VISIBLE else View.GONE)
+    setTextViewText(R.id.tiny_count, if (s.count > 99) "99+" else s.count.toString())
+    s.colors.set(this, R.id.tiny_count, "setTextColor") { it.text }
+    setOnClickPendingIntent(R.id.tiny_root, activity(ctx, id, openApp(ctx, s.folderId, id)))
+    setContentDescription(R.id.tiny_root, if (show) ctx.getString(R.string.lock_title, s.count) else ctx.getString(R.string.widget_open_app))
+  }
+
+  /**
+   * 낮은 칸(삼성 잠금화면의 넓은 칸, 홈의 4×1): 위 줄 = 로고 · 폴더 이름 · 이전/다음 폴더(높이가 모자라면 뺀다),
+   * 아래 줄 = 동그라미(완료) · 할 일 하나 · 몇 번째/몇 개 · 다음 할 일. 완료하면 다음 할 일이 그 자리로 온다.
+   */
+  private fun strip(ctx: Context, id: Int, s: Small, twoRows: Boolean) = RemoteViews(ctx.packageName, R.layout.widget_strip).apply {
+    val c = s.colors
+    background(this, c, s)
+    val open = activity(ctx, id, openApp(ctx, s.folderId, id))
+    setOnClickPendingIntent(R.id.strip_root, open)
+    val textSp = s.wp.textSize
+    setViewVisibility(R.id.strip_head, if (twoRows) View.VISIBLE else View.GONE)
+    setTextViewText(R.id.strip_folder, s.folderName)
+    setTextViewTextSize(R.id.strip_folder, TypedValue.COMPLEX_UNIT_SP, textSp - 1)
+    c.set(this, R.id.strip_folder, "setTextColor") { it.text }
+    setOnClickPendingIntent(R.id.strip_folder, open)
+    for ((view, step) in listOf(R.id.strip_prev to -1, R.id.strip_next to 1)) {
+      c.set(this, view, "setColorFilter") { it.text }
+      setInt(view, "setImageAlpha", 200)
+      val page = Intent(ctx, NotesWidgetProvider::class.java).setAction(NotesWidgetProvider.ACTION_PAGE)
+        .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id).putExtra(NotesWidgetProvider.EXTRA_STEP, step)
+        .setData(Uri.parse("naegirok://widget-page/$id/$step"))
+      setOnClickPendingIntent(view, broadcast(ctx, id, page))
+    }
+    setContentDescription(R.id.strip_prev, ctx.getString(R.string.prev_folder))
+    setContentDescription(R.id.strip_next, ctx.getString(R.string.next_folder))
+    setTextViewTextSize(R.id.strip_text, TypedValue.COMPLEX_UNIT_SP, textSp)
+    c.set(this, R.id.strip_text, "setTextColor") { it.text }
+    c.set(this, R.id.strip_pos, "setTextColor") { it.muted }
+    c.set(this, R.id.strip_down, "setColorFilter") { it.text }
+    setInt(R.id.strip_down, "setImageAlpha", 200)
+    val n = s.todos.size
+    // 할 일 대신 안내만: 로그인 전, 잠금화면 공개 범위가 개수만·숨기기일 때. 할 일이 없으면 아무 글 없이(큰 위젯과 같다)
+    val note = when {
+      !s.signedIn -> ctx.getString(R.string.login_first)
+      s.privacy == "secret" -> ctx.getString(R.string.lock_hidden)
+      s.privacy != "public" -> ctx.getString(R.string.lock_title, s.count)
+      else -> null
+    }
+    if (note != null || n == 0) {
+      setTextViewText(R.id.strip_text, note ?: "")
+      setViewVisibility(R.id.strip_check, View.GONE)
+      setViewVisibility(R.id.strip_pos, View.GONE)
+      setViewVisibility(R.id.strip_down, View.GONE)
+      setOnClickPendingIntent(R.id.strip_text, open)
+      return@apply
+    }
+    val i = Math.floorMod(s.wp.pos, n)
+    val t = s.todos[i]
+    val done = t.id in NotesWidgetProvider.completing
+    setTextViewText(R.id.strip_text, if (done) struck(Rich.spanned(t.text)) else Rich.spanned(t.text))
+    if (done) c.set(this, R.id.strip_text, "setTextColor") { it.muted }
+    setViewVisibility(R.id.strip_check, View.VISIBLE)
+    setImageViewResource(R.id.strip_ring, if (t.repeatFreq != null) R.drawable.naegirok_check_repeat else R.drawable.naegirok_check_off)
+    c.set(this, R.id.strip_ring, "setColorFilter") { it.circle }
+    c.set(this, R.id.strip_fill, "setColorFilter") { it.accent }
+    c.set(this, R.id.strip_tick, "setColorFilter") { it.onAccent }
+    setDisplayedChild(R.id.strip_check, if (done) 1 else 0)
+    // 동그라미 = 완료, 글자 = 고치기(잠금화면에서는 시스템이 먼저 잠금 해제를 묻는다). 보기만 공유된 폴더는 앱의 그 폴더로
+    val toggle = Intent(ctx, NotesWidgetProvider::class.java).setAction(NotesWidgetProvider.ACTION_TOGGLE)
+      .putExtra(NotesWidgetProvider.EXTRA_TODO, t.id)
+      .setData(Uri.parse("naegirok://toggle/$id/${t.id}"))
+    setOnClickPendingIntent(R.id.strip_check, if (s.readOnly) open else broadcast(ctx, id, toggle))
+    setContentDescription(R.id.strip_check, if (s.readOnly) ctx.getString(R.string.widget_open_app) else ctx.getString(R.string.mark_done, Rich.plain(t.text)))
+    val edit = Intent(ctx, WidgetEditActivity::class.java)
+      .putExtra(WidgetEditActivity.EXTRA_TODO, t.id)
+      .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+      .setData(Uri.parse("naegirok://edit/todo/${t.id}/$id"))
+    setOnClickPendingIntent(R.id.strip_text, if (s.readOnly) open else activity(ctx, id, edit))
+    setContentDescription(R.id.strip_text, ctx.getString(R.string.edit_todo) + ": " + Rich.plain(t.text))
+    // 몇 번째/몇 개와 다음 할 일: 둘 이상일 때만
+    val many = s.count > 1
+    setViewVisibility(R.id.strip_pos, if (many) View.VISIBLE else View.GONE)
+    setTextViewText(R.id.strip_pos, "${i + 1}/${s.count}")
+    setViewVisibility(R.id.strip_down, if (n > 1) View.VISIBLE else View.GONE)
+    val next = Intent(ctx, NotesWidgetProvider::class.java).setAction(NotesWidgetProvider.ACTION_NEXT)
+      .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id)
+      .setData(Uri.parse("naegirok://widget-next/$id"))
+    setOnClickPendingIntent(R.id.strip_down, broadcast(ctx, id, next))
+    setContentDescription(R.id.strip_down, ctx.getString(R.string.next_todo))
+  }
+
   /** 그리기에 실패한 위젯: 바탕 + 로고(누르면 앱)만. 흰 빈 상자로 남아 눌러도 아무 일이 없지 않게 */
   fun fallback(ctx: Context, id: Int): RemoteViews {
     val c = Colors.of(ctx, org.json.JSONObject())
@@ -330,9 +493,11 @@ object HomeWidget {
     titleSp: Float, metaSp: Float, titleH: Int, metaH: Int, blockH: Int, plainLines: Int, rowPad: Int, readOnly: Boolean,
   ) = RemoteViews(ctx.packageName, R.layout.widget_home_todo).apply {
     setViewPadding(R.id.item_row, 0, rowPad, 0, rowPad)
-    setTextViewText(R.id.item_text, Rich.spanned(t.text))
+    // 완료하는 중(동그라미를 막 눌렀다): 채운 동그라미 + 체크, 글은 회색 줄 그음. 잠시 뒤 목록에서 빠진다(NotesWidgetProvider.complete)
+    val done = t.id in NotesWidgetProvider.completing
+    setTextViewText(R.id.item_text, if (done) struck(Rich.spanned(t.text)) else Rich.spanned(t.text))
     setTextViewTextSize(R.id.item_text, TypedValue.COMPLEX_UNIT_SP, titleSp)
-    c.set(this, R.id.item_text, "setTextColor") { it.text }
+    c.set(this, R.id.item_text, "setTextColor") { if (done) it.muted else it.text }
     val parts = CardMeta.parts(t.due, t.remindAt, t.repeatFreq, t.repeatDays, false, lang)
     if (parts.isEmpty()) {
       // 제목만: 보조 줄 자리까지 같은 높이에 세로 가운데, plainLines줄까지 …
@@ -351,8 +516,11 @@ object HomeWidget {
       setInt(R.id.item_meta, "setMaxLines", 1)
     }
     // 일반은 빈 원, 반복은 원 테두리가 두 곡선 화살표(앱 카드와 같은 모양)
-    setImageViewResource(R.id.item_check, if (t.repeatFreq != null) R.drawable.naegirok_check_repeat else R.drawable.naegirok_check_off)
-    c.set(this, R.id.item_check, "setColorFilter") { it.circle }
+    setImageViewResource(R.id.item_ring, if (t.repeatFreq != null) R.drawable.naegirok_check_repeat else R.drawable.naegirok_check_off)
+    c.set(this, R.id.item_ring, "setColorFilter") { it.circle }
+    c.set(this, R.id.item_fill, "setColorFilter") { it.accent }
+    c.set(this, R.id.item_tick, "setColorFilter") { it.onAccent }
+    setDisplayedChild(R.id.item_check, if (done) 1 else 0)
     setContentDescription(R.id.item_check, if (readOnly) ctx.getString(R.string.widget_open_app) else ctx.getString(R.string.mark_done, Rich.plain(t.text)))
     // 동그라미 = 완료(반복은 이번 회차만, 앱과 같은 저장·동기화 경로), 글자 = 그 할 일 고치기.
     // 보기만 공유된 폴더: 완료·고치기 대신 앱의 그 폴더로(위젯에서 바꿔도 서버가 받지 않는다)
@@ -364,6 +532,10 @@ object HomeWidget {
     setOnClickFillInIntent(R.id.item_body, edit)
     setContentDescription(R.id.item_body, ctx.getString(R.string.edit_todo) + ": " + Rich.plain(t.text))
   }
+
+  /** 완료하는 중인 글: 전체에 줄을 긋는다(꾸밈은 그대로) */
+  private fun struck(text: CharSequence): CharSequence =
+    SpannableStringBuilder(text).apply { setSpan(StrikethroughSpan(), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) }
 
   /** 할 일 아래 줄: 조각을 '  ·  '로 잇고 기한이 지난 조각은 빨간색(잠금화면 위젯도 같은 줄을 쓴다) */
   internal fun metaLine(parts: List<CardMeta.Part>): CharSequence {

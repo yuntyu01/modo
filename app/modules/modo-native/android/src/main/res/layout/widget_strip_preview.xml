@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 위젯 고르기 화면의 한 줄 위젯 미리보기(Android 12+): 폴더 이름 · 이전/다음 폴더 / 할 일 하나 · 1/3 · 다음 할 일 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  android:layout_width="match_parent"
+  android:layout_height="match_parent">
+  <ImageView
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:alpha="0.85"
+    android:scaleType="fitXY"
+    android:src="@drawable/naegirok_widget_bg"
+    android:tint="#2A2A2C" />
+  <LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:gravity="center_vertical"
+    android:orientation="vertical"
+    android:paddingStart="16dp"
+    android:paddingEnd="8dp">
+    <LinearLayout
+      android:layout_width="match_parent"
+      android:layout_height="30dp"
+      android:gravity="center_vertical"
+      android:orientation="horizontal">
+      <ImageView
+        android:layout_width="wrap_content"
+        android:layout_height="12dp"
+        android:layout_marginEnd="10dp"
+        android:adjustViewBounds="true"
+        android:src="@drawable/naegirok_mark"
+        android:tint="@color/modo_brand" />
+      <TextView
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:text="@string/base_folder"
+        android:textColor="#F5F5F7"
+        android:textSize="14sp"
+        android:textStyle="bold" />
+      <ImageView
+        android:layout_width="30dp"
+        android:layout_height="30dp"
+        android:padding="7dp"
+        android:src="@drawable/naegirok_chevron_left"
+        android:tint="#F5F5F7" />
+      <ImageView
+        android:layout_width="30dp"
+        android:layout_height="30dp"
+        android:padding="7dp"
+        android:src="@drawable/naegirok_chevron_right"
+        android:tint="#F5F5F7" />
+    </LinearLayout>
+    <LinearLayout
+      android:layout_width="match_parent"
+      android:layout_height="36dp"
+      android:gravity="center_vertical"
+      android:orientation="horizontal">
+      <ImageView
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:layout_marginStart="-8dp"
+        android:padding="8dp"
+        android:src="@drawable/naegirok_check_off"
+        android:tint="#B0B0B5" />
+      <TextView
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:layout_marginStart="4dp"
+        android:maxLines="1"
+        android:text="@string/preview_memo"
+        android:textColor="#F5F5F7"
+        android:textSize="15sp" />
+      <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="6dp"
+        android:text="1/3"
+        android:textColor="#A1A1A6"
+        android:textSize="12sp" />
+      <ImageView
+        android:layout_width="30dp"
+        android:layout_height="36dp"
+        android:paddingStart="7dp"
+        android:paddingTop="10dp"
+        android:paddingEnd="7dp"
+        android:paddingBottom="10dp"
+        android:src="@drawable/naegirok_chevron_down"
+        android:tint="#F5F5F7" />
+    </LinearLayout>
+  </LinearLayout>
+</FrameLayout>

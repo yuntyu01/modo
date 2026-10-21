@@ -1,16 +1,16 @@
-# Microsoft Store 자동 배포: master에 데스크톱(desktop/)·앱(app/) 변경이 올라오면
+# Microsoft Store 자동 배포: main에 데스크톱(desktop/)·앱(app/) 변경이 올라오면
 #   1. checks  앱 타입·린트, 데스크톱 단위 테스트
 #   2. package Store용 APPX를 만든다(npm run dist:store). 패키지 신원은 Partner Center의 값(저장소 변수 MODO_STORE_*)
 #              버전은 1.0.<실행 번호>: Store는 올릴 때마다 더 큰 버전을 요구한다(끝 자리는 0)
 #   3. submit  Microsoft Store Developer CLI(msstore)로 Partner Center에 제출한다.
-#              저장소 변수 MODO_STORE_FLIGHT_ID가 있으면 그 패키지 플라이트(비공개 테스트 그룹)로, 없으면 일반 제출
+#              비공개 패키지 플라이트 ID가 있을 때만 제출한다(일반 공개 제출은 하지 않는다).
 # 비밀값·변수가 없으면 그 단계는 건너뛰고(경고만) 만든 패키지는 아티팩트로 남긴다.
 # 처음 한 번 하는 설정은 README 'Microsoft Store 자동 배포'. 커밋 메시지에 [skip ci]를 넣으면 이 푸시는 돌지 않는다.
 name: Windows Store
 
 on:
   push:
-    branches: [master]
+    branches: [main]
     paths:
       - 'desktop/**'
       - 'app/**'
@@ -19,7 +19,7 @@ on:
       - '.github/workflows/windows-store.yml'
   # PR에서는 패키지까지만 만들어 본다(제출하지 않는다)
   pull_request:
-    branches: [master]
+    branches: [main]
     paths:
       - 'desktop/**'
       - 'app/**'
@@ -79,7 +79,8 @@ jobs:
         working-directory: desktop
         run: |
           $base = (Get-Content package.json -Raw | ConvertFrom-Json).version.Split('.')
-          $v = "$($base[0]).$($base[1]).${{ github.run_number }}"
+          $patch = [int]$base[2] + [int]'${{ github.run_number }}'
+          $v = "$($base[0]).$($base[1]).$patch"
           npm version $v --no-git-tag-version --allow-same-version | Out-Null
           "version=$v" >> $env:GITHUB_OUTPUT
           Write-Host "Store package version $v.0"
@@ -100,23 +101,12 @@ jobs:
           if (-not $file) { Write-Error "dist에 .appx가 없어요"; exit 1 }
           "file=$($file.FullName)" >> $env:GITHUB_OUTPUT
 
-      # PR에서는 패키지가 만들어지는지만 본다(저장 공간을 쓰지 않게 올리지 않음)
-      - if: github.event_name != 'pull_request'
-        uses: actions/upload-artifact@v4
-        with:
-          name: modo-windows-${{ steps.version.outputs.version }}
-          path: |
-            desktop/dist/*.appx
-            desktop/dist/*.zip
-          if-no-files-found: error
-          retention-days: 14
-
       - name: Install msstore CLI
-        if: github.event_name != 'pull_request' && steps.package.outputs.file != '' && env.HAS_STORE_API == 'true' && env.MODO_STORE_PRODUCT_ID != ''
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && steps.package.outputs.file != '' && env.HAS_STORE_API == 'true' && env.MODO_STORE_PRODUCT_ID == '9P8SSJ8GBB1X' && env.MODO_STORE_FLIGHT_ID != ''
         uses: microsoft/microsoft-store-apppublisher@v1.1
 
       - name: Submit to Partner Center
-        if: github.event_name != 'pull_request' && steps.package.outputs.file != ''
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && steps.package.outputs.file != ''
         shell: pwsh
         env:
           STORE_TENANT_ID: ${{ secrets.STORE_TENANT_ID }}
@@ -125,13 +115,31 @@ jobs:
           STORE_CLIENT_SECRET: ${{ secrets.STORE_CLIENT_SECRET }}
           PACKAGE: ${{ steps.package.outputs.file }}
         run: |
-          if ($env:HAS_STORE_API -ne 'true' -or -not $env:MODO_STORE_PRODUCT_ID) {
-            Write-Host "::warning::Partner Center API 비밀값(STORE_*)이나 변수 MODO_STORE_PRODUCT_ID가 없어 제출하지 않았어요. 패키지는 아티팩트에 있어요."
+          if ($env:HAS_STORE_API -ne 'true' -or $env:MODO_STORE_PRODUCT_ID -ne '9P8SSJ8GBB1X' -or -not $env:MODO_STORE_FLIGHT_ID) {
+            Write-Host "::warning::modo 제품 ID·API 비밀값·비공개 플라이트 ID가 모두 있어야 자동 제출합니다. 일반 공개 제출은 하지 않았어요. 패키지는 아티팩트에 있어요."
             exit 0
           }
           msstore reconfigure --tenantId $env:STORE_TENANT_ID --sellerId $env:STORE_SELLER_ID --clientId $env:STORE_CLIENT_ID --clientSecret $env:STORE_CLIENT_SECRET
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          $cli = @('publish', '.', '-i', $env:PACKAGE, '-id', $env:MODO_STORE_PRODUCT_ID)
-          if ($env:MODO_STORE_FLIGHT_ID) { $cli += @('-f', $env:MODO_STORE_FLIGHT_ID) }
+          $cli = @('publish', '.', '-i', $env:PACKAGE, '-id', $env:MODO_STORE_PRODUCT_ID, '-f', $env:MODO_STORE_FLIGHT_ID)
           msstore @cli
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+
+      # Store submission uses the local package, independently of Actions archive capacity.
+      - name: Archive Windows package
+        id: archive
+        if: always() && github.event_name != 'pull_request' && (hashFiles('desktop/dist/*.appx') != '' || hashFiles('desktop/dist/*.zip') != '')
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: modo-windows-${{ steps.version.outputs.version }}
+          path: |
+            desktop/dist/*.appx
+            desktop/dist/*.zip
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Report archive failure
+        if: always() && steps.archive.outcome == 'failure'
+        shell: pwsh
+        run: Write-Host '::warning::Windows archive upload failed. Check the separate Store submission step for status; archive storage is not required for Store submission.'

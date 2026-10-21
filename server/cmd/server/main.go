@@ -63,6 +63,7 @@ func main() {
 
 		// 이메일 로그인은 없앴다. 테스트·E2E 서버만 PASSWORD_LOGIN=1로 켠다(계정을 만들 때)
 		PasswordLoginOff: os.Getenv("PASSWORD_LOGIN") != "1",
+		StoreReviewEmail: os.Getenv("STORE_REVIEW_EMAIL"),
 	})
 	if err := waitAndMigrate(ctx, srvAPI); err != nil {
 		log.Fatal("database_migration_failed")

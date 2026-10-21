@@ -1,5 +1,5 @@
 <resources>
-  <string name="app_name_widget">modo - 메모와 할 일</string>
+  <string name="app_name_widget">modo</string>
   <string name="widget_description">떠오른 생각과 해야 할 일을 한곳에.</string>
   <string name="base_folder">기본</string>
   <string name="add">추가</string>

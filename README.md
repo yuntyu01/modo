@@ -1,8 +1,8 @@
 # modo
 
-앱 이름은 **modo - 메모와 할 일**, 앱 안 로고는 **modo**, 소개 문구는 **떠오른 생각과 해야 할 일을 한곳에.** 영문 앱 이름은 **modo - Simple Memo & ToDo** (끝에 마침표 없음), 영문 홍보 문구는 **Simple, modern Memo & ToDo.** 이름은 Memo + Do, 메모하고 실행하기. 로고는 받은 시안(파란 m + 체크 심볼과 둥근 글자 modo): 심볼은 시안에 맞춰 다시 그린 벡터 선 경로(`app/src/ui/Logo.tsx`, 시안과 겹침 96.8%), 글자는 시안에서 오린 이미지(`app/assets/brand/modo-wordmark.png`).
+설치 후 홈 화면·앱 목록·위젯 목록의 앱 이름과 앱 안 로고는 **modo**입니다. 한국어 스토어 이름은 **modo - 메모와 할 일**, 소개 문구는 **떠오른 생각과 해야 할 일을 한곳에.** 영문 스토어 이름은 **modo - Simple Memo & ToDo** (끝에 마침표 없음), 영문 홍보 문구는 **Simple, modern Memo & ToDo.** 이름은 Memo + Do, 메모하고 실행하기. 로고는 받은 시안(파란 m + 체크 심볼과 둥근 글자 modo): 심볼은 시안에 맞춰 다시 그린 벡터 선 경로(`app/src/ui/Logo.tsx`, 시안과 겹침 96.8%), 글자는 시안에서 오린 이미지(`app/assets/brand/modo-wordmark.png`).
 
-영문 앱 이름은 공백·기호를 포함해 25자로 Google Play의 30자 제목 제한에 맞는다([공식 제목 규격](https://support.google.com/googleplay/android-developer/answer/9859152?hl=en)). 스토어 등록정보를 저장한 것과 실제 게시 완료는 구분한다. 설치 패키지 식별자와 로컬 데이터 경로용 짧은 이름은 `modo`를 사용한다.
+영문 스토어 이름은 공백·기호를 포함해 25자로 Google Play의 30자 제목 제한에 맞는다([공식 제목 규격](https://support.google.com/googleplay/android-developer/answer/9859152?hl=en)). 스토어 등록정보를 저장한 것과 실제 게시 완료는 구분한다. 설치 이름은 Expo `name`으로 설정하고 스토어 제목은 Play Console에서 별도로 관리한다. 설치 패키지 식별자는 `com.yuntyu01.naegirok`을 유지한다.
 
 할 일과 메모를 한 화면에서 쓰는 앱. Android·iOS(React Native/Expo), Windows 데스크톱 미니창(Electron), 동기화·공유 서버(Go + PostgreSQL).
 모든 기능 무료(개수 제한·Pro·결제·광고 없음).
@@ -110,10 +110,10 @@ cd desktop && npm run test:unit                   # 데이터 폴더 옮기기(�
 
 ## 모바일 자동 배포 (비공개 테스트)
 
-`master`에 앱(`app/`) 변경을 푸시하면 GitHub Actions(`.github/workflows/mobile-release.yml`)가 돈다.
+`main`에 앱(`app/`) 변경을 푸시하면 GitHub Actions(`.github/workflows/mobile-release.yml`)가 돈다.
 
 1. **checks**: 타입·린트·테스트.
-2. **android**: 기존 업로드 키(저장소 비밀값 `MODO_UPLOAD_*`, PR #1의 `plugins/withReleaseSigning.js`)로 AAB를 빌드하고 Google Play **비공개 테스트**(API 트랙 `alpha`)의 출시를 새 번들로 바꾼다(`.github/scripts/play_release.py`). 버전 코드는 Play에 있는 가장 큰 값 + 1(사용자에게 보이는 버전 `expo.version`은 직접 올린다). 이전 출시의 국가 제한은 이어 받는다. 만든 AAB는 Actions 아티팩트로 14일 남는다.
+2. **android**: 기존 업로드 키(저장소 비밀값 `MODO_UPLOAD_*`, PR #1의 `plugins/withReleaseSigning.js`)로 AAB를 빌드하고 Google Play **비공개 테스트**(API 트랙 `alpha`)의 출시를 새 번들로 바꾼다(`.github/scripts/play_release.py`). 버전 코드는 Play에 있는 가장 큰 값 + 1(사용자에게 보이는 버전 `expo.version`은 직접 올린다). 이전 출시의 국가 제한은 이어 받는다. `main`에서만 업로드하며 다른 패키지·프로덕션 트랙은 스크립트에서도 거부한다. API 편집 커밋은 검토 승인·실제 테스터 공급을 뜻하지 않으며, 검토 자동 제출을 거부당하면 그 상태를 경고한다. 만든 AAB는 배포 뒤 Actions 아티팩트로 3일 보관한다. 아티팩트 용량 오류는 Play 업로드를 막지 않는다.
 3. **ios**: 저장소 변수 `IOS_RELEASE=true`일 때만. EAS에서 빌드하고 끝나면 TestFlight로 자동 제출(`eas build --auto-submit`, `app/eas.json`, 빌드 번호는 EAS가 올린다).
 
 - 연달아 푸시하면 앞의 실행은 멈추고 마지막 것만 올린다. `desktop/`·`server/`만 바뀐 푸시, 커밋 메시지에 `[skip ci]`가 있는 푸시는 돌지 않는다. Actions 탭에서 손으로 돌릴 수도 있다.
@@ -172,22 +172,22 @@ cd desktop && npm run test:unit                   # 데이터 폴더 옮기기(�
 
 ## Microsoft Store 자동 배포
 
-`master`에 데스크톱(`desktop/`)·앱(`app/`) 변경을 푸시하면 GitHub Actions(`.github/workflows/windows-store.yml`)가 돈다. Actions 탭에서 손으로 돌릴 수도 있다.
+`main`에 데스크톱(`desktop/`)·앱(`app/`) 변경을 푸시하면 GitHub Actions(`.github/workflows/windows-store.yml`)가 돈다. Actions 탭에서 손으로 돌릴 수도 있다.
 
 1. 앱 타입·린트, 데스크톱 단위 테스트.
-2. Store용 APPX(`npm run dist:store`, `desktop/electron-builder.store.cjs`). 버전은 `package.json`의 주·부 버전 + 실행 번호(예: 1.0.37 → 패키지 1.0.37.0). Store는 올릴 때마다 더 큰 버전을 요구한다.
-3. Microsoft Store Developer CLI(`msstore publish`)로 Partner Center에 제출. 저장소 변수 `MODO_STORE_FLIGHT_ID`가 있으면 그 **패키지 플라이트**(비공개 테스트 그룹)로, 없으면 일반 제출(인증 뒤 공개).
+2. Store용 APPX(`npm run dist:store`, `desktop/electron-builder.store.cjs`). 버전은 `package.json`의 패치 번호에 실행 번호를 더해 만든다. 공식 Windows SDK의 MakePri/MakeAppx로 신원·리소스·스키마를 검증하며, runner에 설치된 SDK를 찾아 쓴다. Store는 올릴 때마다 더 큰 버전을 요구한다.
+3. Microsoft Store Developer CLI(`msstore publish`)로 modo 제품 `9P8SSJ8GBB1X`의 **비공개 패키지 플라이트**에만 제출한다. 저장소 변수 `MODO_STORE_FLIGHT_ID`가 없으면 제출하지 않는다. 일반 공개 출시는 이 워크플로의 범위가 아니다.
 
-- 패키지 신원 변수가 없으면 Store 패키지 대신 zip만 만들고, API 비밀값이 없으면 제출을 건너뛴다(둘 다 경고만, 만든 파일은 Actions 아티팩트로 14일).
+- 패키지 신원 변수가 없으면 Store 패키지 대신 zip만 만들고, API 비밀값이나 비공개 플라이트가 없으면 제출을 건너뛴다. 제출은 `main`에서만 한다. 제출 뒤 만든 파일은 Actions 아티팩트로 3일 보관하며, 보관 용량 오류가 Store 제출을 막지 않는다. PR은 패키지만 검증하고 배포·아티팩트 업로드는 하지 않는다.
 
 처음 한 번 할 일(계정, 사람이 직접):
 
 1. Partner Center에서 앱 이름을 예약하고, **첫 제출은 직접**(가격·연령 등급·스토어 목록·개인정보 처리방침 URL). Store API는 완료된 제출이 하나 있어야 쓸 수 있다.
 2. 제품 관리 → 제품 ID에서 값 세 개를 그대로 복사해 저장소 변수로: `gh variable set MODO_STORE_IDENTITY`(Package/Identity/Name), `MODO_STORE_PUBLISHER`(Package/Identity/Publisher, `CN=…`), `MODO_STORE_PUBLISHER_NAME`(Package/Properties/PublisherDisplayName). 앱 개요의 Store ID(9로 시작)를 `MODO_STORE_PRODUCT_ID`에.
 3. Partner Center 계정 설정 → 사용자 → Azure AD 애플리케이션에서 앱을 만들어(관리자 역할) 키를 발급 → `gh secret set STORE_TENANT_ID`, `STORE_CLIENT_ID`, `STORE_CLIENT_SECRET`, `STORE_SELLER_ID`(계정 설정 → 법인 정보의 판매자 ID).
-4. 비공개 테스트로 먼저 돌리려면 Partner Center → 패키지 플라이트에서 그룹(테스터 이메일)을 만들고 그 플라이트 ID를 `gh variable set MODO_STORE_FLIGHT_ID`. 지우면 일반 제출로 바뀐다.
+4. Partner Center → 패키지 플라이트에서 그룹(승인된 테스터 이메일)을 만들고 그 플라이트 ID를 `gh variable set MODO_STORE_FLIGHT_ID`. 이 값이 없으면 패키지만 만들고 제출하지 않는다. 현재 제품의 비공개 대상 그룹과 패키지 플라이트는 서로 다른 설정이다.
 
-- 아직 한 번도 실제 제출까지 돌려 보지 않았다(계정 값이 없다). 첫 실행에서 `msstore`가 .appx를 받는지 확인할 것(받지 않으면 electron-builder 대상을 msix로).
+- 자동 제출 성공 여부는 실제 실행 결과와 Partner Center 상태로 확인해야 한다. 패키지 생성·제출·인증·게시·실제 설치는 서로 다른 단계다. 계정의 기존 비공개 대상 그룹을 플라이트 ID로 대신 쓰지 않는다.
 
 ## 구현한 것
 

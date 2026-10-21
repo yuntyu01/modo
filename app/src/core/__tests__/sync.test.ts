@@ -26,6 +26,14 @@ const serverReply = (url: string) => {
   return { results: [] };
 };
 
+test('store review uses the existing credential endpoint and cannot create an account', async () => {
+  const { sync, calls } = await engine((url) => url.endsWith('/api/auth/review') ? user : serverReply(url));
+  const acc = await sync.login('http://srv', 'review@example.test', 'test-password', false, true);
+  expect(acc.id).toBe('u1');
+  expect(calls[0]).toEqual({ url: 'http://srv/api/auth/review', body: { email: 'review@example.test', password: 'test-password', device: 'test' } });
+  await expect(sync.login('http://srv', 'review@example.test', 'test-password', true, true)).rejects.toThrow('cannot be registered');
+});
+
 test.each(['kakao', 'google'] as const)('%s: 시작 주소에 앱 주소·state·challenge를 싣고, 돌아온 code를 verifier와 함께 바꾼다', async (provider) => {
   const { sync, calls } = await engine(serverReply);
   let opened = '';

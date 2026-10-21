@@ -62,6 +62,7 @@ func (s *Server) Cleanup(ctx context.Context) error {
 func (s *Server) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/auth/register", s.register)
 	mux.HandleFunc("POST /api/auth/login", s.login)
+	mux.HandleFunc("POST /api/auth/review", s.storeReviewLogin)
 	mux.HandleFunc("POST /api/auth/logout", s.auth(s.logout))
 	mux.HandleFunc("GET /api/auth/providers", s.providers)
 	mux.HandleFunc("GET /api/auth/kakao/start", s.kakaoStart)

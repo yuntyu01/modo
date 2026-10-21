@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "modo - 메모와 할 일",
+    "name": "modo",
     "description": "떠오른 생각과 해야 할 일을 한곳에.",
     "slug": "modo",
     "version": "1.0.0",
@@ -18,7 +18,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#0E0F11",
+        "backgroundColor": "#000000",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -103,7 +103,9 @@
         {
           "android": {
             "usesCleartextTraffic": false,
-            "extraMavenRepos": ["https://devrepo.kakao.com/nexus/content/groups/public/"],
+            "extraMavenRepos": [
+              "https://devrepo.kakao.com/nexus/content/groups/public/"
+            ],
             "targetSdkVersion": 36,
             "compileSdkVersion": 36
           }

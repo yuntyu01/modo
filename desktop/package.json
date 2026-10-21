@@ -1,6 +1,6 @@
 {
   "name": "modo-desktop",
-  "version": "1.0.0",
+  "version": "1.0.3",
   "private": true,
   "description": "modo Windows 데스크톱 미니창 (Electron + 앱의 RN 화면을 웹으로 렌더링)",
   "main": "main.cjs",
@@ -13,7 +13,7 @@
     "build": "npm run core:release && npm run renderer",
     "test:unit": "node scripts/test.cjs",
     "core:release": "node scripts/build-core.cjs --release",
-    "dist:store": "npm run build && electron-builder --config electron-builder.store.cjs --win appx --x64 --publish never"
+    "dist:store": "npm run build && electron-builder --win --x64 --dir --publish never && pwsh -NoProfile -File scripts/pack-store-sdk.ps1 -Prepare"
   },
   "build": {
     "appId": "com.yuntyu01.naegirok",

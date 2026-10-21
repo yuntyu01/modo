@@ -1,4 +1,4 @@
-# 모바일 비공개 테스트 자동 배포: master에 앱(app/) 변경이 올라오면
+# 모바일 비공개 테스트 자동 배포: main에 앱(app/) 변경이 올라오면
 #   1. checks  타입·린트·테스트
 #   2. android 기존 업로드 키(비밀값 MODO_UPLOAD_*)로 AAB를 빌드 → Google Play 비공개 테스트(트랙 alpha)에 출시
 #              버전 코드는 Play에 있는 가장 큰 값 + 1. PLAY_SERVICE_ACCOUNT_JSON이 없으면 AAB만 만들어 아티팩트로 남긴다
@@ -8,12 +8,19 @@ name: Mobile closed testing
 
 on:
   push:
-    branches: [master]
+    branches: [main]
     paths:
       - 'app/**'
       - '!app/**/*.md'
       - '.github/workflows/mobile-release.yml'
       - '.github/scripts/play_release.py'
+      - '.github/scripts/test_play_release.py'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'app/**'
+      - '.github/workflows/mobile-release.yml'
+      - '.github/scripts/*.py'
   workflow_dispatch:
 
 permissions:
@@ -21,7 +28,7 @@ permissions:
 
 # 연달아 푸시하면 앞의 것은 멈추고 마지막 것만 올린다(테스터에게는 최신 하나면 된다)
 concurrency:
-  group: mobile-release
+  group: mobile-release-${{ github.event_name == 'pull_request' && github.ref || 'release' }}
   cancel-in-progress: true
 
 jobs:
@@ -48,8 +55,20 @@ jobs:
       - name: Test
         run: npx jest --ci
 
+  publisher-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --quiet 'google-api-python-client>=2,<3' 'google-auth>=2,<3'
+      - run: python .github/scripts/test_play_release.py
+
   android:
-    needs: checks
+    needs: [checks, publisher-checks]
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
@@ -125,22 +144,32 @@ jobs:
         if: always()
         run: rm -f "$RUNNER_TEMP/modo-upload.jks"
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: modo-android-${{ env.VERSION_CODE }}
-          path: app/android/app/build/outputs/bundle/release/app-release.aab
-          retention-days: 14
-
       - name: Release to Google Play closed testing
-        if: env.HAS_PLAY == 'true'
+        if: github.ref == 'refs/heads/main' && env.HAS_PLAY == 'true'
         env:
           PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
         run: python .github/scripts/play_release.py upload app/android/app/build/outputs/bundle/release/app-release.aab alpha
 
+      # Play upload reads the local AAB directly. Actions archive quota must not block release.
+      - name: Archive AAB
+        id: archive
+        if: always() && hashFiles('app/android/app/build/outputs/bundle/release/app-release.aab') != ''
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: modo-android-${{ env.VERSION_CODE }}
+          path: app/android/app/build/outputs/bundle/release/app-release.aab
+          retention-days: 3
+          if-no-files-found: error
+
+      - name: Report archive failure
+        if: always() && steps.archive.outcome == 'failure'
+        run: echo '::warning::AAB archive upload failed. Check the separate Google Play release step for submission status; archive storage is not required for Play upload.'
+
   ios:
     needs: checks
     # Apple Developer Program 가입·EAS 설정 뒤 저장소 변수 IOS_RELEASE=true로 켠다(README)
-    if: vars.IOS_RELEASE == 'true'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && vars.IOS_RELEASE == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:

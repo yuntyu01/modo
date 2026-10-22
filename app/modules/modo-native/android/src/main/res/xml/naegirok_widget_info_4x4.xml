@@ -2,6 +2,7 @@
 <!--
   같은 위젯의 4×4 판(위젯 고르기 화면에 크기별로 보이게, WidgetSizes.kt). 홈 화면만(잠금화면은 기본 naegirok_widget_info).
   가장 작게 줄이는 크기는 기본과 같은 180dp. 옛 런처(Android 11 이하)는 minWidth·minHeight로 처음 크기를 정한다(약 70×칸 - 30dp).
+  Android 16+는 xml-v36/naegirok_widget_info_4x4.xml(잠금화면 위젯 고르기에서 뺀 판)을 쓴다: 함께 바꿀 것.
 -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
   android:minWidth="250dp"

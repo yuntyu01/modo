@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 16+(xml-v36): 잠금화면 위젯 고르기 목록에서는 뺀다(not_keyguard). 안드로이드 16은 빼지 않은 위젯을 모두 잠금화면에도 보여 줘
+  삼성 잠금화면 고르기에 modo가 4개 나왔다(사용자 요청 2026-10-22). 잠금화면에는 3×3(카드 넘기기)과 4×1(한 줄)만.
+  나머지는 xml/naegirok_widget_info_4x4.xml과 같다(함께 바꿀 것).
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+  android:minWidth="250dp"
+  android:minHeight="250dp"
+  android:minResizeWidth="180dp"
+  android:minResizeHeight="180dp"
+  android:targetCellWidth="4"
+  android:targetCellHeight="4"
+  android:resizeMode="horizontal|vertical"
+  android:updatePeriodMillis="0"
+  android:initialLayout="@layout/widget_home"
+  android:previewLayout="@layout/widget_preview"
+  android:description="@string/widget_description"
+  android:configure="com.yuntyu01.naegirok.widget.WidgetConfigActivity"
+  android:widgetFeatures="reconfigurable|configuration_optional"
+  android:widgetCategory="home_screen|not_keyguard" />

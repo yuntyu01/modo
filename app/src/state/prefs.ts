@@ -53,6 +53,8 @@ export const ACCENTS = [BRAND, '#FF7F6B', '#5FD38D', '#F5C451', '#B79CFF', '#FF8
 
 /** 꾸미기 첫 화면의 테마 색상 4개: 파랑(대표색)·차콜·화이트·주황(사용자 요청 2026-10-18). 전체 팔레트에도 있는 색이라 어느 화면에서 골라도 선택이 이어 보인다 */
 export const MAIN_ACCENTS = [BRAND, CHARCOAL, '#FFFFFF', '#FFA45B'];
+/** 꾸미기 첫 화면에 폭이 허락하는 만큼 이어서 보이는 추천 색(앞의 4개 다음 차례, 휴대폰은 보통 5개, 사용자 요청 2026-10-22) */
+export const RECOMMENDED_ACCENTS = [...MAIN_ACCENTS, '#5FD38D', '#B79CFF', '#FF8EC6', '#4FD1C5', '#FF7F6B', '#F5C451'];
 
 // Took의 카드 스와치와 같은 구성: 검정, 회색, 흰색, 살구, 빨강, 주황, 노랑, 초록, 청록, 파랑, 보라, 분홍 (+ 사용자 지정)
 export const CARD_SWATCHES = [

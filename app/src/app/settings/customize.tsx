@@ -4,12 +4,13 @@ import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { toPlain } from '../../core/rich';
 import { useApp, useUi } from '../../state/AppContext';
-import { DEFAULT_PREFS, MAIN_ACCENTS, type Prefs } from '../../state/prefs';
+import { ACCENTS, CARD_SWATCHES, DEFAULT_PREFS, RECOMMENDED_ACCENTS, type Prefs, type SurfaceTheme } from '../../state/prefs';
 import { contrast, hexToRgb, rgbToHsv } from '../../ui/color';
 import { homeFolder, liveFolderIds } from '../../ui/home/model';
 import { CheckIcon, CheckSquareIcon, ChevronIcon } from '../../ui/Icons';
-import { Group, Row, Sheet, SheetButton, Slider, Switch } from '../../ui/primitives';
+import { Group, Row, Segmented, Sheet, SheetButton, Slider, Switch } from '../../ui/primitives';
 import { SubScreen } from '../../ui/SubScreen';
+import { Swatches } from '../../ui/ThemeSwatches';
 
 /** 미리보기: 지금 폴더의 할 일 한 줄과 그 밑에 입력창(홈 아래쪽 모습). 할 일이 없으면 예시 글. 실제 카드와 같은 모양으로 바로 바뀐다. */
 export function Preview() {
@@ -44,13 +45,20 @@ export function Preview() {
   );
 }
 
-/** 테마 색상 4개(파랑·차콜·화이트·주황). 고른 색은 흰 테두리 + 체크. 더 많은 꾸미기에서 다른 색을 골랐으면 그 색도 끝에 보여 준다 */
+/**
+ * 테마 색상: 파랑·차콜·화이트·주황 다음으로 추천 색을 줄 폭에 들어가는 만큼(휴대폰은 보통 5개, 사용자 요청 2026-10-22).
+ * 고른 색은 흰 테두리 + 체크. 더 많은 꾸미기에서 줄에 없는 색을 골랐으면 마지막 자리에 그 색
+ */
 function AccentDots() {
   const { theme, prefs, setPrefs, t } = useUi();
+  const [width, setWidth] = useState(0);
   const current = prefs.accent.toUpperCase();
-  const list = MAIN_ACCENTS.includes(current) ? MAIN_ACCENTS : [...MAIN_ACCENTS, current];
+  // 들어가는 개수: (폭 - 좌우 여백 + 간격) / (동그라미 + 간격)
+  const fit = width ? Math.floor((width - DOTS_PAD * 2 + DOTS_GAP) / (DOT_RING + DOTS_GAP)) : 4;
+  const shown = RECOMMENDED_ACCENTS.slice(0, Math.max(4, Math.min(RECOMMENDED_ACCENTS.length, fit)));
+  const list = shown.includes(current) ? shown : [...shown.slice(0, shown.length - 1), current];
   return (
-    <View style={[styles.dotsCard, { backgroundColor: theme.card }]}>
+    <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)} style={[styles.dotsCard, { backgroundColor: theme.card }]}>
       {list.map((c) => {
         const on = prefs.accent.toUpperCase() === c;
         return (
@@ -157,69 +165,99 @@ export default function Customize() {
     { value: 'l', label: t('sizeL') },
     { value: 'xl', label: t('sizeXL') },
   ];
-  // 투명도: 휴대폰은 홈 화면 위젯·잠금화면 위젯을 따로(사용자 요청 2026-10-22), PC는 미니창(위젯이 없다).
-  // 끄는 동안은 화면의 값만 바꾸고, 손을 뗄 때 저장한다(끌 때마다 저장하면 매번 DB에 쓰고 앱 전체를 다시 그린다)
-  const [drag, setDrag] = useState<{ key: OpacityKey; value: number } | null>(null);
-  const valueOf = (key: OpacityKey) => (drag?.key === key ? drag.value : opacityOf(prefs, key));
+  // 탭: 공통 · 홈 위젯 · 잠금 위젯(휴대폰), 공통 · 미니창(PC: 위젯이 없고 미니창이 있다). 사용자 요청 2026-10-22
+  const tabs: { value: Tab; label: string }[] =
+    Platform.OS === 'web'
+      ? [
+          { value: 'common', label: t('tabCommon') },
+          { value: 'mini', label: t('tabMini') },
+        ]
+      : [
+          { value: 'common', label: t('tabCommon') },
+          { value: 'home', label: t('tabHomeWidget') },
+          { value: 'lock', label: t('tabLockWidget') },
+        ];
+  const [tab, setTab] = useState<Tab>('common');
   return (
     <SubScreen title={t('customize')} titleSize={20} titleGap={10} headerShift={-2.5} contentTop={0} padLeft={19}>
-      <Preview />
-      {/* 테마 색상 줄 오른쪽 끝에 더 많은 꾸미기(색을 직접 고르기·카드색·서체·위젯·미니창) */}
-      <View style={styles.labelRow}>
-        <Text style={theme.kfont(15, { color: theme.tab, marginLeft: 4, flex: 1 })}>{t('themeColor')}</Text>
-        <Pressable onPress={() => router.push('/settings/customize-more')} accessibilityRole="button" hitSlop={8} style={styles.moreLink}>
-          <Text style={theme.kfont(14, { color: theme.subtle })}>{t('moreCustomize')}</Text>
-          <ChevronIcon color={theme.subtle} size={14} />
-        </Pressable>
+      <View style={{ marginBottom: 16 }}>
+        <Segmented options={tabs} value={tab} onChange={setTab} />
       </View>
-      <View style={{ marginBottom: 21.5 }}>
-        <AccentDots />
-      </View>
-      <Text style={theme.kfont(15, { color: theme.tab, marginLeft: 4, marginBottom: 5 })}>{t('screenMode')}</Text>
-      <View style={{ marginBottom: 9.5 }}>
-        <ModeSegment />
-      </View>
-      <Group style={{ marginBottom: 9.5 }} inset={[3, 1]}>
-        <Row size="sm" label={t('textSize')} value={sizes.find((x) => x.value === prefs.size)?.label} onPress={() => setSizeSheet(true)} />
-        <Row size="sm" label={t('checkSide')} right={<CheckSide />} />
-        <Row
-          size="sm"
-          label={t('bgGradient')}
-          right={<Switch size="sm" label={t('bgGradient')} value={prefs.gradient > 0.05} onChange={(on) => setPrefs({ gradient: on ? 0.7 : 0 })} />}
-          last
-        />
-      </Group>
-      <View style={[styles.opacityCard, { backgroundColor: theme.card }]}>
-        {(Platform.OS === 'web' ? (['mini'] as const) : (['home', 'lock'] as const)).map((key, i) => {
-          const label = t(key === 'mini' ? 'miniOpacity' : key === 'home' ? 'homeWidgetOpacity' : 'lockWidgetOpacity');
-          const opacity = valueOf(key);
-          return (
-            <View key={key} style={i ? { marginTop: 12 } : null}>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={theme.kfont(15.5, { color: theme.text, flex: 1 })}>{label}</Text>
-                {/* 이름이 '투명도'라 숫자도 투명한 정도로(저장 값은 불투명도: 예전엔 불투명 80%를 '투명도 80%'로 보여 반대로 읽혔다) */}
-                <Text style={theme.kfont(14.5, { color: theme.subtle })}>{Math.round((1 - opacity) * 100)}%</Text>
-              </View>
-              <Slider
-                label={label}
-                // 오른쪽으로 밀수록 더 투명(투명도 0~100%: 왼쪽 끝은 배경이 전혀 비치지 않고, 오른쪽 끝은 배경 없이 글자만)
-                value={1 - opacity}
-                style={{ marginTop: 2.5, marginBottom: -2.5 }}
-                onChange={(x) => setDrag({ key, value: Math.round((1 - x) * 100) / 100 })}
-                onEnd={(x) => {
-                  setPrefs(withOpacity(prefs, key, Math.round((1 - x) * 100) / 100));
-                  setDrag(null);
-                }}
-              />
-            </View>
-          );
-        })}
-        <Text style={theme.kfont(13, { color: theme.subtle, marginTop: 2 })}>{t('opacityNote')}</Text>
-      </View>
-      {/* 맨 아래 블록 바로 밑 오른쪽: 기본값으로 되돌리기 */}
-      <Pressable onPress={resetLook} accessibilityRole="button" hitSlop={6} style={styles.resetBtn}>
-        <Text style={theme.kfont(14, { color: theme.subtle })}>{t('resetDefaults')}</Text>
-      </Pressable>
+      {tab === 'common' ? (
+        <>
+          <Preview />
+          {/* 테마 색상 줄 오른쪽 끝에 더 많은 꾸미기(색을 직접 고르기·카드색·서체) */}
+          <View style={styles.labelRow}>
+            <Text style={theme.kfont(15, { color: theme.tab, marginLeft: 4, flex: 1 })}>{t('themeColor')}</Text>
+            <Pressable onPress={() => router.push('/settings/customize-more')} accessibilityRole="button" hitSlop={8} style={styles.moreLink}>
+              <Text style={theme.kfont(14, { color: theme.subtle })}>{t('moreCustomize')}</Text>
+              <ChevronIcon color={theme.subtle} size={14} />
+            </Pressable>
+          </View>
+          <View style={{ marginBottom: 21.5 }}>
+            <AccentDots />
+          </View>
+          <Text style={theme.kfont(15, { color: theme.tab, marginLeft: 4, marginBottom: 5 })}>{t('screenMode')}</Text>
+          <View style={{ marginBottom: 9.5 }}>
+            <ModeSegment />
+          </View>
+          <Group style={{ marginBottom: 9.5 }} inset={[3, 1]}>
+            <Row size="sm" label={t('textSize')} value={sizes.find((x) => x.value === prefs.size)?.label} onPress={() => setSizeSheet(true)} />
+            <Row size="sm" label={t('checkSide')} right={<CheckSide />} />
+            <Row
+              size="sm"
+              label={t('bgGradient')}
+              right={<Switch size="sm" label={t('bgGradient')} value={prefs.gradient > 0.05} onChange={(on) => setPrefs({ gradient: on ? 0.7 : 0 })} />}
+              last
+            />
+          </Group>
+          {/* 맨 아래 블록 바로 밑 오른쪽: 기본값으로 되돌리기(모든 탭의 꾸미기) */}
+          <Pressable onPress={resetLook} accessibilityRole="button" hitSlop={6} style={styles.resetBtn}>
+            <Text style={theme.kfont(14, { color: theme.subtle })}>{t('resetDefaults')}</Text>
+          </Pressable>
+        </>
+      ) : null}
+      {tab === 'home' ? (
+        <>
+          <SurfaceColors value={prefs.widget} onChange={(widget) => setPrefs({ widget })} />
+          <OpacityCard label={t('homeWidgetOpacity')} opacity={prefs.widget.opacity} onCommit={(v) => setPrefs({ widget: { ...prefs.widget, opacity: v } })} />
+          <Group>
+            <Row label={t('addHomeWidget')} onPress={() => router.push('/settings/widgets')} last />
+          </Group>
+        </>
+      ) : null}
+      {tab === 'lock' ? (
+        <>
+          <OpacityCard
+            label={t('lockWidgetOpacity')}
+            opacity={prefs.widget.lockOpacity ?? DEFAULT_PREFS.widget.lockOpacity!}
+            onCommit={(v) => setPrefs({ widget: { ...prefs.widget, lockOpacity: v } })}
+          />
+          {/* 잠금화면에 보이는 내용: 잠금화면 알림과 같은 설정 */}
+          <Text style={theme.kfont(15, { color: theme.tab, marginLeft: 4, marginBottom: 5, marginTop: 6 })}>{t('lockWidgetShows')}</Text>
+          <View style={{ marginBottom: 6 }}>
+            <Segmented
+              options={[
+                { value: 'public', label: t('lockPublic') },
+                { value: 'private', label: t('lockPrivate') },
+                { value: 'secret', label: t('lockSecret') },
+              ]}
+              value={prefs.lock.visibility}
+              onChange={(visibility) => setPrefs({ lock: { ...prefs.lock, visibility } })}
+            />
+          </View>
+          <Text style={theme.kfont(13, { color: theme.subtle, marginLeft: 4, marginBottom: 14 })}>{t('lockWidgetColorNote')}</Text>
+          <Group>
+            <Row label={t('howtoLock')} onPress={() => router.push({ pathname: '/settings/howto/[topic]', params: { topic: 'lock' } })} last />
+          </Group>
+        </>
+      ) : null}
+      {tab === 'mini' ? (
+        <>
+          <SurfaceColors value={prefs.mini} onChange={(mini) => setPrefs({ mini })} />
+          <OpacityCard label={t('miniOpacity')} opacity={prefs.mini.opacity} onCommit={(v) => setPrefs({ mini: { ...prefs.mini, opacity: v } })} />
+        </>
+      ) : null}
 
       <Sheet visible={sizeSheet} onClose={() => setSizeSheet(false)}>
         {sizes.map((s) => (
@@ -238,14 +276,18 @@ export default function Customize() {
   );
 }
 
+const DOT_RING = 37.5;
+const DOTS_GAP = 23;
+const DOTS_PAD = 20.5;
+
 const styles = StyleSheet.create({
   preview: { borderRadius: 16, paddingHorizontal: 18, paddingTop: 14.5, paddingBottom: 16.5, gap: 9, marginBottom: 22.5 },
   ptodo: { borderRadius: 13, minHeight: 55, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15 },
   pcircle: { width: 28, height: 28, borderRadius: 14, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   pinput: { borderRadius: 24, minHeight: 48, flexDirection: 'row', alignItems: 'center', paddingLeft: 18, paddingRight: 13 },
-  // 4~5개라 양끝으로 벌리지 않고 시안의 6개 간격(약 23)으로 앞에서부터
-  dotsCard: { borderRadius: 14.5, minHeight: 75, flexDirection: 'row', alignItems: 'center', gap: 23, paddingHorizontal: 20.5 },
-  dotRing: { width: 37.5, height: 37.5, borderRadius: 18.5, borderWidth: 1.75, alignItems: 'center', justifyContent: 'center' },
+  // 양끝으로 벌리지 않고 시안의 간격(약 23)으로 앞에서부터, 들어가는 만큼
+  dotsCard: { borderRadius: 14.5, minHeight: 75, flexDirection: 'row', alignItems: 'center', gap: DOTS_GAP, paddingHorizontal: DOTS_PAD },
+  dotRing: { width: DOT_RING, height: DOT_RING, borderRadius: 18.5, borderWidth: 1.75, alignItems: 'center', justifyContent: 'center' },
   dot: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
   segment: { flexDirection: 'row', borderRadius: 18, paddingVertical: 4, paddingHorizontal: 7.5, height: 48 },
   segItem: { flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 15 },
@@ -260,14 +302,52 @@ const styles = StyleSheet.create({
   moreLink: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingLeft: 8, paddingRight: 2 },
 });
 
-type OpacityKey = 'home' | 'lock' | 'mini';
+type Tab = 'common' | 'home' | 'lock' | 'mini';
 
-function opacityOf(prefs: Prefs, key: OpacityKey) {
-  if (key === 'mini') return prefs.mini.opacity;
-  return key === 'home' ? prefs.widget.opacity : (prefs.widget.lockOpacity ?? DEFAULT_PREFS.widget.lockOpacity!);
+/**
+ * 투명도 막대 하나(이름 · 지금 값 · 막대 · 설명). 끄는 동안은 화면의 값만 바꾸고 손을 뗄 때 저장한다
+ * (끌 때마다 저장하면 매번 DB에 쓰고 앱 전체를 다시 그린다). 이름이 '투명도'라 숫자도 투명한 정도로(저장 값은 불투명도)
+ */
+function OpacityCard({ label, opacity, onCommit }: { label: string; opacity: number; onCommit: (v: number) => void }) {
+  const { theme, t } = useUi();
+  const [drag, setDrag] = useState<number | null>(null);
+  const v = drag ?? opacity;
+  return (
+    <View style={[styles.opacityCard, { backgroundColor: theme.card }]}>
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <Text style={theme.kfont(15.5, { color: theme.text, flex: 1 })}>{label}</Text>
+        <Text style={theme.kfont(14.5, { color: theme.subtle })}>{Math.round((1 - v) * 100)}%</Text>
+      </View>
+      <Slider
+        label={label}
+        // 오른쪽으로 밀수록 더 투명(투명도 0~100%: 왼쪽 끝은 배경이 전혀 비치지 않고, 오른쪽 끝은 배경 없이 글자만)
+        value={1 - v}
+        style={{ marginTop: 2.5, marginBottom: -2.5 }}
+        onChange={(x) => setDrag(Math.round((1 - x) * 100) / 100)}
+        onEnd={(x) => {
+          onCommit(Math.round((1 - x) * 100) / 100);
+          setDrag(null);
+        }}
+      />
+      <Text style={theme.kfont(13, { color: theme.subtle, marginTop: 2 })}>{t('opacityNote')}</Text>
+    </View>
+  );
 }
 
-function withOpacity(prefs: Prefs, key: OpacityKey, v: number): Partial<Prefs> {
-  if (key === 'mini') return { mini: { ...prefs.mini, opacity: v } };
-  return { widget: { ...prefs.widget, ...(key === 'home' ? { opacity: v } : { lockOpacity: v }) } };
+/** 위젯·미니창 색: 앱 테마 따르기(기본), 끄면 테마색 · 카드색을 따로 */
+function SurfaceColors({ value, onChange }: { value: SurfaceTheme; onChange: (v: SurfaceTheme) => void }) {
+  const { theme, t } = useUi();
+  return (
+    <Group style={{ marginBottom: 10 }}>
+      <Row label={t('followApp')} right={<Switch label={t('followApp')} value={value.linked} onChange={(linked) => onChange({ ...value, linked })} />} last={value.linked} />
+      {!value.linked ? (
+        <>
+          <Text style={theme.font(14, { color: theme.muted, marginLeft: 20, marginTop: 12 })}>{t('accentColor')}</Text>
+          <Swatches colors={ACCENTS} value={value.accent} onChange={(c) => c && onChange({ ...value, accent: c })} />
+          <Text style={theme.font(14, { color: theme.muted, marginLeft: 20 })}>{t('cardColor')}</Text>
+          <Swatches colors={CARD_SWATCHES} value={value.card} onChange={(card) => onChange({ ...value, card })} withDefault />
+        </>
+      ) : null}
+    </Group>
+  );
 }

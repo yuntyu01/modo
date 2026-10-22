@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  잠금화면 위젯(HomeWidget.lock): 위 = 로고(누르면 앱) · 폴더 이름 · 이전/다음 폴더, 아래 = 카드 넘기기(StackView).
+  메모 카드 다음에 할 일이 한 장씩: 위아래로 살짝 튕기면 다음 카드로 딱 맞춰 넘어간다(사용자 요청 2026-10-22).
+  칸이 낮으면 위 줄은 빼고 카드만. 폴더 이름은 누르지 않는다(예전엔 이름 칸이 › 버튼 옆까지 늘어나 있어,
+  맨 끝 폴더에서 ›를 조금 비껴 누르면 앱이 켜졌다).
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  android:id="@+id/lock_root"
+  android:layout_width="match_parent"
+  android:layout_height="match_parent">
+
+  <ImageView
+    android:id="@+id/widget_bg"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:importantForAccessibility="no"
+    android:scaleType="fitXY"
+    android:src="@drawable/naegirok_widget_bg" />
+
+  <LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:paddingStart="12dp"
+    android:paddingTop="4dp"
+    android:paddingEnd="12dp"
+    android:paddingBottom="10dp">
+
+    <LinearLayout
+      android:id="@+id/lock_head"
+      android:layout_width="match_parent"
+      android:layout_height="34dp"
+      android:gravity="center_vertical"
+      android:orientation="horizontal">
+      <FrameLayout
+        android:id="@+id/lock_brand"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:paddingStart="6dp"
+        android:paddingEnd="10dp">
+        <ImageView
+          android:id="@+id/widget_mark"
+          android:layout_width="wrap_content"
+          android:layout_height="12dp"
+          android:layout_gravity="center_vertical"
+          android:adjustViewBounds="true"
+          android:importantForAccessibility="no"
+          android:src="@drawable/naegirok_mark" />
+      </FrameLayout>
+      <TextView
+        android:id="@+id/lock_folder"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:ellipsize="end"
+        android:fontFamily="sans-serif"
+        android:maxLines="1"
+        android:textColor="#FFFFFF"
+        android:textSize="14sp"
+        android:textStyle="bold" />
+      <ImageView
+        android:id="@+id/lock_prev"
+        android:layout_width="34dp"
+        android:layout_height="34dp"
+        android:contentDescription="@string/prev_folder"
+        android:padding="8dp"
+        android:src="@drawable/naegirok_chevron_left" />
+      <ImageView
+        android:id="@+id/lock_next"
+        android:layout_width="34dp"
+        android:layout_height="34dp"
+        android:contentDescription="@string/next_folder"
+        android:padding="8dp"
+        android:src="@drawable/naegirok_chevron_right" />
+    </LinearLayout>
+
+    <StackView
+      android:id="@+id/lock_stack"
+      android:layout_width="match_parent"
+      android:layout_height="0dp"
+      android:layout_weight="1"
+      android:loopViews="false" />
+  </LinearLayout>
+</FrameLayout>

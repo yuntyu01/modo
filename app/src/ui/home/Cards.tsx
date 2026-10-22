@@ -343,8 +343,9 @@ export function DoneHeader({ count, onClear }: { count: number; onClear?: () => 
       {onClear ? (
         <Pressable accessibilityRole="button" onPress={onClear} hitSlop={10}>
           {({ pressed }) => (
-            // '완료 비우기'는 오른쪽에 차분한 회색으로(사용자 시안 2026-10-20). 오른쪽 체크 동그라미와 같은 쪽
-            <Text style={theme.font(15 * theme.zoom, { color: theme.muted, fontWeight: '500', opacity: pressed ? 0.6 : 1 })}>{t('clearAllDone')}</Text>
+            // '완료 비우기'는 오른쪽에 차분한 회색으로(사용자 시안 2026-10-20). 오른쪽 체크 동그라미와 같은 쪽.
+            // 왼쪽 '완료 N'(15)보다 작게 13(같은 크기는 너무 커 보였다, 사용자 요청 2026-10-22)
+            <Text style={theme.font(13 * theme.zoom, { color: theme.muted, fontWeight: '400', opacity: pressed ? 0.6 : 1 })}>{t('clearAllDone')}</Text>
           )}
         </Pressable>
       ) : null}

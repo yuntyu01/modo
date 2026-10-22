@@ -3,7 +3,7 @@
   홈 화면 위젯(시안): 로고 · 폴더 탭(한 줄, 앱과 같이) / 메모(맨 위, 전체)와 할 일을 한 목록으로(위아래로 굴려 본다) / +는 오른쪽 아래.
   목록 끝에 + 자리만큼 여백을 둬서 끝까지 굴리면 마지막 할 일이 +에 가리지 않는다. 줄은 HomeWidget이 채운다.
   예전엔 쪽(메모 쪽 + 할 일 쪽)을 나눠 아래 점으로 넘겼다: 위젯은 옆으로 미는 손짓을 받을 수 없어 위아래 굴리기로(사용자 요청 2026-10-21).
-  잠금화면 위젯은 widget_notes_lock(그대로).
+  잠금화면 위젯은 widget_lock(카드 넘기기).
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
   android:id="@+id/widget_root"

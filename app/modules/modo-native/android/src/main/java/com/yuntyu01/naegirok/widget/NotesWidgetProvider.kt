@@ -22,7 +22,7 @@ import kotlin.math.roundToInt
 /**
  * 홈 화면(지원하면 잠금화면) 위젯. 폴더의 메모와 남은 할 일을 보여 준다. 동그라미를 한 번 누르면 완료(목록에서 빠진다),
  * 할 일 글자를 누르면 그 자리에서 고치는 작은 입력창(WidgetEditActivity)이 뜬다.
- * 홈 화면 모양은 HomeWidget(메모 + 할 일을 위아래로 굴리는 목록). 잠금화면은 이 파일의 예전 모양(widget_notes_lock).
+ * 홈 화면 모양은 HomeWidget(메모 + 할 일을 위아래로 굴리는 목록), 잠금화면은 HomeWidget.lock(카드 넘기기).
  * 데이터는 앱과 같은 SQLite 파일을 직접 읽고, 바꾼 내용은 outbox에 남아 앱이 열릴 때 동기화된다.
  */
 open class NotesWidgetProvider : AppWidgetProvider() {
@@ -109,7 +109,7 @@ open class NotesWidgetProvider : AppWidgetProvider() {
         // 점을 누르면 그 자리로, ‹ ›는 한 칸씩
         val next = if (target in pages.indices) target else Math.floorMod(cur + step, pages.size)
         wp.withFolder(pages[next]).save(ctx, id)
-        update(ctx, AppWidgetManager.getInstance(ctx), id)
+        update(ctx, AppWidgetManager.getInstance(ctx), id, scrollTop = true)
       }
       return
     }
@@ -163,11 +163,6 @@ open class NotesWidgetProvider : AppWidgetProvider() {
       for (id in ids) draw(ctx, mgr, id)
     }
 
-    private fun pi(ctx: Context, code: Int, intent: Intent, activity: Boolean): PendingIntent {
-      val flags = PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-      return if (activity) PendingIntent.getActivity(ctx, code, intent, flags) else PendingIntent.getBroadcast(ctx, code, intent, flags)
-    }
-
     /** 앱을 그 폴더 화면으로 연다(null = 기본). */
     private fun openFolder(ctx: Context, folderId: String?) =
       Intent(Intent.ACTION_VIEW, Uri.parse("naegirok://?folder=${folderId ?: "base"}"))
@@ -195,83 +190,10 @@ open class NotesWidgetProvider : AppWidgetProvider() {
       val options = mgr.getAppWidgetOptions(id)
       val keyguard = options.getInt(AppWidgetManager.OPTION_APPWIDGET_HOST_CATEGORY, -1) ==
         android.appwidget.AppWidgetProviderInfo.WIDGET_CATEGORY_KEYGUARD
-      // 큰 칸: 홈 화면은 새 시안(HomeWidget: 메모 + 할 일 목록), 잠금화면은 아래의 예전 모양(widget_notes_lock).
-      // 작은 칸(동그라미·낮은 칸)은 둘 다 HomeWidget.responsive가 크기에 맞는 모양으로
-      val full = if (keyguard) lockViews(ctx, id, options) else HomeWidget.render(ctx, mgr, id, scrollTop)
-      mgr.updateAppWidget(id, HomeWidget.responsive(ctx, mgr, id, keyguard, full))
-    }
-
-    private fun lockViews(ctx: Context, id: Int, options: android.os.Bundle): RemoteViews {
-      val wp = WidgetPrefs.load(ctx, id)
-      // 위젯마다 고른 폴더(null = 기본). 지워졌거나 공유가 끊긴 폴더면 기본으로.
-      data class Head(
-        val theme: SurfaceTheme, val folderId: String?, val title: String, val pages: List<String?>, val lock: String, val count: Int,
-        val signedIn: Boolean,
-      )
-      val head = NotesDb.use(ctx) { db ->
-        val prefs = NotesDb.prefs(db)
-        val name = NotesDb.folderName(db, wp.folderId)
-        val fid = if (name != null) wp.folderId else null
-        Head(
-          SurfaceTheme.from(ctx, prefs),
-          fid,
-          name ?: ctx.getString(R.string.base_folder),
-          listOf<String?>(null) + NotesDb.folders(db).map { it.id },
-          prefs.optJSONObject("lock")?.optString("visibility", "private") ?: "private",
-          NotesDb.countTodos(db, fid),
-          NotesDb.signedIn(db),
-        )
-      } ?: Head(SurfaceTheme.from(ctx, org.json.JSONObject()), null, ctx.getString(R.string.base_folder), listOf(null), "private", 0, false)
-      val theme = head.theme
-      val v = RemoteViews(ctx.packageName, R.layout.widget_notes_lock)
-
-      // 배경(시안): 카드색을 투명도만큼 깐다
-      v.setInt(R.id.widget_bg, "setColorFilter", theme.card)
-      // 잠금화면 위젯은 꾸미기의 잠금화면 위젯 투명도(홈과 따로)
-      v.setInt(R.id.widget_bg, "setImageAlpha", ((wp.opacity ?: theme.lockOpacity) * 255).roundToInt())
-      v.setInt(R.id.widget_mark, "setColorFilter", theme.mark)
-      v.setTextViewText(R.id.widget_title, head.title)
-      v.setTextColor(R.id.widget_title, theme.text)
-      v.setTextViewTextSize(R.id.widget_title, TypedValue.COMPLEX_UNIT_SP, wp.textSize + 1)
-      v.setTextColor(R.id.widget_empty, theme.muted)
-
-      // 폴더 넘기기 ‹ ›: 위젯 하나 안에서 옆으로 밀기는 Android가 받지 않아서 버튼으로 넘긴다. 폴더가 없으면 숨긴다.
-      val many = head.pages.size > 1
-      for ((view, step) in listOf(R.id.widget_prev to -1, R.id.widget_next to 1)) {
-        v.setViewVisibility(view, if (many) View.VISIBLE else View.GONE)
-        v.setInt(view, "setColorFilter", theme.text)
-        v.setInt(view, "setImageAlpha", 230)
-        val page = Intent(ctx, NotesWidgetProvider::class.java).setAction(ACTION_PAGE)
-          .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id).putExtra(EXTRA_STEP, step)
-          .setData(Uri.parse("naegirok://widget-page/$id/$step"))
-        v.setOnClickPendingIntent(view, pi(ctx, id, page, activity = false))
-      }
-
-      // 제목 → 앱의 그 폴더 화면
-      val open = pi(ctx, id, openFolder(ctx, head.folderId).setData(Uri.parse("naegirok://?folder=${head.folderId ?: "base"}&w=$id")), activity = true)
-      v.setOnClickPendingIntent(R.id.widget_title, open)
-
-      // 잠금화면 공개 범위(내용 보이기/개수만/숨기기)를 따른다.
-      val visibility = head.lock
-
-      // 줄은 위젯 높이에 들어가는 만큼만 직접 그린다(나머지는 '더 보기'). 줄마다 누르는 곳이 달라 목록 위젯 대신 이렇게 한다.
-      v.removeAllViews(R.id.widget_rows)
-      val heightDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0).takeIf { it > 0 } ?: 180
-      val budget = heightDp - 12 - 44 - 12
-      val rows = if (visibility == "public" && head.signedIn) WidgetRows.build(ctx, id, wp, head.folderId, theme, budget) else emptyList()
-      rows.forEach { v.addView(R.id.widget_rows, it) }
-      val emptyText = when {
-        !head.signedIn -> ctx.getString(R.string.login_first)
-        // 할 일 수는 다 센다(예전엔 50개까지만 읽어 '할 일 50개'에서 멈췄다)
-        visibility == "private" -> ctx.getString(R.string.lock_title, head.count)
-        visibility == "secret" -> ctx.getString(R.string.lock_hidden)
-        // 할 일이 없으면 아무 글 없이(홈 위젯과 같다, 사용자 요청 2026-10-21)
-        else -> ""
-      }
-      v.setTextViewText(R.id.widget_empty, emptyText)
-      v.setViewVisibility(R.id.widget_empty, if (rows.isEmpty() && emptyText.isNotEmpty()) View.VISIBLE else View.GONE)
-      v.setViewVisibility(R.id.widget_rows, if (rows.isEmpty()) View.GONE else View.VISIBLE)
-      return v
+      // 홈 화면: 놓인 크기에 맞게(동그라미 칸 · 한 줄 · 메모 + 할 일 목록, HomeWidget.responsive).
+      // 잠금화면: 카드 넘기기(메모 카드 다음 할 일 한 장씩, HomeWidget.lock)
+      val view = if (keyguard) HomeWidget.lock(ctx, mgr, id, scrollTop) else HomeWidget.responsive(ctx, mgr, id, HomeWidget.render(ctx, mgr, id, scrollTop))
+      mgr.updateAppWidget(id, view)
     }
   }
 }

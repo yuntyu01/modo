@@ -5,7 +5,7 @@
   높이 = 위 여백(2) + 머리(로고 · 폴더 탭 36) + 할 일 2줄(52×2, 또는 메모 3줄) + 여유(2) + 쪽 점 줄(32 + 아래 4) = 180dp.
   폭은 아래 줄(점 3개 + +)이 겹치지 않는 180dp(폴더 탭은 폭이 모자라면 지금 폴더 근처만, 긴 할 일은 두 줄·…).
   런처 칸이 작아 2칸이 180dp가 안 되면 런처가 3칸을 준다(칸 크기는 런처·기기마다 다르다).
-  잠금화면(keyguard)은 widget_notes_lock(처음 놓을 때 보이는 모양도 같게).
+  잠금화면(keyguard)은 카드 넘기기 widget_lock(처음 놓을 때 보이는 모양도 같게).
   updatePeriodMillis = 0: 정해진 주기로 기기를 깨워 다시 그리지 않는다. 내용은 앱·위젯이 바꿀 때 다시 그리고,
   날짜로만 바뀌는 것('오늘'·'내일', 다시 올라오는 반복)은 자정 알람(ModoEvents.scheduleMidnight)이 맞춘다.
 -->
@@ -19,7 +19,7 @@
   android:resizeMode="horizontal|vertical"
   android:updatePeriodMillis="0"
   android:initialLayout="@layout/widget_home"
-  android:initialKeyguardLayout="@layout/widget_notes_lock"
+  android:initialKeyguardLayout="@layout/widget_lock"
   android:previewLayout="@layout/widget_preview"
   android:description="@string/widget_description"
   android:configure="com.yuntyu01.naegirok.widget.WidgetConfigActivity"

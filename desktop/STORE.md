@@ -37,7 +37,7 @@ This creates a single x64 `.appx` with the current desktop package version (1.0.
 
 Version 1.0.3 includes the `login-cleanup` changes through `fb4f66f`: Google/Kakao-only required sign-in, completion grouping, the Together/friends UI and supporting server APIs. Previously signed-in users can continue offline. New users need an online social sign-in before using the app. Store descriptions and reviewer instructions must reflect this behavior; the older optional-login copy does not describe this version. Keep the approved logo blue and rounded Windows icon assets when merging later changes.
 
-The initial Store package does not register a login startup task and hides the portable app's registry-based auto-start option. Pinning, opacity and the tray remain available. The custom manifest uses the reserved Store title for package metadata and `modo` for the installed launcher. Its literal ampersand is XML-escaped.
+The Store package registers a `windows.startupTask` (`ModoStartup`, enabled) so the mini window starts at Windows sign-in after the first manual launch; users can turn it off in Settings > Apps > Startup or Task Manager. The tray's launch-at-login item opens that Windows page in the Store build, because the app cannot read or change the task without WinRT. The portable build keeps its registry-based checkbox. Pinning, opacity and the tray remain available. The custom manifest uses the reserved Store title for package metadata and `modo` for the installed launcher. Its literal ampersand is XML-escaped.
 
 After an unpacked Electron build, the SDK packaging stage can also be run directly:
 

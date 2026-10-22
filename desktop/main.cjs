@@ -449,13 +449,16 @@ function buildTray() {
           checked: !!state.pinned,
           click: (i) => setPinned(i.checked),
         },
-        {
-          label: t.login,
-          type: 'checkbox',
-          visible: !process.windowsStore,
-          checked: loginItem(),
-          click: (i) => setLoginItem(i.checked),
-        },
+        // Store 설치본은 시작 작업(AppxManifest의 windows.startupTask)으로 켜지고 앱이 그 상태를 읽거나 바꿀 수 없어,
+        // 누르면 Windows의 시작 앱 설정을 연다. 그 밖에는 켜고 끄는 체크
+        process.windowsStore
+          ? { label: `${t.login}…`, click: () => shell.openExternal('ms-settings:startupapps').catch(() => {}) }
+          : {
+              label: t.login,
+              type: 'checkbox',
+              checked: loginItem(),
+              click: (i) => setLoginItem(i.checked),
+            },
         { type: 'separator' },
         {
           label: t.quit,
@@ -474,7 +477,8 @@ function buildTray() {
 
 let refreshTray = () => {};
 
-// 로그인 시 실행: 사용자가 고른 대로만. 켜 둔 것은 '--autostart' 인자를 붙여 등록해 자동 실행인지 알 수 있게 한다
+// 로그인 시 실행: 사용자가 고른 대로만. 켜 둔 것은 '--autostart' 인자를 붙여 등록해 자동 실행인지 알 수 있게 한다.
+// Store 설치본은 레지스트리 대신 패키지의 시작 작업(prepare-store-sdk.cjs, 사용자 요청 2026-10-22)으로 Windows가 켠다
 function loginItem() {
   if (process.windowsStore) return false;
   return app.getLoginItemSettings({ args: AUTOSTART_ARGS }).openAtLogin;

@@ -41,7 +41,11 @@ async function main() {
     square150x150Logo: 'assets\\Square150x150Logo.png',
     square44x44Logo: 'assets\\Square44x44Logo.png',
     lockScreen: '', defaultTile: '<uap:DefaultTile Wide310x150Logo="assets\\Wide310x150Logo.png"/>',
-    splashScreen: '', extensions: '',
+    splashScreen: '',
+    // Start the mini memo window when the user signs in to Windows (packaged apps cannot use the registry Run key).
+    // Windows enables it after the first manual launch; users can turn it off in Settings > Apps > Startup.
+    extensions: '<Extensions><desktop:Extension Category="windows.startupTask" Executable="app\\modo.exe" EntryPoint="Windows.FullTrustApplication">'
+      + '<desktop:StartupTask TaskId="ModoStartup" Enabled="true" DisplayName="modo"/></desktop:Extension></Extensions>',
   };
   const template = await fs.readFile(path.join(desktop, 'build/AppxManifest.xml'), 'utf8');
   const manifest = template.replace(/\$\{(\w+)\}/g, (_, key) => {

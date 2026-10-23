@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { toPlain } from '../../core/rich';
@@ -148,7 +148,7 @@ function CheckSide({ value, onChange }: { value: Prefs['checkSide']; onChange: (
 }
 
 /** 꾸미기에서 바꾸는 값들(언어·서버·잠금 같은 다른 설정은 그대로 둔다) */
-const LOOK_KEYS = ['themeMode', 'accent', 'gradient', 'card', 'checkSide', 'font', 'weight', 'size', 'widget', 'mini', 'logoAccent'] as const;
+const LOOK_KEYS = ['themeMode', 'accent', 'gradient', 'card', 'checkSide', 'font', 'weight', 'size', 'widget', 'lockWidget', 'mini', 'logoAccent'] as const;
 
 export default function Customize() {
   const { theme, t, prefs, setPrefs, showToast } = useUi();
@@ -165,7 +165,8 @@ export default function Customize() {
     { value: 'l', label: t('sizeL') },
     { value: 'xl', label: t('sizeXL') },
   ];
-  // 탭: 공통 · 홈 위젯 · 잠금 위젯(휴대폰), 공통 · 미니창(PC: 위젯이 없고 미니창이 있다). 사용자 요청 2026-10-22
+  // 탭: 공통 · 홈 위젯 · 잠금 위젯(휴대폰), 공통 · PC(미니창). 사용자 요청 2026-10-22·24.
+  // 꾸미기는 기기마다 따로 저장돼(계정으로 맞추는 것은 테마색뿐) 휴대폰에서 PC 탭을, PC에서 위젯 탭을 고쳐도 그 기기에는 쓰이지 않아 보이지 않는다
   const tabs: { value: Tab; label: string }[] =
     Platform.OS === 'web'
       ? [
@@ -203,14 +204,21 @@ export default function Customize() {
           </View>
           <Group style={{ marginBottom: 9.5 }} inset={[3, 1]}>
             <Row size="sm" label={t('textSize')} value={sizes.find((x) => x.value === prefs.size)?.label} onPress={() => setSizeSheet(true)} />
-            {/* 공통에서 바꾸면 홈·잠금화면 위젯도 같이(위젯 탭에서 따로 고를 수 있다, 사용자 요청 2026-10-24) */}
+            {/* 공통에서 바꾸면 홈 위젯 · 잠금 위젯 · PC 미니창도 같이(그 탭에서 따로 고를 수 있다, 사용자 요청 2026-10-24) */}
             <Row
               size="sm"
               label={t('checkSide')}
               right={
                 <CheckSide
                   value={prefs.checkSide}
-                  onChange={(side) => setPrefs({ checkSide: side, widget: { ...prefs.widget, checkSide: side, lockCheckSide: side } })}
+                  onChange={(side) =>
+                    setPrefs({
+                      checkSide: side,
+                      widget: { ...prefs.widget, checkSide: side },
+                      lockWidget: { ...prefs.lockWidget, checkSide: side },
+                      mini: { ...prefs.mini, checkSide: side },
+                    })
+                  }
                 />
               }
             />
@@ -227,25 +235,25 @@ export default function Customize() {
           </Pressable>
         </>
       ) : null}
+      {/* 홈 위젯 · 잠금 위젯 · PC는 같은 차례로 같은 것을 고른다: 색(앱 테마 따르기 · 테마색 · 카드색) · 투명도 · 체크 위치,
+          그다음 그 화면에만 있는 것(사용자 요청 2026-10-24) */}
       {tab === 'home' ? (
         <>
-          <SurfaceColors value={prefs.widget} onChange={(widget) => setPrefs({ widget })} />
-          <OpacityCard label={t('homeWidgetOpacity')} opacity={prefs.widget.opacity} onCommit={(v) => setPrefs({ widget: { ...prefs.widget, opacity: v } })} />
-          <Group>
-            <Row
-              label={t('checkSide')}
-              right={<CheckSide value={prefs.widget.checkSide ?? prefs.checkSide} onChange={(side) => setPrefs({ widget: { ...prefs.widget, checkSide: side } })} />}
-            />
-            <Row label={t('addHomeWidget')} onPress={() => router.push('/settings/widgets')} last />
-          </Group>
+          <SurfaceLook
+            value={prefs.widget}
+            onChange={(widget) => setPrefs({ widget })}
+            opacityLabel={t('homeWidgetOpacity')}
+            extra={<Row label={t('addHomeWidget')} onPress={() => router.push('/settings/widgets')} last />}
+          />
         </>
       ) : null}
       {tab === 'lock' ? (
         <>
-          <OpacityCard
-            label={t('lockWidgetOpacity')}
-            opacity={prefs.widget.lockOpacity ?? DEFAULT_PREFS.widget.lockOpacity!}
-            onCommit={(v) => setPrefs({ widget: { ...prefs.widget, lockOpacity: v } })}
+          <SurfaceLook
+            value={prefs.lockWidget}
+            onChange={(lockWidget) => setPrefs({ lockWidget })}
+            opacityLabel={t('lockWidgetOpacity')}
+            extra={<Row label={t('howtoLock')} onPress={() => router.push({ pathname: '/settings/howto/[topic]', params: { topic: 'lock' } })} last />}
           />
           {/* 잠금화면에 보이는 내용: 잠금화면 알림과 같은 설정 */}
           <Text style={theme.kfont(15, { color: theme.tab, marginLeft: 4, marginBottom: 5, marginTop: 6 })}>{t('lockWidgetShows')}</Text>
@@ -261,23 +269,9 @@ export default function Customize() {
             />
           </View>
           <Text style={theme.kfont(13, { color: theme.subtle, marginLeft: 4, marginBottom: 14 })}>{t('lockWidgetColorNote')}</Text>
-          <Group>
-            <Row
-              label={t('checkSide')}
-              right={
-                <CheckSide value={prefs.widget.lockCheckSide ?? prefs.checkSide} onChange={(side) => setPrefs({ widget: { ...prefs.widget, lockCheckSide: side } })} />
-              }
-            />
-            <Row label={t('howtoLock')} onPress={() => router.push({ pathname: '/settings/howto/[topic]', params: { topic: 'lock' } })} last />
-          </Group>
         </>
       ) : null}
-      {tab === 'mini' ? (
-        <>
-          <SurfaceColors value={prefs.mini} onChange={(mini) => setPrefs({ mini })} />
-          <OpacityCard label={t('miniOpacity')} opacity={prefs.mini.opacity} onCommit={(v) => setPrefs({ mini: { ...prefs.mini, opacity: v } })} />
-        </>
-      ) : null}
+      {tab === 'mini' ? <SurfaceLook value={prefs.mini} onChange={(mini) => setPrefs({ mini })} opacityLabel={t('miniOpacity')} /> : null}
 
       <Sheet visible={sizeSheet} onClose={() => setSizeSheet(false)}>
         {sizes.map((s) => (
@@ -351,6 +345,27 @@ function OpacityCard({ label, opacity, onCommit }: { label: string; opacity: num
       />
       <Text style={theme.kfont(13, { color: theme.subtle, marginTop: 2 })}>{t('opacityNote')}</Text>
     </View>
+  );
+}
+
+/**
+ * 홈 위젯 · 잠금 위젯 · PC 미니창 탭의 꾸미기(같은 차례): 색 · 투명도 · 체크 위치(없으면 공통을 따른다) · 그 화면에만 있는 줄(extra)
+ */
+function SurfaceLook({ value, onChange, opacityLabel, extra }: { value: SurfaceTheme; onChange: (v: SurfaceTheme) => void; opacityLabel: string; extra?: ReactNode }) {
+  const { t, prefs } = useUi();
+  return (
+    <>
+      <SurfaceColors value={value} onChange={onChange} />
+      <OpacityCard label={opacityLabel} opacity={value.opacity} onCommit={(opacity) => onChange({ ...value, opacity })} />
+      <Group>
+        <Row
+          label={t('checkSide')}
+          right={<CheckSide value={value.checkSide ?? prefs.checkSide} onChange={(checkSide) => onChange({ ...value, checkSide })} />}
+          last={!extra}
+        />
+        {extra}
+      </Group>
+    </>
   );
 }
 

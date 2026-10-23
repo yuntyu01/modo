@@ -22,14 +22,10 @@ data class SurfaceTheme(
   val muted: Int,
   val circle: Int,
   val opacity: Float,
-  /** 잠금화면 위젯의 배경 불투명도(홈과 따로, 사용자 요청 2026-10-22). 미니창 등 다른 곳은 opacity와 같다 */
-  val lockOpacity: Float = opacity,
   /** 꾸미기에서 카드색을 직접 골랐는지(홈 위젯은 고르지 않았을 때만 파란 기 없는 차콜을 쓴다) */
   val tinted: Boolean = false,
-  /** 홈 화면 위젯의 동그라미를 오른쪽에(꾸미기 홈 위젯 탭의 체크 위치, 없으면 공통 체크 위치: 사용자 요청 2026-10-24) */
+  /** 동그라미를 오른쪽에(꾸미기 그 탭의 체크 위치, 없으면 공통 체크 위치: 사용자 요청 2026-10-24) */
   val checkEnd: Boolean = false,
-  /** 잠금화면 위젯의 동그라미를 오른쪽에(잠금 위젯 탭의 체크 위치, 없으면 공통) */
-  val lockCheckEnd: Boolean = checkEnd,
 ) {
   companion object {
     /** 대표색: src/brand.ts와 같은 값(src/__tests__/brand.test.ts가 확인). 테마 설정이 아직 없으면 이 색 */
@@ -42,13 +38,32 @@ data class SurfaceTheme(
     /** 앱 화면 설정이 '시스템'이면(라이트·다크가 기기를 따른다) true */
     fun followsSystem(prefs: JSONObject) = prefs.optString("themeMode", "system") == "system"
 
+    /** 잠금화면 위젯 설정(색 · 투명도 · 체크 위치를 홈 위젯과 따로, 사용자 요청 2026-10-24) */
+    const val LOCK = "lockWidget"
+
+    /**
+     * 꾸미기의 한 화면 설정(widget · lockWidget · mini). 잠금화면 위젯 설정이 아직 없으면(앱을 새 버전으로 켜기 전) 예전처럼
+     * 홈 위젯 색에 위젯 설정의 lockOpacity · lockCheckSide(앱 state/prefs.ts legacyLock과 같다)
+     */
+    private fun surfaceOf(prefs: JSONObject, key: String): JSONObject? {
+      prefs.optJSONObject(key)?.let { return it }
+      if (key != LOCK) return null
+      val w = prefs.optJSONObject("widget") ?: return null
+      return JSONObject(w.toString()).apply {
+        remove("opacity")
+        remove("checkSide")
+        if (w.has("lockOpacity")) put("opacity", w.opt("lockOpacity"))
+        if (w.has("lockCheckSide")) put("checkSide", w.opt("lockCheckSide"))
+      }
+    }
+
     /** dark: 라이트·다크를 정해서 만든다(홈 위젯이 두 벌을 미리 넣어 둘 때). null이면 설정·기기를 따른다 */
     fun from(ctx: Context, prefs: JSONObject, surfaceKey: String = "widget", dark: Boolean? = null): SurfaceTheme {
       val mode = prefs.optString("themeMode", "system")
       val systemDark = (ctx.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
       @Suppress("NAME_SHADOWING")
       val dark = dark ?: if (mode == "system") systemDark else mode == "dark"
-      val surface = prefs.optJSONObject(surfaceKey)
+      val surface = surfaceOf(prefs, surfaceKey)
       val linked = surface?.optBoolean("linked", true) ?: true
       val accentHex = brandAccent(if (!linked) surface!!.optString("accent", BRAND) else prefs.optString("accent", BRAND))
       val cardHex = (if (!linked) surface!!.opt("card") else prefs.opt("card")).let { if (it is String) it else null }
@@ -71,12 +86,10 @@ data class SurfaceTheme(
         text = Color.parseColor(if (dark) "#FFFFFF" else "#15171A"),
         muted = Color.parseColor(if (dark) "#9C9FA6" else "#7A7F87"),
         circle = Color.parseColor(if (dark) "#A9ADB8" else "#9AA0A8"),
-        // 앱 기본값(state/prefs.ts DEFAULT_PREFS.widget.opacity·lockOpacity, 투명도 60%)과 같게. 0(배경 완전 투명)부터 1까지
+        // 앱 기본값(state/prefs.ts DEFAULT_PREFS.widget·lockWidget.opacity, 투명도 60%)과 같게. 0(배경 완전 투명)부터 1까지
         opacity = (surface?.optDouble("opacity", DEFAULT_OPACITY) ?: DEFAULT_OPACITY).toFloat().coerceIn(0f, 1f),
-        lockOpacity = (surface?.optDouble("lockOpacity", DEFAULT_OPACITY) ?: DEFAULT_OPACITY).toFloat().coerceIn(0f, 1f),
         tinted = cardHex != null,
         checkEnd = (side(surface?.opt("checkSide")) ?: common) == "right",
-        lockCheckEnd = (side(surface?.opt("lockCheckSide")) ?: common) == "right",
       )
     }
 

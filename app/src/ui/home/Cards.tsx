@@ -17,7 +17,7 @@ export type Editing = { id: string; caret: number } | null;
 
 /** 줄 간격도 앱 글자 크기 × 시스템 글자 크기를 따라가야 큰 글자에서 줄이 겹치거나 잘리지 않는다. */
 export function useCardStyles() {
-  const { theme, prefs } = useUi();
+  const { theme } = useUi();
   const fs = PixelRatio.getFontScale();
   const z = theme.zoom;
   const kind = theme.desk ? 'desk' : theme.mini ? 'mini' : 'phone';
@@ -35,7 +35,7 @@ export function useCardStyles() {
   const title1 = Math.round(textBase * z * theme.scale);
   const withMeta = title1 + META_GAP + Math.round(metaBase * z * theme.scale);
   const padY = Math.max(MIN_PAD_Y, Math.min(minH - withMeta, minH - title1 * TITLE_LINES.plain) / 2);
-  const right = prefs.checkSide === 'right';
+  const right = theme.checkRight;
   return {
     text: theme.mini
       ? theme.kfont(15.5 * z, { color: theme.text, fontWeight: '500', lineHeight: textLine })
@@ -126,9 +126,9 @@ export const TodoCard = memo(function TodoCard({
   onRepeatPress,
   onInfo,
 }: TodoProps) {
-  const { theme, prefs, repo, t, showToast, lang, today } = useUi();
+  const { theme, repo, t, showToast, lang, today } = useUi();
   const st = useCardStyles();
-  const right = prefs.checkSide === 'right';
+  const right = theme.checkRight;
   const isEditing = editing?.id === todo.id;
   // 체크하면 잠깐 채워진 동그라미를 보여 준 뒤 완료 묶음으로 내려 보낸다.
   const [checking, setChecking] = useState(false);

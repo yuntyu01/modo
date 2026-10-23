@@ -36,8 +36,11 @@ class WidgetConfigActivity : Activity() {
     setResult(RESULT_CANCELED, Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId))
     if (widgetId == AppWidgetManager.INVALID_APPWIDGET_ID) return finish()
 
-    val (folders, theme) = NotesDb.use(this) { db -> NotesDb.folders(db) to SurfaceTheme.from(this, NotesDb.prefs(db)) }
-      ?: (emptyList<NotesDb.Folder>() to SurfaceTheme.from(this, org.json.JSONObject()))
+    val prefs = NotesDb.use(this) { NotesDb.prefs(it) } ?: org.json.JSONObject()
+    val folders = NotesDb.use(this) { NotesDb.folders(it) } ?: emptyList()
+    val theme = SurfaceTheme.from(this, prefs)
+    // 잠금화면에 놓인 위젯이면 꾸미기 잠금 위젯 탭의 투명도에서 시작한다
+    val lockOpacity = SurfaceTheme.from(this, prefs, SurfaceTheme.LOCK).opacity
     val cur = WidgetPrefs.load(this, widgetId)
     val dp = resources.displayMetrics.density
     val pad = (20 * dp).toInt()
@@ -90,7 +93,7 @@ class WidgetConfigActivity : Activity() {
     // 잠금화면에 놓인 위젯이면 꾸미기의 잠금화면 위젯 투명도에서 시작한다
     val keyguard = AppWidgetManager.getInstance(this).getAppWidgetOptions(widgetId)
       .getInt(AppWidgetManager.OPTION_APPWIDGET_HOST_CATEGORY, -1) == android.appwidget.AppWidgetProviderInfo.WIDGET_CATEGORY_KEYGUARD
-    val start = 100 - ((cur.opacity ?: if (keyguard) theme.lockOpacity else theme.opacity) * 100).roundToInt()
+    val start = 100 - ((cur.opacity ?: if (keyguard) lockOpacity else theme.opacity) * 100).roundToInt()
     fun showOpacity(v: Int) {
       opacityLabel.text = getString(R.string.bg_transparency, v)
     }

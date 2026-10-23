@@ -9,15 +9,15 @@ export type SurfaceTheme = {
   linked: boolean;
   accent: string;
   card: string | null;
-  /** 배경 불투명도 0~1(위젯은 홈 화면 위젯) */
+  /** 배경 불투명도 0~1 */
   opacity: number;
-  /** 잠금화면 위젯의 배경 불투명도 0~1(위젯만, 홈과 따로: 사용자 요청 2026-10-22) */
-  lockOpacity?: number;
   /**
-   * 위젯 동그라미 자리(위젯만, 홈·잠금화면 따로: 사용자 요청 2026-10-24). 없으면 공통 체크 위치(Prefs.checkSide)를 따르고,
-   * 공통에서 바꾸면 둘 다 같이 바뀐다(customize.tsx). Android HomeWidget이 읽는다
+   * 동그라미 자리(홈 위젯 · 잠금 위젯 · PC 미니창 따로: 사용자 요청 2026-10-24). 없으면 공통 체크 위치(Prefs.checkSide)를 따르고,
+   * 공통에서 바꾸면 모두 같이 바뀐다(customize.tsx). 위젯은 Android HomeWidget이, 미니창은 theme.checkRight가 읽는다
    */
   checkSide?: 'left' | 'right';
+  /** 예전(2026-10-22~24) 위젯 설정에 같이 두던 잠금화면 위젯 값. 이제 Prefs.lockWidget(처음 한 번 옮긴다, mergePrefs) */
+  lockOpacity?: number;
   lockCheckSide?: 'left' | 'right';
 };
 
@@ -39,7 +39,10 @@ export type Prefs = {
   /** 테마색을 마지막으로 바꾼 시각(밀리초). 계정 테마와 맞출 때 늦게 바꾼 쪽이 이긴다. 0 = 아직 안 바꿈 */
   accentAt: number;
   language: 'system' | Lang;
+  /** 홈 화면 위젯 */
   widget: SurfaceTheme;
+  /** 잠금화면 위젯: 색 · 투명도 · 체크 위치를 홈 위젯과 따로(꾸미기 잠금 위젯 탭, 사용자 요청 2026-10-24) */
+  lockWidget: SurfaceTheme;
   mini: SurfaceTheme;
   lock: { enabled: boolean; visibility: 'public' | 'private' | 'secret' };
   hintSeen: boolean;
@@ -98,7 +101,8 @@ export const DEFAULT_PREFS: Prefs = {
   language: 'system',
   // 배경 불투명도. 꾸미기에는 '투명도'로 보인다(0~100%). 위젯은 홈·잠금화면을 따로 정하고 기본은 둘 다 투명도 60%
   // (사용자 요청 2026-10-22. 그 전 기본은 20%), 미니창은 그대로 20%
-  widget: { linked: true, accent: ACCENTS[0], card: null, opacity: 0.4, lockOpacity: 0.4 },
+  widget: { linked: true, accent: ACCENTS[0], card: null, opacity: 0.4 },
+  lockWidget: { linked: true, accent: ACCENTS[0], card: null, opacity: 0.4 },
   mini: { linked: true, accent: ACCENTS[0], card: null, opacity: 0.8 },
   lock: { enabled: false, visibility: 'private' },
   hintSeen: false,
@@ -106,6 +110,13 @@ export const DEFAULT_PREFS: Prefs = {
   server: DEFAULT_SERVER,
   prefsVersion: 3,
 };
+
+/** 예전 위젯 설정에서 잠금화면 위젯 값(색은 홈 위젯과 같았다, 투명도·체크 위치는 lock*) */
+function legacyLock(w?: Partial<SurfaceTheme>): Partial<SurfaceTheme> {
+  if (!w) return {};
+  const { lockOpacity, lockCheckSide, opacity: _home, checkSide: _side, ...colors } = w;
+  return { ...colors, ...(lockOpacity != null ? { opacity: lockOpacity } : null), ...(lockCheckSide ? { checkSide: lockCheckSide } : null) };
+}
 
 // 예전에 기본색이었던 색들(대표색을 바꿨다 되돌려도 지금 대표색은 빼고)
 const OLD_DEFAULTS = ['#72CDF4', '#96D3FD', '#85ADE2'].filter((c) => c !== BRAND);
@@ -116,6 +127,8 @@ export function mergePrefs(saved: Partial<Prefs> | null): Prefs {
   if (saved && saved.onboarded === undefined) p.onboarded = true;
   p.widget = { ...DEFAULT_PREFS.widget, ...(saved?.widget ?? {}) };
   p.mini = { ...DEFAULT_PREFS.mini, ...(saved?.mini ?? {}) };
+  // 잠금화면 위젯은 예전엔 홈 위젯의 색을 쓰고 투명도·체크 위치만 위젯 설정에 따로 두었다: 처음 한 번 그대로 옮겨 온다
+  p.lockWidget = { ...DEFAULT_PREFS.lockWidget, ...(saved?.lockWidget ?? legacyLock(saved?.widget)) };
   p.lock = { ...DEFAULT_PREFS.lock, ...(saved?.lock ?? {}) };
   // 옛 기본값 고치기는 한 번만(prefsVersion < 2). 예전엔 값으로 판단해 켤 때마다 돌아서, 사용자가 직접 고른 70%·96%나
   // 옛 기본색과 같은 색을 다시 기본값으로 되돌렸다. (위젯의 Kotlin/Swift는 옛 기본색 2개를 늘 대표색으로 바꾼다: 그 두 색을
@@ -127,7 +140,7 @@ export function mergePrefs(saved: Partial<Prefs> | null): Prefs {
     // 예전 기본 강조색을 그대로 쓰던 경우는 지금 대표색으로
     const old = (c?: string) => !!c && OLD_DEFAULTS.includes(c.toUpperCase());
     if (old(saved?.accent)) p.accent = DEFAULT_PREFS.accent;
-    for (const k of ['widget', 'mini'] as const) if (old(saved?.[k]?.accent)) p[k].accent = DEFAULT_PREFS.accent;
+    for (const k of ['widget', 'lockWidget', 'mini'] as const) if (old(p[k].accent)) p[k].accent = DEFAULT_PREFS.accent;
   }
   // 위젯 기본 투명도를 20% → 60%로 바꿨다(2026-10-22): 예전 기본(불투명도 0.8)을 그대로 두고 있던 홈 위젯만 한 번 새 기본값으로
   if ((saved?.prefsVersion ?? 1) < 3 && (saved?.widget?.opacity ?? 0.8) === 0.8) p.widget.opacity = DEFAULT_PREFS.widget.opacity;

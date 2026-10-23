@@ -31,7 +31,7 @@ type Props = {
 export function CalendarAdd({ date, onLayout, onFocus, onBlur, openSignal, hideIdle }: Props) {
   const { theme, t, repo, prefs, filter, snap, canWrite } = useApp();
   const st = useCardStyles();
-  const right = prefs.checkSide === 'right';
+  const right = theme.checkRight;
   const [open, setOpen] = useState(false);
   // 날짜 옆 +를 누르면 열린다(그리는 중에 바로 맞춰 한 번 더 그리지 않게)
   const [seenSignal, setSeenSignal] = useState(openSignal);

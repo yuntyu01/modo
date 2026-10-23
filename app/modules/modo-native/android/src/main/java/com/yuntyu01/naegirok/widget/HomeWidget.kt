@@ -102,9 +102,7 @@ object HomeWidget {
     val accent = t.accent
     val onAccent = t.onAccent
     val opacity = t.opacity
-    val lockOpacity = t.lockOpacity
     val checkEnd = t.checkEnd
-    val lockCheckEnd = t.lockCheckEnd
   }
 
   /**
@@ -121,10 +119,11 @@ object HomeWidget {
     }
 
     companion object {
-      fun of(ctx: Context, prefs: org.json.JSONObject): Colors {
-        val cur = SurfaceTheme.from(ctx, prefs)
+      /** surface: 홈 위젯(widget) · 잠금화면 위젯(SurfaceTheme.LOCK) 꾸미기 */
+      fun of(ctx: Context, prefs: org.json.JSONObject, surface: String = "widget"): Colors {
+        val cur = SurfaceTheme.from(ctx, prefs, surface)
         if (!SurfaceTheme.followsSystem(prefs)) return Pal(cur).let { Colors(it, it, cur.dark) }
-        return Colors(Pal(SurfaceTheme.from(ctx, prefs, dark = false)), Pal(SurfaceTheme.from(ctx, prefs, dark = true)), cur.dark)
+        return Colors(Pal(SurfaceTheme.from(ctx, prefs, surface, dark = false)), Pal(SurfaceTheme.from(ctx, prefs, surface, dark = true)), cur.dark)
       }
     }
   }
@@ -390,26 +389,27 @@ object HomeWidget {
   private fun loadSmall(ctx: Context, id: Int, keyguard: Boolean): Small {
     val wp = WidgetPrefs.load(ctx, id)
     val w = AppWidgetManager.getInstance(ctx).getAppWidgetOptions(id).getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0).takeIf { it > 0 } ?: 260
+    // 잠금화면에 놓인 위젯은 꾸미기 잠금 위젯 탭의 색 · 투명도 · 체크 위치
+    val look = if (keyguard) SurfaceTheme.LOCK else "widget"
     return NotesDb.use(ctx) { db ->
       val prefs = NotesDb.prefs(db)
       // 잠금화면에서는 잠금화면 알림과 같은 공개 범위(내용 보이기 · 개수만 · 숨기기)를 따른다
       val privacy = if (keyguard) prefs.optJSONObject("lock")?.optString("visibility", "private") ?: "private" else "public"
-      if (!NotesDb.signedIn(db)) return@use Small(Colors.of(ctx, prefs), null, emptyList(), emptyList(), 0, false, false, privacy, wp, keyguard, widthDp = w)
+      if (!NotesDb.signedIn(db)) return@use Small(Colors.of(ctx, prefs, look), null, emptyList(), emptyList(), 0, false, false, privacy, wp, keyguard, widthDp = w)
       // 홈에서 숨긴 공유 폴더·없어진 폴더는 기본 폴더로(큰 위젯과 같다)
       val folders = NotesDb.folders(db)
       val fid = folders.firstOrNull { it.id == wp.folderId }?.id
       Small(
-        Colors.of(ctx, prefs), fid, folders, NotesDb.todos(db, fid, limit = NEXT_LIMIT), NotesDb.countTodos(db, fid),
+        Colors.of(ctx, prefs, look), fid, folders, NotesDb.todos(db, fid, limit = NEXT_LIMIT), NotesDb.countTodos(db, fid),
         true, NotesDb.viewOnly(db, fid), privacy, wp, keyguard, memoText(NotesDb.memo(db, fid)), w,
       )
-    } ?: Small(Colors.of(ctx, org.json.JSONObject()), null, emptyList(), emptyList(), 0, false, false, "private", wp, keyguard, widthDp = w)
+    } ?: Small(Colors.of(ctx, org.json.JSONObject(), look), null, emptyList(), emptyList(), 0, false, false, "private", wp, keyguard, widthDp = w)
   }
 
-  /** 바탕: 위젯마다 고른 투명도가 없으면 꾸미기의 위젯 투명도(잠금화면이면 잠금화면 위젯 투명도) */
+  /** 바탕: 위젯마다 고른 투명도가 없으면 꾸미기의 위젯 투명도(잠금화면이면 잠금 위젯 탭, Small.colors가 그 설정으로 만들어진다) */
   private fun background(v: RemoteViews, c: Colors, s: Small) {
     c.set(v, R.id.widget_bg, "setColorFilter") { it.card }
-    val base = if (s.keyguard) c.now.lockOpacity else c.now.opacity
-    v.setInt(R.id.widget_bg, "setImageAlpha", ((s.wp.opacity ?: base) * 255).roundToInt())
+    v.setInt(R.id.widget_bg, "setImageAlpha", ((s.wp.opacity ?: c.now.opacity) * 255).roundToInt())
     c.set(v, R.id.widget_mark, "setColorFilter") { it.mark }
   }
 
@@ -461,7 +461,7 @@ object HomeWidget {
   private fun one(v: RemoteViews, ctx: Context, id: Int, s: Small, tall: Boolean, roomy: Boolean = false) = v.apply {
     val c = s.colors
     // 체크 위치(꾸미기, 홈·잠금화면 따로). 동그라미가 오른쪽이면 글자가 왼쪽 끝(위 줄 로고 자리)에서 시작하게 줄 여백을 바꾼다
-    val end = if (s.keyguard) c.now.lockCheckEnd else c.now.checkEnd
+    val end = c.now.checkEnd
     val dp = ctx.resources.displayMetrics.density
     fun px(v: Float) = (v * dp).roundToInt()
     if (tall) setViewPadding(R.id.one_row, 0, 0, if (end) 0 else px(2f), 0)

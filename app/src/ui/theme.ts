@@ -47,6 +47,8 @@ export type Theme = {
   desk: boolean;
   /** PC 미니창(시안): 할 일 카드·입력창 치수가 조금 다르다 */
   mini: boolean;
+  /** 할 일 동그라미가 오른쪽(꾸미기의 체크 위치. PC 미니창은 PC 탭에서 따로 고른 것, 없으면 공통) */
+  checkRight: boolean;
 };
 
 const SIZE = { s: 0.9, m: 1, l: 1.12, xl: 1.25 };
@@ -161,6 +163,7 @@ export function makeTheme(p: Prefs, systemDark: boolean, surface?: SurfaceTheme)
     // 미니창은 창(웹 문서)이 따로라 주소로 가른다
     desk,
     mini: isMiniWindow(),
+    checkRight: (surface?.checkSide ?? p.checkSide) === 'right',
     font: (size, extra) => ({
       fontSize: Math.round(size * scale * 10) / 10,
       fontWeight: weight,

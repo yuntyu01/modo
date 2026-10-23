@@ -658,13 +658,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingBottom: FRAME_BOTTOM,
   },
-  // 작은 창이라 머리(로고·버튼)와 폴더 줄을 낮게. 로고 위아래가 넓어 보여 50 → 40(사용자 요청 2026-10-23)
+  // 작은 창이라 머리(로고·버튼)와 폴더 줄을 낮게. 로고 위아래가 넓어 보여 50 → 45(사용자 요청 2026-10-23)
   head: {
     flexDirection: 'row',
     alignItems: 'center',
     // 바로 아래 폴더 줄보다 위에(버튼 말풍선이 폴더 이름에 가려지지 않게)
     zIndex: 2,
-    height: 40,
+    height: 45,
     paddingLeft: 3,
     paddingRight: 0,
   },

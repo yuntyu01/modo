@@ -113,6 +113,17 @@ open class NotesWidgetProvider : AppWidgetProvider() {
       }
       return
     }
+    // 한 줄 모양: 글자를 누르면 다음 할 일(끝에서 누르면 처음으로)
+    if (intent.action == ACTION_NEXT) {
+      val id = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
+      if (id == AppWidgetManager.INVALID_APPWIDGET_ID) return
+      Work.run(this) {
+        val wp = WidgetPrefs.load(ctx, id)
+        wp.copy(pos = wp.pos + 1).save(ctx, id)
+        update(ctx, AppWidgetManager.getInstance(ctx), id)
+      }
+      return
+    }
     super.onReceive(ctx, intent)
   }
 
@@ -120,6 +131,7 @@ open class NotesWidgetProvider : AppWidgetProvider() {
     const val ACTION_TOGGLE = "com.yuntyu01.naegirok.widget.TOGGLE"
     const val ACTION_PAGE = "com.yuntyu01.naegirok.widget.PAGE"
     const val ACTION_ITEM = "com.yuntyu01.naegirok.widget.ITEM"
+    const val ACTION_NEXT = "com.yuntyu01.naegirok.widget.NEXT"
     const val ACTION_FOLDER = "com.yuntyu01.naegirok.widget.FOLDER"
     const val EXTRA_FOLDER = "folder"
     const val EXTRA_ITEM = "item"

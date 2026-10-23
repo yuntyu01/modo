@@ -4,6 +4,7 @@ import android.content.Context
 
 /**
  * 위젯마다 따로 두는 설정: 폴더, 표시 내용, 글자 크기, 배경 불투명도(null이면 꾸미기의 위젯 테마 값).
+ * pos: 한 줄 모양에서 지금 보는 할 일 순서(글자를 눌러 넘긴 만큼, 그릴 때 할 일 수로 나눈 나머지).
  * 다른 위젯의 폴더를 바꾸지 않는다. 예전의 쪽·메모 읽기 상태(page·anchor·reading…)는 목록으로 바꾸며 없앴다(2026-10-21).
  */
 data class WidgetPrefs(
@@ -11,8 +12,10 @@ data class WidgetPrefs(
   val show: Show,
   val textSize: Float,
   val opacity: Float?,
+  val pos: Int = 0,
 ) {
-  fun withFolder(id: String?) = if (id == folderId) this else copy(folderId = id)
+  /** 폴더를 바꾸면 한 줄 모양은 첫 할 일부터 */
+  fun withFolder(id: String?) = if (id == folderId) this else copy(folderId = id, pos = 0)
 
   enum class Show { BOTH, TODOS, MEMO }
 
@@ -22,7 +25,7 @@ data class WidgetPrefs(
       .putString("show_$id", show.name)
       .putFloat("size_$id", textSize)
       .putFloat("opacity_$id", opacity ?: -1f)
-      .remove("pos_$id")
+      .putInt("pos_$id", pos)
       // 예전 쪽·읽기 상태는 지운다
       .remove("page_$id").remove("anchor_todo_$id").remove("anchor_index_$id")
       .remove("reading_$id").remove("read_page_$id").remove("read_offset_$id")
@@ -50,6 +53,7 @@ data class WidgetPrefs(
         show = runCatching { Show.valueOf(p.getString("show_$id", "BOTH")!!) }.getOrDefault(Show.BOTH),
         textSize = p.getFloat("size_$id", 15f),
         opacity = p.getFloat("opacity_$id", -1f).takeIf { it >= 0f },
+        pos = p.getInt("pos_$id", 0),
       )
     }
 

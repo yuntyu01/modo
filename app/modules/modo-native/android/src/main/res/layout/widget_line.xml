@@ -1,90 +1,79 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  아주 낮은 칸(삼성 잠금화면의 넓은 칸은 높이가 30~40dp쯤)용 할 일 카드 한 줄(HomeWidget.todoCard slim):
-  동그라미(완료) · 할 일 한 줄 · 몇 번째/몇 개. 아이디는 widget_lock_card와 같다.
+  한 줄만 들어가는 낮은 칸(삼성 잠금화면의 넓은 칸 등, HomeWidget.line): 동그라미(완료) · 할 일 한 줄(누르면 다음 할 일) · 몇 번째/몇 개(맨 오른쪽).
+  화살표 단추 없이 글자를 누르면 넘어간다(마지막에서 누르면 처음으로, 사용자 요청 2026-10-23).
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-  android:id="@+id/card_root"
+  android:id="@+id/line_root"
   android:layout_width="match_parent"
   android:layout_height="match_parent">
   <ImageView
-    android:id="@+id/card_bg"
+    android:id="@+id/widget_bg"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:importantForAccessibility="no"
     android:scaleType="fitXY"
-    android:src="@drawable/naegirok_card_bg" />
+    android:src="@drawable/naegirok_widget_bg" />
   <LinearLayout
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:gravity="center_vertical"
     android:orientation="horizontal"
-    android:paddingStart="2dp"
-    android:paddingEnd="10dp">
+    android:paddingStart="6dp"
+    android:paddingEnd="14dp">
     <ViewFlipper
-      android:id="@+id/card_check"
-      android:layout_width="30dp"
-      android:layout_height="30dp"
+      android:id="@+id/line_check"
+      android:layout_width="34dp"
+      android:layout_height="34dp"
       android:inAnimation="@anim/widget_check_in"
       android:outAnimation="@anim/widget_check_out">
       <ImageView
-        android:id="@+id/card_ring"
+        android:id="@+id/line_ring"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:importantForAccessibility="no"
-        android:padding="6dp"
+        android:padding="7dp"
         android:src="@drawable/naegirok_check_off" />
       <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent">
         <ImageView
-          android:id="@+id/card_fill"
-          android:layout_width="match_parent"
-          android:layout_height="match_parent"
-          android:importantForAccessibility="no"
-          android:padding="7.5dp"
-          android:src="@drawable/naegirok_circle" />
-        <ImageView
-          android:id="@+id/card_tick"
+          android:id="@+id/line_fill"
           android:layout_width="match_parent"
           android:layout_height="match_parent"
           android:importantForAccessibility="no"
           android:padding="8.5dp"
+          android:src="@drawable/naegirok_circle" />
+        <ImageView
+          android:id="@+id/line_tick"
+          android:layout_width="match_parent"
+          android:layout_height="match_parent"
+          android:importantForAccessibility="no"
+          android:padding="9.5dp"
           android:src="@drawable/naegirok_tick" />
       </FrameLayout>
     </ViewFlipper>
-    <LinearLayout
-      android:id="@+id/card_body"
+    <TextView
+      android:id="@+id/line_text"
       android:layout_width="0dp"
       android:layout_height="match_parent"
       android:layout_weight="1"
-      android:layout_marginStart="2dp"
+      android:layout_marginStart="4dp"
+      android:ellipsize="end"
+      android:fontFamily="sans-serif"
       android:gravity="center_vertical"
-      android:orientation="vertical">
-      <TextView
-        android:id="@+id/card_text"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:ellipsize="end"
-        android:fontFamily="sans-serif"
-        android:includeFontPadding="false"
-        android:maxLines="1"
-        android:textColor="#FFFFFF"
-        android:textSize="14sp" />
-      <TextView
-        android:id="@+id/card_meta"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:visibility="gone" />
-    </LinearLayout>
+      android:maxLines="1"
+      android:textColor="#FFFFFF"
+      android:textSize="15sp" />
     <TextView
-      android:id="@+id/card_pos"
+      android:id="@+id/line_pos"
       android:layout_width="wrap_content"
-      android:layout_height="wrap_content"
-      android:layout_marginStart="6dp"
+      android:layout_height="match_parent"
+      android:layout_marginStart="10dp"
       android:fontFamily="sans-serif"
       android:fontFeatureSettings="tnum"
+      android:gravity="center_vertical"
       android:textColor="#A1A1A6"
-      android:textSize="11sp" />
+      android:textSize="12sp" />
   </LinearLayout>
 </FrameLayout>

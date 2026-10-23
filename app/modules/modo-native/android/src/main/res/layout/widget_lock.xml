@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  잠금화면·작은 칸 위젯(HomeWidget.card): 위 = 로고(누르면 앱) · 폴더 이름 · 이전/다음 폴더, 아래 = 할 일 하나
-  (동그라미 = 완료 · 할 일 · 아래 줄(날짜·반복) · 몇 번째/몇 개). 글자나 몇 번째/몇 개를 누르면 다음 할 일(마지막이면 처음으로).
-  카드 넘기기(StackView)는 이상하게 보여 한 줄 칸(widget_line)과 같은 방식으로 바꿨다(사용자 요청 2026-10-23). 할 일 칸 id는 widget_line과 같다(one_*).
-  위 줄은 늘 보인다(예전엔 100dp부터라 잠금화면 칸에서 로고·폴더 이름이 빠졌다, 사용자 제보 2026-10-23). 할 일이 없으면 메모·안내(one_text). 폴더 이름·빈 곳은 누르지 않는다(예전엔 이름 칸이 › 버튼 옆까지 늘어나 있어,
+  잠금화면·작은 칸 위젯, 낮은 칸(84dp 아래, HomeWidget.card): 위 줄(widget_lock_head) + 남는 자리 가운데에 할 일 하나(widget_lock_todo).
+  글자나 몇 번째/몇 개를 누르면 다음 할 일(마지막이면 처음으로). 카드 넘기기(StackView)는 이상하게 보여 한 줄 칸(widget_line)과
+  같은 방식으로 바꿨다(사용자 요청 2026-10-23). 넉넉한 칸은 widget_lock_roomy(위·사이·아래 간격을 같게).
+  할 일이 없으면 메모·안내(one_text). 폴더 이름·빈 곳은 누르지 않는다(예전엔 이름 칸이 › 버튼 옆까지 늘어나 있어,
   맨 끝 폴더에서 ›를 조금 비껴 누르면 앱이 켜졌다).
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
@@ -28,148 +28,14 @@
     android:paddingTop="2dp"
     android:paddingEnd="12dp"
     android:paddingBottom="4dp">
-
-    <!-- 56dp 칸에도 들어가게 낮게(26dp): 남는 24dp에 동그라미(24dp)가 들어간다 -->
-    <LinearLayout
-      android:id="@+id/lock_head"
+    <include
+      layout="@layout/widget_lock_head"
       android:layout_width="match_parent"
-      android:layout_height="26dp"
-      android:gravity="center_vertical"
-      android:orientation="horizontal">
-      <!-- 아래 할 일 줄과 줄 맞춤(사용자 요청 2026-10-24): 로고 왼쪽 = 동그라미 왼쪽, 폭 38dp = 동그라미 칸(40 - 6 + 4)이라
-           폴더 이름이 할 일 글자와 같은 자리에서 시작한다 -->
-      <FrameLayout
-        android:id="@+id/lock_brand"
-        android:layout_width="38dp"
-        android:layout_height="match_parent"
-        android:paddingStart="3.5dp">
-        <ImageView
-          android:id="@+id/widget_mark"
-          android:layout_width="wrap_content"
-          android:layout_height="10.5dp"
-          android:layout_gravity="center_vertical|start"
-          android:adjustViewBounds="true"
-          android:importantForAccessibility="no"
-          android:src="@drawable/naegirok_mark" />
-      </FrameLayout>
-      <TextView
-        android:id="@+id/lock_folder"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:ellipsize="end"
-        android:fontFamily="sans-serif"
-        android:maxLines="1"
-        android:textColor="#FFFFFF"
-        android:textSize="14sp"
-        android:textStyle="bold" />
-      <ImageView
-        android:id="@+id/lock_prev"
-        android:layout_width="32dp"
-        android:layout_height="match_parent"
-        android:contentDescription="@string/prev_folder"
-        android:paddingStart="8dp"
-        android:paddingTop="5dp"
-        android:paddingEnd="8dp"
-        android:paddingBottom="5dp"
-        android:src="@drawable/naegirok_chevron_left" />
-      <!-- › 끝 = 아래 몇 번째/몇 개 끝(누르는 자리는 32dp 그대로, 오른쪽 여백 안으로 들어간다) -->
-      <ImageView
-        android:id="@+id/lock_next"
-        android:layout_width="32dp"
-        android:layout_height="match_parent"
-        android:layout_marginEnd="-11.5dp"
-        android:contentDescription="@string/next_folder"
-        android:paddingStart="8dp"
-        android:paddingTop="5dp"
-        android:paddingEnd="8dp"
-        android:paddingBottom="5dp"
-        android:src="@drawable/naegirok_chevron_right" />
-    </LinearLayout>
-
-    <!-- 할 일 하나: 동그라미 · (할 일 + 아래 줄) · 몇 번째/몇 개 -->
-    <LinearLayout
+      android:layout_height="26dp" />
+    <include
+      layout="@layout/widget_lock_todo"
       android:layout_width="match_parent"
       android:layout_height="0dp"
-      android:layout_weight="1"
-      android:gravity="center_vertical"
-      android:orientation="horizontal"
-      android:paddingEnd="2dp">
-      <ViewFlipper
-        android:id="@+id/one_check"
-        android:layout_width="40dp"
-        android:layout_height="40dp"
-        android:layout_marginStart="-6dp"
-        android:inAnimation="@anim/widget_check_in"
-        android:outAnimation="@anim/widget_check_out">
-        <ImageView
-          android:id="@+id/one_ring"
-          android:layout_width="match_parent"
-          android:layout_height="match_parent"
-          android:importantForAccessibility="no"
-          android:padding="8dp"
-          android:src="@drawable/naegirok_check_off" />
-        <FrameLayout
-          android:layout_width="match_parent"
-          android:layout_height="match_parent">
-          <ImageView
-            android:id="@+id/one_fill"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:importantForAccessibility="no"
-            android:padding="9.5dp"
-            android:src="@drawable/naegirok_circle" />
-          <ImageView
-            android:id="@+id/one_tick"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:importantForAccessibility="no"
-            android:padding="10.5dp"
-            android:src="@drawable/naegirok_tick" />
-        </FrameLayout>
-      </ViewFlipper>
-      <!-- 누르는 자리: 할 일 + 아래 줄 전체(빈 위아래까지) -->
-      <LinearLayout
-        android:id="@+id/one_body"
-        android:layout_width="0dp"
-        android:layout_height="match_parent"
-        android:layout_weight="1"
-        android:layout_marginStart="4dp"
-        android:gravity="center_vertical"
-        android:orientation="vertical">
-        <TextView
-          android:id="@+id/one_text"
-          android:layout_width="match_parent"
-          android:layout_height="wrap_content"
-          android:ellipsize="end"
-          android:fontFamily="sans-serif"
-          android:letterSpacing="-0.02"
-          android:lineSpacingMultiplier="1.1"
-          android:maxLines="2"
-          android:textColor="#FFFFFF"
-          android:textSize="16sp" />
-        <TextView
-          android:id="@+id/one_meta"
-          android:layout_width="match_parent"
-          android:layout_height="wrap_content"
-          android:ellipsize="end"
-          android:fontFamily="sans-serif"
-          android:fontFeatureSettings="tnum"
-          android:maxLines="1"
-          android:textColor="#A1A1A6"
-          android:textSize="13sp"
-          android:visibility="gone" />
-      </LinearLayout>
-      <TextView
-        android:id="@+id/one_pos"
-        android:layout_width="wrap_content"
-        android:layout_height="match_parent"
-        android:layout_marginStart="10dp"
-        android:fontFamily="sans-serif"
-        android:fontFeatureSettings="tnum"
-        android:gravity="center_vertical"
-        android:textColor="#A1A1A6"
-        android:textSize="12sp" />
-    </LinearLayout>
+      android:layout_weight="1" />
   </LinearLayout>
 </FrameLayout>

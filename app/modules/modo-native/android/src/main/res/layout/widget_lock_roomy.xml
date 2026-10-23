@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  잠금화면·작은 칸 위젯, 넉넉한 칸(84dp부터, HomeWidget.card): 위 끝 · 위 줄 · 할 일 · 아래 끝 사이를 눈으로 보기에 같게 나눈다
+  (사용자 요청 2026-10-24: 위 줄이 위 끝과는 붙고 할 일과는 멀었다).
+  남는 자리는 세 틈에 똑같이 나누고, 틈마다 줄 안 여백 차이를 미리 더해 둔다: 위 줄 26dp 안의 글자·로고(약 11dp)는 위아래 7.5dp,
+  할 일 줄 40dp 안의 동그라미(약 21dp)는 9.5dp가 비어 있어 위 틈 = 사이 + 9.5, 아래 틈 = 사이 + 7.5.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  android:id="@+id/lock_root"
+  android:layout_width="match_parent"
+  android:layout_height="match_parent">
+
+  <ImageView
+    android:id="@+id/widget_bg"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:importantForAccessibility="no"
+    android:scaleType="fitXY"
+    android:src="@drawable/naegirok_widget_bg" />
+
+  <LinearLayout
+    android:id="@+id/lock_body"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:paddingStart="12dp"
+    android:paddingEnd="12dp">
+    <FrameLayout
+      android:layout_width="match_parent"
+      android:layout_height="9.5dp"
+      android:layout_weight="1" />
+    <include
+      layout="@layout/widget_lock_head"
+      android:layout_width="match_parent"
+      android:layout_height="26dp" />
+    <FrameLayout
+      android:layout_width="match_parent"
+      android:layout_height="0dp"
+      android:layout_weight="1" />
+    <include
+      layout="@layout/widget_lock_todo"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content" />
+    <FrameLayout
+      android:layout_width="match_parent"
+      android:layout_height="7.5dp"
+      android:layout_weight="1" />
+  </LinearLayout>
+</FrameLayout>

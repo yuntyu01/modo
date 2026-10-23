@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 작은 칸 위젯의 위 줄(widget_lock · widget_lock_roomy): 로고(누르면 앱) · 폴더 이름 · 이전/다음 폴더. 26dp라 56dp 칸에도 들어간다 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  android:id="@+id/lock_head"
+  android:layout_width="match_parent"
+  android:layout_height="26dp"
+  android:gravity="center_vertical"
+  android:orientation="horizontal">
+  <!-- 아래 할 일 줄과 줄 맞춤(사용자 요청 2026-10-24): 로고 왼쪽 = 동그라미 왼쪽, 폭 38dp = 동그라미 칸(40 - 6 + 4)이라
+       폴더 이름이 할 일 글자와 같은 자리에서 시작한다 -->
+  <FrameLayout
+    android:id="@+id/lock_brand"
+    android:layout_width="38dp"
+    android:layout_height="match_parent"
+    android:paddingStart="3.5dp">
+    <ImageView
+      android:id="@+id/widget_mark"
+      android:layout_width="wrap_content"
+      android:layout_height="10.5dp"
+      android:layout_gravity="center_vertical|start"
+      android:adjustViewBounds="true"
+      android:importantForAccessibility="no"
+      android:src="@drawable/naegirok_mark" />
+  </FrameLayout>
+  <TextView
+    android:id="@+id/lock_folder"
+    android:layout_width="0dp"
+    android:layout_height="wrap_content"
+    android:layout_weight="1"
+    android:ellipsize="end"
+    android:fontFamily="sans-serif"
+    android:maxLines="1"
+    android:textColor="#FFFFFF"
+    android:textSize="14sp"
+    android:textStyle="bold" />
+  <ImageView
+    android:id="@+id/lock_prev"
+    android:layout_width="32dp"
+    android:layout_height="match_parent"
+    android:contentDescription="@string/prev_folder"
+    android:paddingStart="8dp"
+    android:paddingTop="5dp"
+    android:paddingEnd="8dp"
+    android:paddingBottom="5dp"
+    android:src="@drawable/naegirok_chevron_left" />
+  <!-- › 끝 = 아래 몇 번째/몇 개 끝(누르는 자리는 32dp 그대로, 오른쪽 여백 안으로 들어간다) -->
+  <ImageView
+    android:id="@+id/lock_next"
+    android:layout_width="32dp"
+    android:layout_height="match_parent"
+    android:layout_marginEnd="-11.5dp"
+    android:contentDescription="@string/next_folder"
+    android:paddingStart="8dp"
+    android:paddingTop="5dp"
+    android:paddingEnd="8dp"
+    android:paddingBottom="5dp"
+    android:src="@drawable/naegirok_chevron_right" />
+</LinearLayout>

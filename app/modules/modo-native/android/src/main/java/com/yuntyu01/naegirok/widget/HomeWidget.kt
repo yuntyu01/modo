@@ -422,7 +422,8 @@ object HomeWidget {
    * 위 줄(로고(누르면 앱) · 폴더 이름 · 이전/다음 폴더)은 늘 보인다: 예전엔 100dp부터라 잠금화면 칸에서는 빠져 로고·폴더 이름이 안 보였다
    * (사용자 제보 2026-10-23). 잠금화면 알림의 공개 범위(내용 · 개수만 · 숨기기)를 따른다.
    */
-  private fun card(ctx: Context, id: Int, s: Small, roomy: Boolean) = RemoteViews(ctx.packageName, R.layout.widget_lock).apply {
+  private fun card(ctx: Context, id: Int, s: Small, roomy: Boolean) =
+    RemoteViews(ctx.packageName, if (roomy) R.layout.widget_lock_roomy else R.layout.widget_lock).apply {
     val c = s.colors
     background(this, c, s)
     // 앱은 로고로만 연다(폴더 이름·빈 곳을 눌러 앱이 켜지지 않게)

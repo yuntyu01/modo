@@ -4,7 +4,7 @@ import android.content.Context
 
 /**
  * 위젯마다 따로 두는 설정: 폴더, 표시 내용, 글자 크기, 배경 불투명도(null이면 꾸미기의 위젯 테마 값).
- * pos: 한 줄 모양에서 지금 보는 할 일 순서(글자를 눌러 넘긴 만큼, 그릴 때 할 일 수로 나눈 나머지).
+ * pos: 한 줄·작은 칸(잠금화면) 모양에서 지금 보는 할 일 순서(글자를 눌러 넘긴 만큼, 그릴 때 할 일 수로 나눈 나머지).
  * 다른 위젯의 폴더를 바꾸지 않는다. 예전의 쪽·메모 읽기 상태(page·anchor·reading…)는 목록으로 바꾸며 없앴다(2026-10-21).
  */
 data class WidgetPrefs(
@@ -14,7 +14,7 @@ data class WidgetPrefs(
   val opacity: Float?,
   val pos: Int = 0,
 ) {
-  /** 폴더를 바꾸면 한 줄 모양은 첫 할 일부터 */
+  /** 폴더를 바꾸면 한 줄·작은 칸 모양은 첫 할 일부터 */
   fun withFolder(id: String?) = if (id == folderId) this else copy(folderId = id, pos = 0)
 
   enum class Show { BOTH, TODOS, MEMO }

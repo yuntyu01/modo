@@ -222,6 +222,37 @@ object NotesDb {
     enqueue(db, "todo", id, false, fields, now)
   }
 
+  /**
+   * 그날이 온 반복 할 일을 맨 위로(앱 Repo.liftDueRepeats와 같은 규칙, 사용자 요청 2026-10-24). 회차마다 한 번: 그날 0시 뒤에
+   * 바뀐 적(updated_at)이 없을 때만 올리고, 올리며 updated_at을 남겨 다시 올리지 않는다. 보기 전용 공유 폴더는 그대로.
+   * 앱을 열지 않아도 자정 새로 고침에서 위젯 순서가 맞게. dryRun = 올릴 것이 있는지만(쓰기 잠금 없이 먼저 본다). 올린(올릴) 수
+   */
+  fun liftDueRepeats(db: SQLiteDatabase, dryRun: Boolean = false, now: Long = System.currentTimeMillis()): Int {
+    data class Due(val id: String, val updated: Long, val position: String)
+    val zone = java.time.ZoneId.systemDefault()
+    val rows = db.rawQuery(
+      "SELECT id, due_date, updated_at, position, folder_id FROM todos WHERE repeat_freq IS NOT NULL AND deleted_at IS NULL " +
+        "AND due_date IS NOT NULL AND due_date <= ?$live ORDER BY position DESC, id DESC",
+      arrayOf(Repeat.localDate(now).toString()),
+    ).use { c ->
+      buildList {
+        while (c.moveToNext()) {
+          val start = runCatching { java.time.LocalDate.parse(c.getString(1)) }.getOrNull()?.atStartOfDay(zone)?.toInstant()?.toEpochMilli() ?: continue
+          if (c.getLong(2) < start && !viewOnly(db, c.getString(4))) add(Due(c.getString(0), c.getLong(2), c.getString(3)))
+        }
+      }
+    }
+    if (dryRun || rows.isEmpty()) return rows.size
+    var edge = db.rawQuery("SELECT MIN(position) FROM todos WHERE 1 = 1$live", null).use { c -> if (c.moveToFirst() && !c.isNull(0)) c.getString(0) else null }
+    for (r in rows) {
+      val key = Frac.between(null, edge)
+      edge = key
+      db.execSQL("UPDATE todos SET position = ?, updated_at = ? WHERE id = ?", arrayOf(key, now, r.id))
+      enqueue(db, "todo", r.id, false, JSONObject().put("position", change(r.position, key)).put("updated_at", change(r.updated, now)), now)
+    }
+    return rows.size
+  }
+
   fun addTodo(db: SQLiteDatabase, text: String, target: String?, top: Boolean, now: Long = System.currentTimeMillis()): String {
     // 보기 전용 폴더에는 넣지 못하니 기본 폴더로(빠른 추가가 이미 그렇게 고르지만, 그 사이 권한이 바뀌었을 수 있다)
     val folderId = if (viewOnly(db, target)) null else target

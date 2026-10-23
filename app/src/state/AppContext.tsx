@@ -187,6 +187,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const offStatus = sync.onStatus(setStatus);
     // PC는 메인 프로세스가 동기화 주기를 정한다(창이 숨거나 닫혀도 계속)
     if (!desktop) sync.start();
+    // 그날이 온 반복 할 일을 맨 위로(켤 때 · 앞으로 올 때 · 자정, repo.liftDueRepeats). 쓰면 위 subscribe가 다시 읽고 보낸다
+    const lift = () => void repo.liftDueRepeats().catch(() => {});
+    lift();
     // 위젯·빠른 추가·다른 창이 DB를 직접 바꿨을 수 있어 앞으로 올 때마다 다시 읽는다.
     // iOS는 뒤로 갈 때 inactive → background 두 번 알리고, 제어 센터·전화처럼 잠깐 inactive만 되기도 한다.
     // 저장(flush)은 처음 떠날 때 한 번, 보내기·주기 멈춤은 background에서 한 번만(예전엔 둘 다 두 번씩 돌았다)
@@ -197,6 +200,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (st === 'active') {
         reload();
         setToday(fmt(new Date()));
+        lift();
         if (!desktop && prev !== 'inactive') sync.start();
         return;
       }
@@ -222,6 +226,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       dayTimer = setTimeout(() => {
         reload();
         setToday(fmt(new Date()));
+        lift();
         atMidnight();
       }, next - d.getTime());
     };

@@ -39,10 +39,24 @@ object ModoEvents {
   /** 위젯·잠금화면 알림·알람을 DB에 맞춘다. 문단(메모)만 바뀌었으면 위젯만(잠금화면 알림·알람은 할 일만 쓴다). null·빈 목록 = 전부 */
   fun refresh(ctx: Context, tables: List<String>?) {
     scheduleMidnight(ctx)
+    liftDueRepeats(ctx)
     NotesWidgetProvider.refreshAll(ctx)
     if (!tables.isNullOrEmpty() && tables.all { it == "paragraphs" }) return
     LockNotifier.refresh(ctx)
     Reminders.scheduleAll(ctx)
+  }
+
+  /**
+   * 그날이 온 반복 할 일을 맨 위로(NotesDb.liftDueRepeats): 앱을 열지 않아도 자정 새로 고침에서 위젯 순서가 맞게.
+   * 올릴 것이 있을 때만 쓰기 잠금을 잡는다. 올렸으면 앱에 알리고 서버로 보낸다
+   */
+  private fun liftDueRepeats(ctx: Context) {
+    if (NotesDb.use(ctx) { NotesDb.signedIn(it) && NotesDb.liftDueRepeats(it, dryRun = true) > 0 } != true) return
+    val n = NotesDb.write(ctx) { if (NotesDb.signedIn(it)) NotesDb.liftDueRepeats(it) else 0 } ?: 0
+    if (n > 0) {
+      dataChanged(ctx, listOf("todos"))
+      NotesSync.request(ctx)
+    }
   }
 
   /**

@@ -1,7 +1,7 @@
 import type { Db, Params } from './db';
 import { Mutex } from './db';
 import { keyBetween } from './frac';
-import { daysBetween, firstOnOrAfter, fmt, nextDue, ruleOf, shiftTime, type RepeatRule } from './repeat';
+import { daysBetween, firstOnOrAfter, fmt, nextDue, parse, ruleOf, shiftTime, type RepeatRule } from './repeat';
 import { addDoneDay, removeDoneDay } from './doneLog';
 import { MIGRATE_V2, MIGRATE_V3, MIGRATE_V5, SCHEMA, SCHEMA_SHARED, SCHEMA_VERSION } from './schema';
 import type { EntityName, Folder, Paragraph, SharedFolder, Snapshot, Todo } from './types';
@@ -624,6 +624,36 @@ export class Repo {
         remind_at: remind != null ? shiftTime(remind, daysBetween(due, today)) : null,
         done_log: removeDoneDay(cur.done_log as string | null, today),
       });
+    });
+  }
+  /**
+   * 그날이 온 반복 할 일을 맨 위로 올린다(사용자 요청 2026-10-24). 회차마다 한 번: 그날 0시 뒤에 바뀐 적(updated_at)이 없을 때만 올리고,
+   * 올리며 updated_at을 남겨 다시 올리지 않는다(올린 뒤 끌어 내리면 그대로, 체크하면 updated_at이 다음 예정일 전이라 그날 다시 올라온다).
+   * 다른 기기·위젯(NotesDb.liftDueRepeats, 같은 규칙)이 먼저 올렸으면 동기화로 받은 updated_at이 막는다. 보기 전용 공유 폴더는 그대로(서버가 거절한다).
+   * 앱을 켤 때·앞으로 올 때·자정에 부른다(AppContext). 여럿이면 원래 순서대로 맨 위에. 올린 수
+   */
+  async liftDueRepeats() {
+    const today = localDay(this.now());
+    const due = () =>
+      this.db
+        .all<{ id: string; due_date: string; updated_at: number }>(
+          `SELECT id, due_date, updated_at FROM todos WHERE repeat_freq IS NOT NULL AND deleted_at IS NULL AND due_date IS NOT NULL AND due_date <= ?
+           AND (folder_id IS NULL OR folder_id NOT IN (SELECT folder_id FROM shared_folders WHERE role = 'view'))
+           ORDER BY position DESC, id DESC`,
+          [today],
+        )
+        .then((rows) => rows.filter((r) => r.updated_at < parse(r.due_date).getTime()));
+    // 올릴 것이 없으면 쓰기 트랜잭션을 열지 않는다(앞으로 올 때마다 부른다)
+    if (!(await this.read(due)).length) return 0;
+    return this.write(async () => {
+      const rows = await due();
+      const t = this.now();
+      let edge = await this.edgeKey('todos', '1 = 1', [], 'first');
+      for (const r of rows) {
+        edge = keyBetween(null, edge);
+        await this.patch('todo', r.id, { position: edge, updated_at: t });
+      }
+      return rows.length;
     });
   }
   /** 끌어서 놓은 자리의 앞뒤 키 사이로 옮긴다. */

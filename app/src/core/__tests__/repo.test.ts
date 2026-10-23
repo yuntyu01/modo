@@ -60,6 +60,46 @@ test('캘린더에서 추가한 할 일은 그 날짜가 붙고 같이 동기화
   expect(ob[0].fields.due_date).toEqual({ old: null, new: '2026-10-21' });
 });
 
+test('반복 할 일은 그날이 되면 한 번 맨 위로 올라온다(끌어 내리면 그대로, 다음 회차에 다시)', async () => {
+  const day = (y: number, m: number, d: number, h = 12) => new Date(y, m - 1, d, h).getTime();
+  let now = day(2026, 10, 19);
+  const db = await memoryDb();
+  const repo = new Repo(db, randomUUID, () => now);
+  await repo.init();
+  const a = await repo.addTodo('보고서', null, 'bottom');
+  const b = await repo.addTodo('매일 운동', null, 'bottom');
+  const c = await repo.addTodo('매주 수요일 청소', null, 'bottom');
+  await repo.setRepeat(b, { freq: 'daily', days: null }, '2026-10-19');
+  await repo.setRepeat(c, { freq: 'weekly', days: 4 }, '2026-10-19');
+  const order = async () => (await repo.snapshot()).todos.filter((t) => !t.done).map((t) => t.text);
+  // 오늘 정한 반복은 그대로(방금 고쳤다)
+  expect(await repo.liftDueRepeats()).toBe(0);
+  await repo.complete(b); // 내일 다시
+  now = day(2026, 10, 20, 0) + 5000; // 자정 지나 5초
+  expect(await repo.liftDueRepeats()).toBe(1);
+  expect(await order()).toEqual(['매일 운동', '보고서', '매주 수요일 청소']); // 청소는 아직 앞날(처음 회차 전)이라 그 자리
+  // 한 번만: 다시 불러도, 끌어 내려도 그대로
+  expect(await repo.liftDueRepeats()).toBe(0);
+  const snap = await repo.snapshot();
+  const pa = snap.todos.find((t) => t.id === a)!.position;
+  await repo.moveTo('todo', b, pa, null);
+  expect(await repo.liftDueRepeats()).toBe(0);
+  expect(await order()).toEqual(['보고서', '매일 운동', '매주 수요일 청소']);
+  // 수요일: 운동은 아직 안 했고(이미 올렸던 회차) 청소가 처음 그날이 와 올라온다. 동기화 큐에 순서와 수정 시각이 실린다
+  now = day(2026, 10, 21, 7);
+  await repo.db.run(`DELETE FROM outbox`);
+  expect(await repo.liftDueRepeats()).toBe(1);
+  expect(await order()).toEqual(['매주 수요일 청소', '보고서', '매일 운동']);
+  const ob = await outbox(repo);
+  expect(ob.map((o) => Object.keys(o.fields).sort())).toEqual([['position', 'updated_at']]);
+  // 둘이 같은 날 오면 원래 순서대로 맨 위에
+  await repo.complete(b);
+  await repo.complete(c); // 운동 22일, 청소 28일
+  now = day(2026, 10, 28, 9);
+  expect(await repo.liftDueRepeats()).toBe(2);
+  expect(await order()).toEqual(['매주 수요일 청소', '매일 운동', '보고서']);
+});
+
 test('반복 할 일: 정하면 첫 예정일로, 체크하면 다음 예정일로 넘어가 그날까지만 완료(체크된 채 아래), 그날이 되면 다시 할 일', async () => {
   const day = (y: number, m: number, d: number, h = 12) => new Date(y, m - 1, d, h).getTime();
   let now = day(2026, 10, 16); // 금요일

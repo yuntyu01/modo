@@ -19,6 +19,7 @@
     android:src="@drawable/naegirok_widget_bg" />
 
   <LinearLayout
+    android:id="@+id/lock_body"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"

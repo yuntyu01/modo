@@ -113,17 +113,6 @@ open class NotesWidgetProvider : AppWidgetProvider() {
       }
       return
     }
-    // 한 줄 모양: 다음 할 일(끝에서 누르면 처음으로)
-    if (intent.action == ACTION_NEXT) {
-      val id = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
-      if (id == AppWidgetManager.INVALID_APPWIDGET_ID) return
-      Work.run(this) {
-        val wp = WidgetPrefs.load(ctx, id)
-        wp.copy(pos = wp.pos + 1).save(ctx, id)
-        update(ctx, AppWidgetManager.getInstance(ctx), id)
-      }
-      return
-    }
     super.onReceive(ctx, intent)
   }
 
@@ -131,7 +120,6 @@ open class NotesWidgetProvider : AppWidgetProvider() {
     const val ACTION_TOGGLE = "com.yuntyu01.naegirok.widget.TOGGLE"
     const val ACTION_PAGE = "com.yuntyu01.naegirok.widget.PAGE"
     const val ACTION_ITEM = "com.yuntyu01.naegirok.widget.ITEM"
-    const val ACTION_NEXT = "com.yuntyu01.naegirok.widget.NEXT"
     const val ACTION_FOLDER = "com.yuntyu01.naegirok.widget.FOLDER"
     const val EXTRA_FOLDER = "folder"
     const val EXTRA_ITEM = "item"
@@ -192,7 +180,7 @@ open class NotesWidgetProvider : AppWidgetProvider() {
         android.appwidget.AppWidgetProviderInfo.WIDGET_CATEGORY_KEYGUARD
       // 홈 화면: 놓인 크기에 맞게(동그라미 칸 · 한 줄 · 메모 + 할 일 목록, HomeWidget.responsive).
       // 잠금화면: 카드 넘기기(메모 카드 다음 할 일 한 장씩, HomeWidget.lock)
-      val view = if (keyguard) HomeWidget.lock(ctx, mgr, id, scrollTop) else HomeWidget.responsive(ctx, mgr, id, HomeWidget.render(ctx, mgr, id, scrollTop))
+      val view = if (keyguard) HomeWidget.lock(ctx, mgr, id, scrollTop) else HomeWidget.responsive(ctx, mgr, id, scrollTop, HomeWidget.render(ctx, mgr, id, scrollTop))
       mgr.updateAppWidget(id, view)
     }
   }

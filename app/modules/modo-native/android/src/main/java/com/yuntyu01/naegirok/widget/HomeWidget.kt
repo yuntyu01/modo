@@ -61,8 +61,11 @@ object HomeWidget {
   private const val META_GAP = 0f
   /** 작은 칸 모양을 고르는 크기(dp): 이 폭보다 좁으면 동그라미 모양, 이 높이부터 한 줄 모양의 위 줄(폴더), 이 높이부터 목록 */
   private const val SMALL_W = 110f
-  private const val TWO_ROWS_H = 70f
+  /** 이 높이부터 두 줄짜리 카드(아래 줄·두 줄 제목), 그보다 낮으면 한 줄 카드 */
+  private const val CARD_H = 56f
   private const val FULL_H = 150f
+  /** 카드로 싣는 할 일 수(크기별 모양을 함께 넘겨 위젯 내용이 너무 커지지 않게. 더 있으면 끝에 '외 N개' 카드) */
+  private const val CARD_LIMIT = 30
   /** 잠금화면 위젯: 이 높이부터 위 줄(로고 · 폴더 이름 · 이전/다음 폴더)을 보인다 */
   private const val LOCK_HEAD_H = 100f
   /** 위젯 목록에 싣는 할 일 수(더 있으면 끝에 '외 N개'). 위젯 내용은 한 번에 시스템으로 넘어가서 너무 크면 그리지 못한다 */
@@ -325,31 +328,38 @@ object HomeWidget {
     }
 
   /**
-   * 놓인 칸 크기에 맞는 모양을 고른다. Android 12+는 크기별 모양을 함께 넘겨 런처·잠금화면이 실제 칸에 맞는 것을 고르고,
-   * 그 아래는 런처가 알려 준 크기로 고른다: 동그라미·아주 작은 칸 = 로고 + 남은 개수, 낮은 칸 = 한 줄(폴더 고르기 · 할 일 하나씩),
-   * 그보다 크면 full(홈은 메모 + 할 일 목록, 잠금화면은 예전 모양). 삼성 잠금화면 칸에 큰 위젯이 그대로 줄어 들어가
-   * 내용 없이 잘린 테두리만 보였다(사용자 제보 2026-10-21).
+   * 홈 화면: 놓인 칸 크기에 맞는 모양(sized). 크면 full(메모 + 할 일 목록)
    */
-  fun responsive(ctx: Context, mgr: AppWidgetManager, id: Int, full: RemoteViews): RemoteViews {
-    val s = loadSmall(ctx, id, keyguard = false)
+  fun responsive(ctx: Context, mgr: AppWidgetManager, id: Int, scrollTop: Boolean, full: RemoteViews): RemoteViews =
+    sized(ctx, mgr, id, loadSmall(ctx, id, keyguard = false), scrollTop, full)
+
+  /**
+   * 칸 크기에 맞는 모양. Android 12+는 크기별 모양을 함께 넘겨 런처·잠금화면이 실제 칸에 맞는 것을 고르고, 그 아래는 런처가 알려 준 크기로:
+   * 폭 110dp 미만(동그라미 칸) = 로고 + 남은 개수, 높이 56dp 미만 = 한 줄 카드 넘기기, 100dp 미만 = 카드 넘기기,
+   * 그 위 = 위 줄(로고 · 폴더 · 이전/다음 폴더) + 카드 넘기기, full이 있으면(홈) 150dp부터 목록.
+   * 작은 칸은 홈이든 잠금화면이든 카드: 삼성 잠금화면이 잠금화면 위젯을 홈 화면 위젯처럼 알려 줘도 카드 넘기기가 되게,
+   * 넓은 칸의 높이가 30~40dp쯤이라 그보다 낮아도 한 줄 카드로(예전엔 40dp 아래면 개수만 보였다, 사용자 제보 2026-10-23)
+   */
+  private fun sized(ctx: Context, mgr: AppWidgetManager, id: Int, s: Small, scrollTop: Boolean, full: RemoteViews?): RemoteViews {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-      return RemoteViews(
-        mapOf(
-          SizeF(40f, 40f) to tiny(ctx, id, s),
-          SizeF(SMALL_W, 40f) to strip(ctx, id, s, twoRows = false),
-          SizeF(SMALL_W, TWO_ROWS_H) to strip(ctx, id, s, twoRows = true),
-          SizeF(160f, FULL_H) to full,
-        ),
+      val map = linkedMapOf(
+        SizeF(40f, 40f) to tiny(ctx, id, s),
+        SizeF(SMALL_W, 1f) to lockStack(ctx, id, s, head = false, slim = true, scrollTop),
+        SizeF(SMALL_W, CARD_H) to lockStack(ctx, id, s, head = false, slim = false, scrollTop),
+        SizeF(SMALL_W, LOCK_HEAD_H) to lockStack(ctx, id, s, head = true, slim = false, scrollTop),
       )
+      if (full != null) map[SizeF(160f, FULL_H)] = full
+      return RemoteViews(map)
     }
     val o = mgr.getAppWidgetOptions(id)
     val w = o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0)
     val h = o.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0)
     return when {
       w in 1 until SMALL_W.toInt() -> tiny(ctx, id, s)
-      h in 1 until TWO_ROWS_H.toInt() -> strip(ctx, id, s, twoRows = false)
-      h in 1 until FULL_H.toInt() -> strip(ctx, id, s, twoRows = true)
-      else -> full
+      h in 1 until CARD_H.toInt() -> lockStack(ctx, id, s, head = false, slim = true, scrollTop)
+      h in 1 until LOCK_HEAD_H.toInt() -> lockStack(ctx, id, s, head = false, slim = false, scrollTop)
+      full != null && (h == 0 || h >= FULL_H) -> full
+      else -> lockStack(ctx, id, s, head = true, slim = false, scrollTop)
     }
   }
 
@@ -372,7 +382,7 @@ object HomeWidget {
       val folder = NotesDb.folders(db).firstOrNull { it.id == wp.folderId }
       val fid = folder?.id
       Small(
-        Colors.of(ctx, prefs), fid, folder?.name ?: base, NotesDb.todos(db, fid, limit = 100), NotesDb.countTodos(db, fid),
+        Colors.of(ctx, prefs), fid, folder?.name ?: base, NotesDb.todos(db, fid, limit = CARD_LIMIT), NotesDb.countTodos(db, fid),
         true, NotesDb.viewOnly(db, fid), privacy, wp, keyguard, memoText(NotesDb.memo(db, fid)),
       )
     } ?: Small(Colors.of(ctx, org.json.JSONObject()), null, base, emptyList(), 0, false, false, "private", wp, keyguard)
@@ -398,114 +408,22 @@ object HomeWidget {
   }
 
   /**
-   * 낮은 칸(삼성 잠금화면의 넓은 칸, 홈의 4×1): 위 줄 = 로고 · 폴더 이름 · 이전/다음 폴더(높이가 모자라면 뺀다),
-   * 아래 줄 = 동그라미(완료) · 할 일 하나 · 몇 번째/몇 개 · 다음 할 일. 완료하면 다음 할 일이 그 자리로 온다.
-   */
-  private fun strip(ctx: Context, id: Int, s: Small, twoRows: Boolean) = RemoteViews(ctx.packageName, R.layout.widget_strip).apply {
-    val c = s.colors
-    background(this, c, s)
-    // 앱은 폴더 이름으로 연다(빈 곳·› 옆을 잘못 눌러 앱이 켜지지 않게)
-    val open = activity(ctx, id, openApp(ctx, s.folderId, id))
-    val textSp = s.wp.textSize
-    setViewVisibility(R.id.strip_head, if (twoRows) View.VISIBLE else View.GONE)
-    setTextViewText(R.id.strip_folder, s.folderName)
-    setTextViewTextSize(R.id.strip_folder, TypedValue.COMPLEX_UNIT_SP, textSp - 1)
-    c.set(this, R.id.strip_folder, "setTextColor") { it.text }
-    setOnClickPendingIntent(R.id.strip_folder, open)
-    for ((view, step) in listOf(R.id.strip_prev to -1, R.id.strip_next to 1)) {
-      c.set(this, view, "setColorFilter") { it.text }
-      setInt(view, "setImageAlpha", 200)
-      val page = Intent(ctx, NotesWidgetProvider::class.java).setAction(NotesWidgetProvider.ACTION_PAGE)
-        .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id).putExtra(NotesWidgetProvider.EXTRA_STEP, step)
-        .setData(Uri.parse("naegirok://widget-page/$id/$step"))
-      setOnClickPendingIntent(view, broadcast(ctx, id, page))
-    }
-    setContentDescription(R.id.strip_prev, ctx.getString(R.string.prev_folder))
-    setContentDescription(R.id.strip_next, ctx.getString(R.string.next_folder))
-    setTextViewTextSize(R.id.strip_text, TypedValue.COMPLEX_UNIT_SP, textSp)
-    c.set(this, R.id.strip_text, "setTextColor") { it.text }
-    c.set(this, R.id.strip_pos, "setTextColor") { it.muted }
-    c.set(this, R.id.strip_down, "setColorFilter") { it.text }
-    setInt(R.id.strip_down, "setImageAlpha", 200)
-    val n = s.todos.size
-    // 할 일 대신 안내만: 로그인 전, 잠금화면 공개 범위가 개수만·숨기기일 때. 할 일이 없으면 아무 글 없이(큰 위젯과 같다)
-    val note = when {
-      !s.signedIn -> ctx.getString(R.string.login_first)
-      s.privacy == "secret" -> ctx.getString(R.string.lock_hidden)
-      s.privacy != "public" -> ctx.getString(R.string.lock_title, s.count)
-      else -> null
-    }
-    if (note != null || n == 0) {
-      setTextViewText(R.id.strip_text, note ?: "")
-      setViewVisibility(R.id.strip_check, View.GONE)
-      setViewVisibility(R.id.strip_pos, View.GONE)
-      setViewVisibility(R.id.strip_down, View.GONE)
-      return@apply
-    }
-    val i = Math.floorMod(s.wp.pos, n)
-    val t = s.todos[i]
-    val done = t.id in NotesWidgetProvider.completing
-    setTextViewText(R.id.strip_text, if (done) struck(Rich.spanned(t.text)) else Rich.spanned(t.text))
-    if (done) c.set(this, R.id.strip_text, "setTextColor") { it.muted }
-    setViewVisibility(R.id.strip_check, View.VISIBLE)
-    setImageViewResource(R.id.strip_ring, if (t.repeatFreq != null) R.drawable.naegirok_check_repeat else R.drawable.naegirok_check_off)
-    c.set(this, R.id.strip_ring, "setColorFilter") { it.circle }
-    c.set(this, R.id.strip_fill, "setColorFilter") { it.accent }
-    c.set(this, R.id.strip_tick, "setColorFilter") { it.onAccent }
-    setDisplayedChild(R.id.strip_check, if (done) 1 else 0)
-    // 동그라미 = 완료, 글자 = 고치기(잠금화면에서는 시스템이 먼저 잠금 해제를 묻는다). 보기만 공유된 폴더는 앱의 그 폴더로
-    val toggle = Intent(ctx, NotesWidgetProvider::class.java).setAction(NotesWidgetProvider.ACTION_TOGGLE)
-      .putExtra(NotesWidgetProvider.EXTRA_TODO, t.id)
-      .setData(Uri.parse("naegirok://toggle/$id/${t.id}"))
-    setOnClickPendingIntent(R.id.strip_check, if (s.readOnly) open else broadcast(ctx, id, toggle))
-    setContentDescription(R.id.strip_check, if (s.readOnly) ctx.getString(R.string.widget_open_app) else ctx.getString(R.string.mark_done, Rich.plain(t.text)))
-    val edit = Intent(ctx, WidgetEditActivity::class.java)
-      .putExtra(WidgetEditActivity.EXTRA_TODO, t.id)
-      .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-      .setData(Uri.parse("naegirok://edit/todo/${t.id}/$id"))
-    setOnClickPendingIntent(R.id.strip_text, if (s.readOnly) open else activity(ctx, id, edit))
-    setContentDescription(R.id.strip_text, ctx.getString(R.string.edit_todo) + ": " + Rich.plain(t.text))
-    // 몇 번째/몇 개와 다음 할 일: 둘 이상일 때만
-    val many = s.count > 1
-    setViewVisibility(R.id.strip_pos, if (many) View.VISIBLE else View.GONE)
-    setTextViewText(R.id.strip_pos, "${i + 1}/${s.count}")
-    setViewVisibility(R.id.strip_down, if (n > 1) View.VISIBLE else View.GONE)
-    val next = Intent(ctx, NotesWidgetProvider::class.java).setAction(NotesWidgetProvider.ACTION_NEXT)
-      .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id)
-      .setData(Uri.parse("naegirok://widget-next/$id"))
-    setOnClickPendingIntent(R.id.strip_down, broadcast(ctx, id, next))
-    setContentDescription(R.id.strip_down, ctx.getString(R.string.next_todo))
-  }
-
-  /**
    * 잠금화면 위젯: 카드 넘기기(StackView). 메모 카드 다음에 할 일이 한 장씩, 위아래로 살짝 튕기면 다음 카드로 딱 맞춰 넘어간다
    * (사용자 요청 2026-10-22. 위젯 목록(ListView)은 손을 떼면 줄에 맞춰 멈추지 않는다). 위 줄은 로고(누르면 앱) · 폴더 이름 ·
    * 이전/다음 폴더, 칸이 낮으면 카드만. 동그라미 칸은 남은 개수. 잠금화면 알림의 공개 범위(내용 · 개수만 · 숨기기)를 따른다.
    */
-  fun lock(ctx: Context, mgr: AppWidgetManager, id: Int, scrollTop: Boolean): RemoteViews {
-    val s = loadSmall(ctx, id, keyguard = true)
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-      return RemoteViews(
-        mapOf(
-          SizeF(40f, 40f) to tiny(ctx, id, s),
-          SizeF(SMALL_W, 40f) to lockStack(ctx, id, s, head = false, scrollTop),
-          SizeF(SMALL_W, LOCK_HEAD_H) to lockStack(ctx, id, s, head = true, scrollTop),
-        ),
-      )
-    }
-    val o = mgr.getAppWidgetOptions(id)
-    val w = o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0)
-    val h = o.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0)
-    return when {
-      w in 1 until SMALL_W.toInt() -> tiny(ctx, id, s)
-      else -> lockStack(ctx, id, s, head = h == 0 || h >= LOCK_HEAD_H, scrollTop)
-    }
-  }
+  fun lock(ctx: Context, mgr: AppWidgetManager, id: Int, scrollTop: Boolean): RemoteViews =
+    sized(ctx, mgr, id, loadSmall(ctx, id, keyguard = true), scrollTop, full = null)
 
-  private fun lockStack(ctx: Context, id: Int, s: Small, head: Boolean, scrollTop: Boolean) = RemoteViews(ctx.packageName, R.layout.widget_lock).apply {
+  /** slim: 아주 낮은 칸 — 위아래 여백을 줄이고 카드는 한 줄 */
+  private fun lockStack(ctx: Context, id: Int, s: Small, head: Boolean, slim: Boolean, scrollTop: Boolean) = RemoteViews(ctx.packageName, R.layout.widget_lock).apply {
     val c = s.colors
     background(this, c, s)
     setViewVisibility(R.id.lock_head, if (head) View.VISIBLE else View.GONE)
+    if (slim) {
+      val dp = ctx.resources.displayMetrics.density
+      setViewPadding(R.id.lock_body, (6 * dp).toInt(), (2 * dp).toInt(), (6 * dp).toInt(), (2 * dp).toInt())
+    }
     // 앱은 로고로만 연다(폴더 이름·빈 곳을 눌러 앱이 켜지지 않게)
     setOnClickPendingIntent(R.id.lock_brand, activity(ctx, id, openApp(ctx, s.folderId, id)))
     setContentDescription(R.id.lock_brand, ctx.getString(R.string.widget_open_app))
@@ -524,7 +442,7 @@ object HomeWidget {
     setContentDescription(R.id.lock_next, ctx.getString(R.string.next_folder))
 
     val lang = ctx.resources.configuration.locales[0].language
-    val items = RemoteViewsCompat.RemoteCollectionItems.Builder().setViewTypeCount(2)
+    val items = RemoteViewsCompat.RemoteCollectionItems.Builder().setViewTypeCount(3)
     var n = 0L
     val note = when {
       !s.signedIn -> ctx.getString(R.string.login_first)
@@ -533,15 +451,15 @@ object HomeWidget {
       else -> null
     }
     if (note != null) {
-      items.addItem(n++, noteCard(ctx, c, s, note, NotesWidgetProvider.ITEM_OPEN))
+      items.addItem(n++, noteCard(ctx, c, s, note, NotesWidgetProvider.ITEM_OPEN, slim))
     } else {
       if (s.wp.show != WidgetPrefs.Show.TODOS && s.memo.isNotBlank()) {
-        items.addItem(n++, noteCard(ctx, c, s, s.memo, if (s.readOnly) NotesWidgetProvider.ITEM_OPEN else NotesWidgetProvider.ITEM_MEMO))
+        items.addItem(n++, noteCard(ctx, c, s, s.memo, if (s.readOnly) NotesWidgetProvider.ITEM_OPEN else NotesWidgetProvider.ITEM_MEMO, slim))
       }
       if (s.wp.show != WidgetPrefs.Show.MEMO) {
-        s.todos.forEachIndexed { i, t -> items.addItem(n++, todoCard(ctx, c, s, t, i, lang)) }
+        s.todos.forEachIndexed { i, t -> items.addItem(n++, todoCard(ctx, c, s, t, i, lang, slim)) }
         val more = s.count - s.todos.size
-        if (more > 0) items.addItem(n++, noteCard(ctx, c, s, ctx.getString(R.string.lock_more, more), NotesWidgetProvider.ITEM_OPEN))
+        if (more > 0) items.addItem(n++, noteCard(ctx, c, s, ctx.getString(R.string.lock_more, more), NotesWidgetProvider.ITEM_OPEN, slim))
       }
     }
     RemoteViewsCompat.setRemoteAdapter(ctx, this, id, R.id.lock_stack, items.build())
@@ -557,25 +475,33 @@ object HomeWidget {
   }
 
   /** 글 카드: 메모 전체(누르면 메모 고치기) 또는 안내(누르면 앱) */
-  private fun noteCard(ctx: Context, c: Colors, s: Small, text: CharSequence, action: String) = RemoteViews(ctx.packageName, R.layout.widget_lock_note).apply {
+  private fun noteCard(ctx: Context, c: Colors, s: Small, text: CharSequence, action: String, slim: Boolean) = RemoteViews(ctx.packageName, R.layout.widget_lock_note).apply {
     cardBg(this, c)
     setTextViewText(R.id.note_text, text)
-    setTextViewTextSize(R.id.note_text, TypedValue.COMPLEX_UNIT_SP, s.wp.textSize)
+    setTextViewTextSize(R.id.note_text, TypedValue.COMPLEX_UNIT_SP, if (slim) s.wp.textSize - 1 else s.wp.textSize)
+    if (slim) {
+      // 한 줄 카드: 메모는 첫 줄만(…), 위아래 여백 없이
+      val dp = ctx.resources.displayMetrics.density
+      setInt(R.id.note_text, "setMaxLines", 1)
+      setViewPadding(R.id.note_text, (12 * dp).toInt(), 0, (12 * dp).toInt(), 0)
+    }
     c.set(this, R.id.note_text, "setTextColor") { if (action == NotesWidgetProvider.ITEM_MEMO) it.text else it.muted }
     setOnClickFillInIntent(R.id.note_root, fill(action, folder = s.folderId))
     setContentDescription(R.id.note_root, (if (action == NotesWidgetProvider.ITEM_MEMO) ctx.getString(R.string.edit_memo) + ": " else "") + text.take(200))
   }
 
   /** 할 일 카드: 동그라미(완료) · 할 일 · 아래 줄 · 몇 번째/몇 개. 글자를 누르면 고치기(시스템이 먼저 잠금 해제를 묻는다) */
-  private fun todoCard(ctx: Context, c: Colors, s: Small, t: NotesDb.Todo, i: Int, lang: String) = RemoteViews(ctx.packageName, R.layout.widget_lock_card).apply {
+  private fun todoCard(ctx: Context, c: Colors, s: Small, t: NotesDb.Todo, i: Int, lang: String, slim: Boolean) =
+    RemoteViews(ctx.packageName, if (slim) R.layout.widget_lock_card_slim else R.layout.widget_lock_card).apply {
     cardBg(this, c)
     val done = t.id in NotesWidgetProvider.completing
     setTextViewText(R.id.card_text, if (done) struck(Rich.spanned(t.text)) else Rich.spanned(t.text))
-    setTextViewTextSize(R.id.card_text, TypedValue.COMPLEX_UNIT_SP, s.wp.textSize + 1)
+    setTextViewTextSize(R.id.card_text, TypedValue.COMPLEX_UNIT_SP, if (slim) s.wp.textSize - 1 else s.wp.textSize + 1)
     c.set(this, R.id.card_text, "setTextColor") { if (done) it.muted else it.text }
-    val parts = CardMeta.parts(t.due, t.remindAt, t.repeatFreq, t.repeatDays, false, lang)
+    // 한 줄 카드는 아래 줄(날짜·반복) 없이 제목 한 줄
+    val parts = if (slim) emptyList() else CardMeta.parts(t.due, t.remindAt, t.repeatFreq, t.repeatDays, false, lang)
     setViewVisibility(R.id.card_meta, if (parts.isEmpty()) View.GONE else View.VISIBLE)
-    setInt(R.id.card_text, "setMaxLines", if (parts.isEmpty()) 2 else 1)
+    setInt(R.id.card_text, "setMaxLines", if (parts.isEmpty() && !slim) 2 else 1)
     if (parts.isNotEmpty()) {
       setTextViewText(R.id.card_meta, metaLine(parts))
       setTextViewTextSize(R.id.card_meta, TypedValue.COMPLEX_UNIT_SP, s.wp.textSize - 2)

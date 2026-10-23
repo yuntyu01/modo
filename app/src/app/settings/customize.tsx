@@ -165,19 +165,17 @@ export default function Customize() {
     { value: 'l', label: t('sizeL') },
     { value: 'xl', label: t('sizeXL') },
   ];
-  // 탭: 공통 · 홈 위젯 · 잠금 위젯(휴대폰), 공통 · PC(미니창). 사용자 요청 2026-10-22·24.
-  // 꾸미기는 기기마다 따로 저장돼(계정으로 맞추는 것은 테마색뿐) 휴대폰에서 PC 탭을, PC에서 위젯 탭을 고쳐도 그 기기에는 쓰이지 않아 보이지 않는다
-  const tabs: { value: Tab; label: string }[] =
-    Platform.OS === 'web'
-      ? [
-          { value: 'common', label: t('tabCommon') },
-          { value: 'mini', label: t('tabMini') },
-        ]
-      : [
-          { value: 'common', label: t('tabCommon') },
-          { value: 'home', label: t('tabHomeWidget') },
-          { value: 'lock', label: t('tabLockWidget') },
-        ];
+  // 탭: 공통 · 홈 위젯 · 잠금 위젯 · PC(미니창), 휴대폰·PC 모두(사용자 요청 2026-10-22·24). 꾸미기는 계정으로 맞춰져
+  // (core/look.ts) 휴대폰에서 PC 미니창을, PC에서 휴대폰 위젯을 고칠 수 있다
+  const tabs: { value: Tab; label: string }[] = [
+    { value: 'common', label: t('tabCommon') },
+    { value: 'home', label: t('tabHomeWidget') },
+    { value: 'lock', label: t('tabLockWidget') },
+    { value: 'mini', label: t('tabMini') },
+  ];
+  // 다른 기기 것을 고치는 탭(휴대폰의 PC 탭, PC의 위젯 탭)에는 그 기기에 맞춰진다고 알린다
+  const otherDevice = (forPhone: boolean) =>
+    (Platform.OS === 'web') === forPhone ? <Text style={theme.kfont(13, { color: theme.subtle, marginLeft: 4, marginTop: -4, marginBottom: 14 })}>{t(forPhone ? 'lookSyncPhone' : 'lookSyncPc')}</Text> : null;
   const [tab, setTab] = useState<Tab>('common');
   return (
     <SubScreen title={t('customize')} titleSize={20} titleGap={10} headerShift={-2.5} contentTop={0} padLeft={19}>
@@ -243,8 +241,9 @@ export default function Customize() {
             value={prefs.widget}
             onChange={(widget) => setPrefs({ widget })}
             opacityLabel={t('homeWidgetOpacity')}
-            extra={<Row label={t('addHomeWidget')} onPress={() => router.push('/settings/widgets')} last />}
+            extra={Platform.OS !== 'web' ? <Row label={t('addHomeWidget')} onPress={() => router.push('/settings/widgets')} last /> : undefined}
           />
+          {otherDevice(true)}
         </>
       ) : null}
       {tab === 'lock' ? (
@@ -269,9 +268,15 @@ export default function Customize() {
             />
           </View>
           <Text style={theme.kfont(13, { color: theme.subtle, marginLeft: 4, marginBottom: 14 })}>{t('lockWidgetColorNote')}</Text>
+          {otherDevice(true)}
         </>
       ) : null}
-      {tab === 'mini' ? <SurfaceLook value={prefs.mini} onChange={(mini) => setPrefs({ mini })} opacityLabel={t('miniOpacity')} /> : null}
+      {tab === 'mini' ? (
+        <>
+          <SurfaceLook value={prefs.mini} onChange={(mini) => setPrefs({ mini })} opacityLabel={t('miniOpacity')} />
+          {otherDevice(false)}
+        </>
+      ) : null}
 
       <Sheet visible={sizeSheet} onClose={() => setSizeSheet(false)}>
         {sizes.map((s) => (

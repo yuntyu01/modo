@@ -77,6 +77,8 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/me", s.auth(s.deleteAccount))
 	mux.HandleFunc("GET /api/me/theme", s.auth(s.getTheme))
 	mux.HandleFunc("PUT /api/me/theme", s.auth(s.putTheme))
+	mux.HandleFunc("GET /api/me/look", s.auth(s.getLook))
+	mux.HandleFunc("PUT /api/me/look", s.auth(s.putLook))
 	mux.HandleFunc("GET /api/themes/popular", s.popularThemes)
 
 	mux.HandleFunc("POST /api/sync/push", s.auth(s.push))

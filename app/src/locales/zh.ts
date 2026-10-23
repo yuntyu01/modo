@@ -206,6 +206,8 @@ export const zh: Record<StringKey, string> = {
   tabHomeWidget: '主屏小组件',
   tabLockWidget: '锁屏小组件',
   tabMini: 'PC',
+  lookSyncPhone: '会应用到同一账号手机上的小组件（在手机上打开 modo 后更新）。',
+  lookSyncPc: '会应用到用同一账号登录的电脑迷你窗口。',
   addHomeWidget: '在主屏幕添加小组件',
   lockWidgetShows: '锁屏显示内容',
   lockWidgetColorNote: '锁屏通知也使用此设置。',

@@ -13,6 +13,9 @@ CREATE TABLE IF NOT EXISTS users (
 -- 테마(테마색 '#RRGGBB'): PC·휴대폰이 이어 쓰고, 인기 색 집계(지금 그 색을 쓰는 계정 수)에 쓴다. 늦게 바꾼 기기가 이긴다(theme.go).
 ALTER TABLE users ADD COLUMN IF NOT EXISTS theme_id TEXT CHECK (theme_id ~ '^#[0-9A-F]{6}$');
 ALTER TABLE users ADD COLUMN IF NOT EXISTS theme_updated_at BIGINT NOT NULL DEFAULT 0;
+-- 꾸미기 한 벌(JSON 객체, 내용은 앱이 정한다): 휴대폰에서 PC 미니창을, PC에서 위젯을 고칠 수 있게. 늦게 바꾼 기기가 이긴다(look.go).
+ALTER TABLE users ADD COLUMN IF NOT EXISTS look JSONB;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS look_updated_at BIGINT NOT NULL DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS password_logins (
     user_id       UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,

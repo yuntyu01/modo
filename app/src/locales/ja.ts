@@ -206,6 +206,8 @@ export const ja: Record<StringKey, string> = {
   tabHomeWidget: 'ホームウィジェット',
   tabLockWidget: 'ロックウィジェット',
   tabMini: 'PC',
+  lookSyncPhone: '同じアカウントのスマホのウィジェットに反映されます（スマホでmodoを開くと変わります）。',
+  lookSyncPc: '同じアカウントでログインしたPCのミニウィンドウに反映されます。',
   addHomeWidget: 'ホーム画面にウィジェットを追加',
   lockWidgetShows: 'ロック画面に表示する内容',
   lockWidgetColorNote: 'ロック画面の通知もこの設定に従います。',

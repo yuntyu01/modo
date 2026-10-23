@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 import { BRAND } from '../brand';
 import type { Lang } from '../i18n';
 import { SERVICE_ORIGIN } from '../core/sync';
+import { seedLookAts } from '../core/look';
 
 export type SurfaceTheme = {
   /** true면 앱 테마를 그대로 따른다 */
@@ -38,6 +39,8 @@ export type Prefs = {
   logoAccent: boolean;
   /** 테마색을 마지막으로 바꾼 시각(밀리초). 계정 테마와 맞출 때 늦게 바꾼 쪽이 이긴다. 0 = 아직 안 바꿈 */
   accentAt: number;
+  /** 꾸미기 항목(core/look.ts LOOK_KEYS)마다 바꾼 시각(밀리초). 계정 꾸미기와 맞출 때 항목마다 늦게 바꾼 쪽이 이긴다. 없음 = 손대지 않음 */
+  lookAts: Record<string, number>;
   language: 'system' | Lang;
   /** 홈 화면 위젯 */
   widget: SurfaceTheme;
@@ -98,6 +101,7 @@ export const DEFAULT_PREFS: Prefs = {
   showDone: Platform.OS !== 'web',
   logoAccent: true,
   accentAt: 0,
+  lookAts: {},
   language: 'system',
   // 배경 불투명도. 꾸미기에는 '투명도'로 보인다(0~100%). 위젯은 홈·잠금화면을 따로 정하고 기본은 둘 다 투명도 60%
   // (사용자 요청 2026-10-22. 그 전 기본은 20%), 미니창은 그대로 20%
@@ -108,7 +112,7 @@ export const DEFAULT_PREFS: Prefs = {
   hintSeen: false,
   onboarded: false,
   server: DEFAULT_SERVER,
-  prefsVersion: 3,
+  prefsVersion: 4,
 };
 
 /** 예전 위젯 설정에서 잠금화면 위젯 값(색은 홈 위젯과 같았다, 투명도·체크 위치는 lock*) */
@@ -144,6 +148,8 @@ export function mergePrefs(saved: Partial<Prefs> | null): Prefs {
   }
   // 위젯 기본 투명도를 20% → 60%로 바꿨다(2026-10-22): 예전 기본(불투명도 0.8)을 그대로 두고 있던 홈 위젯만 한 번 새 기본값으로
   if ((saved?.prefsVersion ?? 1) < 3 && (saved?.widget?.opacity ?? 0.8) === 0.8) p.widget.opacity = DEFAULT_PREFS.widget.opacity;
+  // 꾸미기를 계정과 맞추기 전 설정(2026-10-24): 기본값과 다른 항목은 계정에 올라가게 아주 이른 시각으로(core/look.ts seedLookAts)
+  if (saved && (saved.prefsVersion ?? 1) < 4 && !saved.lookAts) p.lookAts = seedLookAts(p, DEFAULT_PREFS);
   p.prefsVersion = DEFAULT_PREFS.prefsVersion;
   return p;
 }

@@ -1,4 +1,5 @@
 import { CodedError } from './errors';
+import { asLook, mergeLook, type LookBlob } from './look';
 import type { Repo } from './repo';
 import type { EntityName, FriendsData, SharedFolder } from './types';
 
@@ -42,7 +43,7 @@ export class AuthCancelled extends Error {}
  */
 export type SyncApi = Pick<
   SyncEngine,
-  'status' | 'onStatus' | 'start' | 'stop' | 'schedule' | 'syncNow' | 'account' | 'login' | 'providers' | 'loginExternal' | 'logout' | 'deleteAccount' | 'syncTheme' | 'shareApi' | 'beginEdit' | 'endEdit'
+  'status' | 'onStatus' | 'start' | 'stop' | 'schedule' | 'syncNow' | 'account' | 'login' | 'providers' | 'loginExternal' | 'logout' | 'deleteAccount' | 'syncTheme' | 'syncLook' | 'shareApi' | 'beginEdit' | 'endEdit'
 >;
 
 export type SyncStatus = {
@@ -434,6 +435,29 @@ export class SyncEngine {
       await api(this.fetchFn, acc.server, '/api/me/theme', { method: 'PUT', token: acc.token, body: JSON.stringify({ theme_id: id, updated_at: local.accentAt }) });
     }
     return null;
+  }
+
+  /**
+   * 꾸미기 한 벌을 계정과 맞춘다(core/look.ts): 항목마다 늦게 바꾼 쪽. 이 기기 것이 늦은 항목이 있으면 합쳐 올리고,
+   * 계정 것이 늦은 항목을 돌려준다(없으면 null). 서버가 아직 모르면(404: 새 서버로 바꾸기 전) 조용히 넘어간다
+   */
+  async syncLook(local: LookBlob): Promise<LookBlob | null> {
+    const acc = await this.account();
+    if (!acc) return null;
+    let remote: { look: unknown; updated_at: number };
+    try {
+      remote = await api(this.fetchFn, acc.server, '/api/me/look', { token: acc.token });
+    } catch (e) {
+      if (e instanceof HttpError && (e.status === 404 || e.status === 405)) return null;
+      throw e;
+    }
+    const { merged, apply, push } = mergeLook(local, asLook(remote.look));
+    if (push) {
+      // 서버는 저장된 것보다 늦은 시각만 받는다
+      const at = Math.max(Date.now(), remote.updated_at + 1);
+      await api(this.fetchFn, acc.server, '/api/me/look', { method: 'PUT', token: acc.token, body: JSON.stringify({ look: merged, updated_at: at }) });
+    }
+    return Object.keys(apply.v).length ? apply : null;
   }
 
   // ---------- 공유 API ----------

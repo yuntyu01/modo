@@ -3,7 +3,7 @@
 // - 창을 닫거나 숨겨도 동기화는 계속된다. 보이는 창이 있으면 30초, 모두 숨으면 5분마다. 창을 다시 보이면 바로 한 번.
 // - 저장소·동기화 코드는 휴대폰 앱과 같은 것(core.cjs = app/src/core 묶음)이라 오프라인 큐·중복 방지·충돌 사본·영구 삭제 규칙이 같다.
 const { randomUUID } = require('node:crypto');
-const { Repo, SyncEngine, AuthCancelled, touchesData, BRAND, SCHEMA_VERSION } = require('./core.cjs');
+const { Repo, SyncEngine, AuthCancelled, touchesData, BRAND, SCHEMA_VERSION, localLook, applyLook } = require('./core.cjs');
 
 const VISIBLE_EVERY = 30_000;
 const HIDDEN_EVERY = 5 * 60_000;
@@ -49,7 +49,7 @@ function createSyncHost({ db, fetch, device, broadcast, hasVisibleWindow, openAu
   engine.onStatus((st) => {
     broadcast('sync:status', st);
     if (st.state === 'idle') checkFriends().catch(() => {});
-    if (st.state === 'idle' && Date.now() - lastTheme > 60_000) themeSync();
+    if (st.state === 'idle' && Date.now() - lastTheme > 60_000) themeSync().then(lookSync).catch(() => {});
   });
 
   async function serverUrl() {
@@ -83,6 +83,25 @@ function createSyncHost({ db, fetch, device, broadcast, hasVisibleWindow, openAu
     return { prefs, local: { accent: prefs.accent ?? BRAND, accentAt: prefs.accentAt ?? 0 } };
   };
   const sameTheme = (a, b) => !!a && !!b && a.accent.toUpperCase() === b.accent.toUpperCase() && a.accentAt === b.accentAt;
+  /**
+   * 꾸미기를 계정과 맞춘다(app/src/core/look.ts, 사용자 요청 2026-10-24): 휴대폰에서 고친 PC 미니창 · PC에서 고친 위젯 설정이
+   * 서로 넘어간다. 항목마다 늦게 바꾼 쪽, 받은 것이 있으면 모든 창에 알린다(테마색과 같은 때에)
+   */
+  let lastLookAts = null;
+  async function lookSync() {
+    if (!(await engine.account())) return;
+    const prefs = (await repo.getKv('prefs', null)) ?? {};
+    const local = localLook(prefs);
+    lastLookAts = JSON.stringify(local.at);
+    const r = await engine.syncLook(local).catch(() => null);
+    if (!r) return;
+    // 받는 사이 창이 바꾼 것을 덮지 않게 다시 읽어 그 위에
+    const next = applyLook((await repo.getKv('prefs', null)) ?? {}, r);
+    lastLookAts = JSON.stringify(localLook(next).at);
+    await repo.write(() => repo.setKv('prefs', next));
+    broadcast('data-changed', ['kv']);
+  }
+
   async function themeSync() {
     lastTheme = Date.now();
     if (!(await engine.account())) return;
@@ -154,8 +173,10 @@ function createSyncHost({ db, fetch, device, broadcast, hasVisibleWindow, openAu
       clearTimeout(themeTimer);
       // 투명도·언어처럼 테마색이 아닌 설정을 바꿨을 때는 서버에 묻지 않는다(예전엔 1.2초 뒤 매번 물었다)
       themeTimer = setTimeout(async () => {
-        if (sameTheme((await localTheme()).local, lastLocal)) return;
-        themeSync();
+        const { prefs, local } = await localTheme();
+        if (!sameTheme(local, lastLocal)) await themeSync();
+        // 꾸미기 항목을 바꿨으면(바꾼 시각이 달라졌으면) 올린다
+        if (JSON.stringify(localLook(prefs).at) !== lastLookAts) lookSync().catch(() => {});
       }, 1200);
     },
     serverState: () => server,

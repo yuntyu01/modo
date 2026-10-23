@@ -79,6 +79,10 @@ export class DesktopSync implements SyncApi {
   async syncTheme() {
     return null;
   }
+  /** 꾸미기도 메인이 테마색과 함께 맞추고(sync-host.cjs lookSync) 바뀌면 모든 창에 알린다 */
+  async syncLook() {
+    return null;
+  }
   shareApi<T>(path: string, init: RequestInit = {}) {
     return this.call<T>('shareApi', [path, { method: init.method, body: init.body }]);
   }

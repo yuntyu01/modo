@@ -6,6 +6,7 @@ import { AppState, Platform, Text, View, useColorScheme } from 'react-native';
 
 import { openDb } from '../core/platform/openDb';
 import { Repo, touchesData, type Touched } from '../core/repo';
+import { applyLook, localLook, stampLook } from '../core/look';
 import { SyncEngine, type Account, type SyncApi, type SyncStatus, type ServerApi } from '../core/sync';
 import type { FolderFilter, Snapshot } from '../core/types';
 import { resolveLang, translator, type Lang, type T } from '../i18n';
@@ -360,6 +361,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const patch: Partial<Prefs> = { ...p };
       // 테마색을 바꾸면 바꾼 시각을 남긴다(계정 테마와 맞출 때 늦게 바꾼 쪽이 이긴다). 계정에서 받아 온 값은 그 시각을 그대로
       if (p.accent && p.accent !== cur.accent && p.accentAt === undefined) patch.accentAt = Date.now();
+      // 꾸미기(화면 · 위젯 · PC 미니창)는 항목마다 바꾼 시각을 남겨 계정과 맞춘다(core/look.ts). 계정에서 받은 값은 그 시각을 그대로
+      if (p.lookAts === undefined) {
+        const ats = stampLook(cur, p, Date.now());
+        if (ats) patch.lookAts = ats;
+      }
       const next = { ...cur, ...patch };
       prefsRef.current = next;
       setPrefsState(next);
@@ -400,6 +406,38 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
     return () => sub.remove();
   }, [account, syncTheme]);
+
+  // 꾸미기 한 벌을 계정과 맞춘다(휴대폰. PC는 메인 프로세스가 맡는다): 휴대폰에서 PC 미니창을, PC에서 위젯을 고칠 수 있게
+  // (사용자 요청 2026-10-24). 테마색과 같은 때에: 바꾸면 조금 기다렸다 올리고, 동기화가 끝날 때(5분에 한 번까지)·앞으로 올 때 받는다
+  const lookRef = useRef(localLook(prefs));
+  useEffect(() => {
+    lookRef.current = localLook(prefs);
+  }, [prefs]);
+  const lastLookSync = useRef(0);
+  const syncLook = useCallback(async () => {
+    if (!boot) return;
+    lastLookSync.current = Date.now();
+    const r = await boot.sync.syncLook(lookRef.current).catch(() => null);
+    if (!r) return;
+    // 받은 항목과 그 시각만 덮는다(lookAts를 주면 setPrefs가 시각을 새로 찍지 않는다)
+    const next = applyLook(prefsRef.current, r);
+    setPrefs({ ...Object.fromEntries(Object.keys(r.v).map((k) => [k, next[k as keyof Prefs]])), lookAts: next.lookAts } as Partial<Prefs>);
+  }, [boot, setPrefs]);
+  useEffect(() => {
+    if (!account || desktop) return;
+    const timer = setTimeout(syncLook, 1200);
+    return () => clearTimeout(timer);
+  }, [account, prefs.lookAts, syncLook]);
+  useEffect(() => {
+    if (account && !desktop && status.state === 'idle' && Date.now() - lastLookSync.current > 300_000) syncLook();
+  }, [account, status.state, status.lastSyncAt, syncLook]);
+  useEffect(() => {
+    if (!account || desktop) return;
+    const sub = AppState.addEventListener('change', (st) => {
+      if (st === 'active' && Date.now() - lastLookSync.current > 60_000) syncLook();
+    });
+    return () => sub.remove();
+  }, [account, syncLook]);
 
   // 서버(API)가 닿는지: 로그인 수단을 물어 본다(로그인 화면·공유 버튼을 보일지 정한다)
   const [serverApi, setServerApi] = useState<ServerApi | null>(null);

@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- 잠금화면 위젯 카드 바탕(위젯이 카드색으로 입힌다) -->
-<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-  <corners android:radius="16dp" />
-  <solid android:color="#FFFFFFFF" />
-</shape>

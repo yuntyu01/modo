@@ -61,11 +61,11 @@ object HomeWidget {
   private const val META_GAP = 0f
   /** 작은 칸 모양을 고르는 크기(dp): 이 폭보다 좁으면 동그라미 모양, 이 높이부터 한 줄 모양의 위 줄(폴더), 이 높이부터 목록 */
   private const val SMALL_W = 110f
-  /** 이 높이부터 카드 넘기기, 그보다 낮으면 한 줄(line) */
+  /** 이 높이부터 할 일 하나 칸(card: 아래 줄·위 줄), 그보다 낮으면 한 줄(line) */
   private const val CARD_H = 56f
   private const val FULL_H = 150f
-  /** 카드로 싣는 할 일 수(크기별 모양을 함께 넘겨 위젯 내용이 너무 커지지 않게. 더 있으면 끝에 '외 N개' 카드) */
-  private const val CARD_LIMIT = 30
+  /** 눌러 넘겨 보는 할 일 수(그리는 것은 하나라 많아도 위젯 내용은 작다. 예전 카드 넘기기는 카드를 다 실어 30장까지였다) */
+  private const val NEXT_LIMIT = 500
   /** 잠금화면 위젯: 이 높이부터 위 줄(로고 · 폴더 이름 · 이전/다음 폴더)을 보인다 */
   private const val LOCK_HEAD_H = 100f
   /** 위젯 목록에 싣는 할 일 수(더 있으면 끝에 '외 N개'). 위젯 내용은 한 번에 시스템으로 넘어가서 너무 크면 그리지 못한다 */
@@ -335,18 +335,18 @@ object HomeWidget {
 
   /**
    * 칸 크기에 맞는 모양. Android 12+는 크기별 모양을 함께 넘겨 런처·잠금화면이 실제 칸에 맞는 것을 고르고, 그 아래는 런처가 알려 준 크기로:
-   * 폭 110dp 미만(동그라미 칸) = 로고 + 남은 개수, 높이 56dp 미만 = 한 줄(글자를 누르면 다음 할 일, line), 100dp 미만 = 카드 넘기기,
-   * 그 위 = 위 줄(로고 · 폴더 · 이전/다음 폴더) + 카드 넘기기, full이 있으면(홈) 150dp부터 목록.
-   * 작은 칸은 홈이든 잠금화면이든 카드: 삼성 잠금화면이 잠금화면 위젯을 홈 화면 위젯처럼 알려 줘도 카드 넘기기가 되게,
-   * 넓은 칸의 높이가 30~40dp쯤이라 그보다 낮아도 한 줄 카드로(예전엔 40dp 아래면 개수만 보였다, 사용자 제보 2026-10-23)
+   * 폭 110dp 미만(동그라미 칸) = 로고 + 남은 개수, 높이 56dp 미만 = 한 줄(line), 100dp 미만 = 할 일 하나(card, 아래 줄까지),
+   * 그 위 = 위 줄(로고 · 폴더 · 이전/다음 폴더) + 할 일 하나, full이 있으면(홈) 150dp부터 목록. 어느 모양이든 글자를 누르면 다음 할 일.
+   * 작은 칸은 홈이든 잠금화면이든 같은 모양: 삼성 잠금화면이 잠금화면 위젯을 홈 화면 위젯처럼 알려 줘도 같게,
+   * 넓은 칸의 높이가 30~40dp쯤이라 그보다 낮아도 한 줄로(예전엔 40dp 아래면 개수만 보였다, 사용자 제보 2026-10-23)
    */
   private fun sized(ctx: Context, mgr: AppWidgetManager, id: Int, s: Small, scrollTop: Boolean, full: RemoteViews?): RemoteViews {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
       val map = linkedMapOf(
         SizeF(40f, 40f) to tiny(ctx, id, s),
         SizeF(SMALL_W, 1f) to line(ctx, id, s),
-        SizeF(SMALL_W, CARD_H) to lockStack(ctx, id, s, head = false, scrollTop),
-        SizeF(SMALL_W, LOCK_HEAD_H) to lockStack(ctx, id, s, head = true, scrollTop),
+        SizeF(SMALL_W, CARD_H) to card(ctx, id, s, head = false),
+        SizeF(SMALL_W, LOCK_HEAD_H) to card(ctx, id, s, head = true),
       )
       if (full != null) map[SizeF(160f, FULL_H)] = full
       return RemoteViews(map)
@@ -357,9 +357,9 @@ object HomeWidget {
     return when {
       w in 1 until SMALL_W.toInt() -> tiny(ctx, id, s)
       h in 1 until CARD_H.toInt() -> line(ctx, id, s)
-      h in 1 until LOCK_HEAD_H.toInt() -> lockStack(ctx, id, s, head = false, scrollTop)
+      h in 1 until LOCK_HEAD_H.toInt() -> card(ctx, id, s, head = false)
       full != null && (h == 0 || h >= FULL_H) -> full
-      else -> lockStack(ctx, id, s, head = true, scrollTop)
+      else -> card(ctx, id, s, head = true)
     }
   }
 
@@ -382,7 +382,7 @@ object HomeWidget {
       val folder = NotesDb.folders(db).firstOrNull { it.id == wp.folderId }
       val fid = folder?.id
       Small(
-        Colors.of(ctx, prefs), fid, folder?.name ?: base, NotesDb.todos(db, fid, limit = CARD_LIMIT), NotesDb.countTodos(db, fid),
+        Colors.of(ctx, prefs), fid, folder?.name ?: base, NotesDb.todos(db, fid, limit = NEXT_LIMIT), NotesDb.countTodos(db, fid),
         true, NotesDb.viewOnly(db, fid), privacy, wp, keyguard, memoText(NotesDb.memo(db, fid)),
       )
     } ?: Small(Colors.of(ctx, org.json.JSONObject()), null, base, emptyList(), 0, false, false, "private", wp, keyguard)
@@ -407,88 +407,21 @@ object HomeWidget {
     setContentDescription(R.id.tiny_root, if (show) ctx.getString(R.string.lock_title, s.count) else ctx.getString(R.string.widget_open_app))
   }
 
-  /**
-   * 잠금화면 위젯: 카드 넘기기(StackView). 메모 카드 다음에 할 일이 한 장씩, 위아래로 살짝 튕기면 다음 카드로 딱 맞춰 넘어간다
-   * (사용자 요청 2026-10-22. 위젯 목록(ListView)은 손을 떼면 줄에 맞춰 멈추지 않는다). 위 줄은 로고(누르면 앱) · 폴더 이름 ·
-   * 이전/다음 폴더, 칸이 낮으면 카드만. 동그라미 칸은 남은 개수. 잠금화면 알림의 공개 범위(내용 · 개수만 · 숨기기)를 따른다.
-   */
-  /**
-   * 한 줄만 들어가는 낮은 칸: 동그라미(완료) · 할 일 한 줄 · 몇 번째/몇 개(맨 오른쪽). 글자를 누르면 다음 할 일(마지막이면 처음으로),
-   * 할 일이 하나뿐이면 누르면 고치기. 할 일이 없으면 메모 첫 줄(누르면 메모 고치기). 화살표 단추는 두지 않는다(사용자 요청 2026-10-23)
-   */
+  /** 한 줄만 들어가는 낮은 칸: 동그라미 · 할 일 한 줄 · 몇 번째/몇 개(맨 오른쪽). 화살표 단추는 두지 않는다(사용자 요청 2026-10-23) */
   private fun line(ctx: Context, id: Int, s: Small) = RemoteViews(ctx.packageName, R.layout.widget_line).apply {
-    val c = s.colors
-    background(this, c, s)
-    setTextViewTextSize(R.id.line_text, TypedValue.COMPLEX_UNIT_SP, s.wp.textSize)
-    c.set(this, R.id.line_pos, "setTextColor") { it.muted }
-    val open = activity(ctx, id, openApp(ctx, s.folderId, id))
-    val note = when {
-      !s.signedIn -> ctx.getString(R.string.login_first)
-      s.privacy == "secret" -> ctx.getString(R.string.lock_hidden)
-      s.privacy != "public" -> ctx.getString(R.string.lock_title, s.count)
-      else -> null
-    }
-    val n = if (note == null && s.wp.show != WidgetPrefs.Show.MEMO) s.todos.size else 0
-    if (n == 0) {
-      // 할 일 대신: 안내, 또는 메모 첫 줄(누르면 메모 고치기)
-      val memo = note == null && s.wp.show != WidgetPrefs.Show.TODOS && s.memo.isNotBlank()
-      setViewVisibility(R.id.line_check, View.GONE)
-      setViewVisibility(R.id.line_pos, View.GONE)
-      setTextViewText(R.id.line_text, note ?: if (memo) s.memo else "")
-      c.set(this, R.id.line_text, "setTextColor") { if (note != null) it.muted else it.text }
-      if (memo && !s.readOnly) {
-        val edit = Intent(ctx, WidgetEditActivity::class.java)
-          .putExtra(WidgetEditActivity.EXTRA_MEMO_FOLDER, s.folderId ?: WidgetEditActivity.BASE)
-          .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-          .setData(Uri.parse("naegirok://edit/memo/${s.folderId ?: "base"}/$id"))
-        setOnClickPendingIntent(R.id.line_text, activity(ctx, id, edit))
-      } else {
-        setOnClickPendingIntent(R.id.line_text, open)
-      }
-      return@apply
-    }
-    val i = Math.floorMod(s.wp.pos, n)
-    val t = s.todos[i]
-    val done = t.id in NotesWidgetProvider.completing
-    setTextViewText(R.id.line_text, if (done) struck(Rich.spanned(t.text)) else Rich.spanned(t.text))
-    c.set(this, R.id.line_text, "setTextColor") { if (done) it.muted else it.text }
-    setViewVisibility(R.id.line_check, View.VISIBLE)
-    setImageViewResource(R.id.line_ring, if (t.repeatFreq != null) R.drawable.naegirok_check_repeat else R.drawable.naegirok_check_off)
-    c.set(this, R.id.line_ring, "setColorFilter") { it.circle }
-    c.set(this, R.id.line_fill, "setColorFilter") { it.accent }
-    c.set(this, R.id.line_tick, "setColorFilter") { it.onAccent }
-    setDisplayedChild(R.id.line_check, if (done) 1 else 0)
-    val toggle = Intent(ctx, NotesWidgetProvider::class.java).setAction(NotesWidgetProvider.ACTION_TOGGLE)
-      .putExtra(NotesWidgetProvider.EXTRA_TODO, t.id)
-      .setData(Uri.parse("naegirok://toggle/$id/${t.id}"))
-    setOnClickPendingIntent(R.id.line_check, if (s.readOnly) open else broadcast(ctx, id, toggle))
-    setContentDescription(R.id.line_check, if (s.readOnly) ctx.getString(R.string.widget_open_app) else ctx.getString(R.string.mark_done, Rich.plain(t.text)))
-    // 몇 번째/몇 개: 맨 오른쪽(하나뿐이면 숨긴다)
-    setViewVisibility(R.id.line_pos, if (s.count > 1) View.VISIBLE else View.GONE)
-    setTextViewText(R.id.line_pos, "${i + 1}/${s.count}")
-    if (n > 1) {
-      val next = Intent(ctx, NotesWidgetProvider::class.java).setAction(NotesWidgetProvider.ACTION_NEXT)
-        .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id)
-        .setData(Uri.parse("naegirok://widget-next/$id"))
-      // 글자와 맨 오른쪽 몇 번째/몇 개 어느 쪽을 눌러도 다음 할 일
-      setOnClickPendingIntent(R.id.line_text, broadcast(ctx, id, next))
-      setOnClickPendingIntent(R.id.line_pos, broadcast(ctx, id, next))
-      setContentDescription(R.id.line_text, Rich.plain(t.text) + ". " + ctx.getString(R.string.next_todo))
-      setContentDescription(R.id.line_pos, "${i + 1}/${s.count}. " + ctx.getString(R.string.next_todo))
-    } else {
-      val edit = Intent(ctx, WidgetEditActivity::class.java)
-        .putExtra(WidgetEditActivity.EXTRA_TODO, t.id)
-        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-        .setData(Uri.parse("naegirok://edit/todo/${t.id}/$id"))
-      setOnClickPendingIntent(R.id.line_text, if (s.readOnly) open else activity(ctx, id, edit))
-      setContentDescription(R.id.line_text, ctx.getString(R.string.edit_todo) + ": " + Rich.plain(t.text))
-    }
+    background(this, s.colors, s)
+    one(this, ctx, id, s, tall = false)
   }
 
   fun lock(ctx: Context, mgr: AppWidgetManager, id: Int, scrollTop: Boolean): RemoteViews =
     sized(ctx, mgr, id, loadSmall(ctx, id, keyguard = true), scrollTop, full = null)
 
-  private fun lockStack(ctx: Context, id: Int, s: Small, head: Boolean, scrollTop: Boolean) = RemoteViews(ctx.packageName, R.layout.widget_lock).apply {
+  /**
+   * 잠금화면·작은 칸 위젯: 할 일 하나씩(동그라미 · 할 일 · 아래 줄 · 몇 번째/몇 개), 누르면 다음 할 일(one).
+   * 카드 넘기기(StackView)는 이상하게 보여 한 줄 칸과 같은 방식으로 바꿨다(사용자 요청 2026-10-23).
+   * 위 줄은 로고(누르면 앱) · 폴더 이름 · 이전/다음 폴더, 칸이 낮으면 할 일만. 잠금화면 알림의 공개 범위(내용 · 개수만 · 숨기기)를 따른다.
+   */
+  private fun card(ctx: Context, id: Int, s: Small, head: Boolean) = RemoteViews(ctx.packageName, R.layout.widget_lock).apply {
     val c = s.colors
     background(this, c, s)
     setViewVisibility(R.id.lock_head, if (head) View.VISIBLE else View.GONE)
@@ -508,78 +441,98 @@ object HomeWidget {
     }
     setContentDescription(R.id.lock_prev, ctx.getString(R.string.prev_folder))
     setContentDescription(R.id.lock_next, ctx.getString(R.string.next_folder))
+    one(this, ctx, id, s, tall = true)
+  }
 
-    val lang = ctx.resources.configuration.locales[0].language
-    val items = RemoteViewsCompat.RemoteCollectionItems.Builder().setViewTypeCount(2)
-    var n = 0L
+  /**
+   * 할 일 하나를 보이는 칸(한 줄 widget_line · 작은 칸 widget_lock, 같은 one_* id). 동그라미 = 완료(완료 움직임),
+   * 글자나 몇 번째/몇 개를 누르면 다음 할 일(마지막이면 처음으로, WidgetPrefs.pos), 할 일이 하나뿐이면 누르면 고치기.
+   * 할 일이 없으면 메모(누르면 메모 고치기) 또는 안내(로그인 · 개수만 · 숨기기, 누르면 앱).
+   * tall = 작은 칸: 글자 한 단계 크게, 아래 줄(날짜·반복), 메모는 여러 줄. 누르는 자리는 할 일과 아래 줄 전체(one_body)
+   */
+  private fun one(v: RemoteViews, ctx: Context, id: Int, s: Small, tall: Boolean) = v.apply {
+    val c = s.colors
+    val size = if (tall) s.wp.textSize + 1 else s.wp.textSize
+    setTextViewTextSize(R.id.one_text, TypedValue.COMPLEX_UNIT_SP, size)
+    c.set(this, R.id.one_pos, "setTextColor") { it.muted }
+    val tap = if (tall) R.id.one_body else R.id.one_text
+    val open = activity(ctx, id, openApp(ctx, s.folderId, id))
     val note = when {
       !s.signedIn -> ctx.getString(R.string.login_first)
       s.privacy == "secret" -> ctx.getString(R.string.lock_hidden)
       s.privacy != "public" -> ctx.getString(R.string.lock_title, s.count)
       else -> null
     }
-    if (note != null) {
-      items.addItem(n++, noteCard(ctx, c, s, note, NotesWidgetProvider.ITEM_OPEN))
-    } else {
-      if (s.wp.show != WidgetPrefs.Show.TODOS && s.memo.isNotBlank()) {
-        items.addItem(n++, noteCard(ctx, c, s, s.memo, if (s.readOnly) NotesWidgetProvider.ITEM_OPEN else NotesWidgetProvider.ITEM_MEMO))
+    val n = if (note == null && s.wp.show != WidgetPrefs.Show.MEMO) s.todos.size else 0
+    if (n == 0) {
+      // 할 일 대신: 안내, 또는 메모(누르면 메모 고치기)
+      val memo = note == null && s.wp.show != WidgetPrefs.Show.TODOS && s.memo.isNotBlank()
+      setViewVisibility(R.id.one_check, View.GONE)
+      setViewVisibility(R.id.one_pos, View.GONE)
+      if (tall) {
+        setViewVisibility(R.id.one_meta, View.GONE)
+        setInt(R.id.one_text, "setMaxLines", 4)
       }
-      if (s.wp.show != WidgetPrefs.Show.MEMO) {
-        s.todos.forEachIndexed { i, t -> items.addItem(n++, todoCard(ctx, c, s, t, i, lang)) }
-        val more = s.count - s.todos.size
-        if (more > 0) items.addItem(n++, noteCard(ctx, c, s, ctx.getString(R.string.lock_more, more), NotesWidgetProvider.ITEM_OPEN))
+      setTextViewText(R.id.one_text, note ?: if (memo) s.memo else "")
+      c.set(this, R.id.one_text, "setTextColor") { if (note != null) it.muted else it.text }
+      if (memo && !s.readOnly) {
+        val edit = Intent(ctx, WidgetEditActivity::class.java)
+          .putExtra(WidgetEditActivity.EXTRA_MEMO_FOLDER, s.folderId ?: WidgetEditActivity.BASE)
+          .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+          .setData(Uri.parse("naegirok://edit/memo/${s.folderId ?: "base"}/$id"))
+        setOnClickPendingIntent(tap, activity(ctx, id, edit))
+        setContentDescription(tap, ctx.getString(R.string.edit_memo) + ": " + s.memo.take(200))
+      } else {
+        setOnClickPendingIntent(tap, open)
       }
+      return@apply
     }
-    RemoteViewsCompat.setRemoteAdapter(ctx, this, id, R.id.lock_stack, items.build())
-    setPendingIntentTemplate(R.id.lock_stack, itemTemplate(ctx, id))
-    // 폴더를 바꾸면 첫 카드부터
-    if (scrollTop) setDisplayedChild(R.id.lock_stack, 0)
-  }
-
-  /** 카드 바탕: 카드색. 뒤 카드가 비쳐 글이 겹쳐 보이지 않게 거의 불투명 */
-  private fun cardBg(v: RemoteViews, c: Colors) {
-    c.set(v, R.id.card_bg, "setColorFilter") { it.card }
-    v.setInt(R.id.card_bg, "setImageAlpha", 240)
-  }
-
-  /** 글 카드: 메모 전체(누르면 메모 고치기) 또는 안내(누르면 앱) */
-  private fun noteCard(ctx: Context, c: Colors, s: Small, text: CharSequence, action: String) = RemoteViews(ctx.packageName, R.layout.widget_lock_note).apply {
-    cardBg(this, c)
-    setTextViewText(R.id.note_text, text)
-    setTextViewTextSize(R.id.note_text, TypedValue.COMPLEX_UNIT_SP, s.wp.textSize)
-    c.set(this, R.id.note_text, "setTextColor") { if (action == NotesWidgetProvider.ITEM_MEMO) it.text else it.muted }
-    setOnClickFillInIntent(R.id.note_root, fill(action, folder = s.folderId))
-    setContentDescription(R.id.note_root, (if (action == NotesWidgetProvider.ITEM_MEMO) ctx.getString(R.string.edit_memo) + ": " else "") + text.take(200))
-  }
-
-  /** 할 일 카드: 동그라미(완료) · 할 일 · 아래 줄 · 몇 번째/몇 개. 글자를 누르면 고치기(시스템이 먼저 잠금 해제를 묻는다) */
-  private fun todoCard(ctx: Context, c: Colors, s: Small, t: NotesDb.Todo, i: Int, lang: String) =
-    RemoteViews(ctx.packageName, R.layout.widget_lock_card).apply {
-    cardBg(this, c)
+    val i = Math.floorMod(s.wp.pos, n)
+    val t = s.todos[i]
     val done = t.id in NotesWidgetProvider.completing
-    setTextViewText(R.id.card_text, if (done) struck(Rich.spanned(t.text)) else Rich.spanned(t.text))
-    setTextViewTextSize(R.id.card_text, TypedValue.COMPLEX_UNIT_SP, s.wp.textSize + 1)
-    c.set(this, R.id.card_text, "setTextColor") { if (done) it.muted else it.text }
-    val parts = CardMeta.parts(t.due, t.remindAt, t.repeatFreq, t.repeatDays, false, lang)
-    setViewVisibility(R.id.card_meta, if (parts.isEmpty()) View.GONE else View.VISIBLE)
-    setInt(R.id.card_text, "setMaxLines", if (parts.isEmpty()) 2 else 1)
-    if (parts.isNotEmpty()) {
-      setTextViewText(R.id.card_meta, metaLine(parts))
-      setTextViewTextSize(R.id.card_meta, TypedValue.COMPLEX_UNIT_SP, s.wp.textSize - 2)
-      c.set(this, R.id.card_meta, "setTextColor") { it.muted }
+    setTextViewText(R.id.one_text, if (done) struck(Rich.spanned(t.text)) else Rich.spanned(t.text))
+    c.set(this, R.id.one_text, "setTextColor") { if (done) it.muted else it.text }
+    if (tall) {
+      val parts = CardMeta.parts(t.due, t.remindAt, t.repeatFreq, t.repeatDays, false, ctx.resources.configuration.locales[0].language)
+      setViewVisibility(R.id.one_meta, if (parts.isEmpty()) View.GONE else View.VISIBLE)
+      setInt(R.id.one_text, "setMaxLines", if (parts.isEmpty()) 2 else 1)
+      if (parts.isNotEmpty()) {
+        setTextViewText(R.id.one_meta, metaLine(parts))
+        setTextViewTextSize(R.id.one_meta, TypedValue.COMPLEX_UNIT_SP, s.wp.textSize - 2)
+        c.set(this, R.id.one_meta, "setTextColor") { it.muted }
+      }
     }
-    setTextViewText(R.id.card_pos, "${i + 1}/${s.count}")
-    c.set(this, R.id.card_pos, "setTextColor") { it.muted }
-    setImageViewResource(R.id.card_ring, if (t.repeatFreq != null) R.drawable.naegirok_check_repeat else R.drawable.naegirok_check_off)
-    c.set(this, R.id.card_ring, "setColorFilter") { it.circle }
-    c.set(this, R.id.card_fill, "setColorFilter") { it.accent }
-    c.set(this, R.id.card_tick, "setColorFilter") { it.onAccent }
-    setDisplayedChild(R.id.card_check, if (done) 1 else 0)
-    val open = fill(NotesWidgetProvider.ITEM_OPEN, folder = t.folderId)
-    setOnClickFillInIntent(R.id.card_check, if (s.readOnly) open else fill(NotesWidgetProvider.ITEM_TOGGLE, todo = t.id))
-    setContentDescription(R.id.card_check, if (s.readOnly) ctx.getString(R.string.widget_open_app) else ctx.getString(R.string.mark_done, Rich.plain(t.text)))
-    setOnClickFillInIntent(R.id.card_body, if (s.readOnly) open else fill(NotesWidgetProvider.ITEM_EDIT, todo = t.id))
-    setContentDescription(R.id.card_body, ctx.getString(R.string.edit_todo) + ": " + Rich.plain(t.text))
+    setViewVisibility(R.id.one_check, View.VISIBLE)
+    setImageViewResource(R.id.one_ring, if (t.repeatFreq != null) R.drawable.naegirok_check_repeat else R.drawable.naegirok_check_off)
+    c.set(this, R.id.one_ring, "setColorFilter") { it.circle }
+    c.set(this, R.id.one_fill, "setColorFilter") { it.accent }
+    c.set(this, R.id.one_tick, "setColorFilter") { it.onAccent }
+    setDisplayedChild(R.id.one_check, if (done) 1 else 0)
+    val toggle = Intent(ctx, NotesWidgetProvider::class.java).setAction(NotesWidgetProvider.ACTION_TOGGLE)
+      .putExtra(NotesWidgetProvider.EXTRA_TODO, t.id)
+      .setData(Uri.parse("naegirok://toggle/$id/${t.id}"))
+    setOnClickPendingIntent(R.id.one_check, if (s.readOnly) open else broadcast(ctx, id, toggle))
+    setContentDescription(R.id.one_check, if (s.readOnly) ctx.getString(R.string.widget_open_app) else ctx.getString(R.string.mark_done, Rich.plain(t.text)))
+    // 몇 번째/몇 개: 맨 오른쪽(하나뿐이면 숨긴다)
+    setViewVisibility(R.id.one_pos, if (s.count > 1) View.VISIBLE else View.GONE)
+    setTextViewText(R.id.one_pos, "${i + 1}/${s.count}")
+    if (n > 1) {
+      val next = Intent(ctx, NotesWidgetProvider::class.java).setAction(NotesWidgetProvider.ACTION_NEXT)
+        .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id)
+        .setData(Uri.parse("naegirok://widget-next/$id"))
+      // 글자와 맨 오른쪽 몇 번째/몇 개 어느 쪽을 눌러도 다음 할 일
+      setOnClickPendingIntent(tap, broadcast(ctx, id, next))
+      setOnClickPendingIntent(R.id.one_pos, broadcast(ctx, id, next))
+      setContentDescription(tap, Rich.plain(t.text) + ". " + ctx.getString(R.string.next_todo))
+      setContentDescription(R.id.one_pos, "${i + 1}/${s.count}. " + ctx.getString(R.string.next_todo))
+    } else {
+      val edit = Intent(ctx, WidgetEditActivity::class.java)
+        .putExtra(WidgetEditActivity.EXTRA_TODO, t.id)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        .setData(Uri.parse("naegirok://edit/todo/${t.id}/$id"))
+      setOnClickPendingIntent(tap, if (s.readOnly) open else activity(ctx, id, edit))
+      setContentDescription(tap, ctx.getString(R.string.edit_todo) + ": " + Rich.plain(t.text))
+    }
   }
 
   /** 그리기에 실패한 위젯: 바탕 + 로고(누르면 앱)만. 흰 빈 상자로 남아 눌러도 아무 일이 없지 않게 */

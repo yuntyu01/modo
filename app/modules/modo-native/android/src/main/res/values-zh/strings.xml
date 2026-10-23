@@ -35,8 +35,6 @@
   <string name="channel_reminders">待办提醒</string>
   <string name="reminder_title">待办提醒</string>
   <string name="preview_memo">开会时确认发布日程</string>
-  <string name="prev_folder">上一个文件夹</string>
-  <string name="next_folder">下一个文件夹</string>
   <string name="lock_hidden">解锁后可见</string>
   <string name="edit_todo">编辑待办</string>
   <string name="edit_memo">编辑备忘</string>

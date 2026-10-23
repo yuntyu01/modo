@@ -35,8 +35,6 @@
   <string name="channel_reminders">ToDoのリマインダー</string>
   <string name="reminder_title">ToDoのリマインダー</string>
   <string name="preview_memo">会議でリリース日程を確認する</string>
-  <string name="prev_folder">前のフォルダ</string>
-  <string name="next_folder">次のフォルダ</string>
   <string name="lock_hidden">ロックを解除すると表示されます</string>
   <string name="edit_todo">ToDoを編集</string>
   <string name="edit_memo">メモを編集</string>

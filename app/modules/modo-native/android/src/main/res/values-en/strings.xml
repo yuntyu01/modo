@@ -35,8 +35,6 @@
   <string name="channel_reminders">To-do reminders</string>
   <string name="reminder_title">Reminder</string>
   <string name="preview_memo">Check the release date at the meeting</string>
-  <string name="prev_folder">Previous folder</string>
-  <string name="next_folder">Next folder</string>
   <string name="lock_hidden">Unlock to see</string>
   <string name="edit_todo">Edit to-do</string>
   <string name="edit_memo">Edit memo</string>

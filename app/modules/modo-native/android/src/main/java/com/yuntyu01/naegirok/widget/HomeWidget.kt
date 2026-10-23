@@ -68,6 +68,9 @@ object HomeWidget {
   private const val FULL_H = 150f
   /** 눌러 넘겨 보는 할 일 수(그리는 것은 하나라 많아도 위젯 내용은 작다. 예전 카드 넘기기는 카드를 다 실어 30장까지였다) */
   private const val NEXT_LIMIT = 500
+  /** 작은 칸 위젯(widget_lock*)의 양옆 여백과 로고 칸 폭(dp): 위 줄 폴더 탭이 쓸 폭을 셀 때 */
+  private const val LOCK_SIDE_PAD = 12f
+  private const val LOCK_BRAND_W = 38f
   /** 위젯 목록에 싣는 할 일 수(더 있으면 끝에 '외 N개'). 위젯 내용은 한 번에 시스템으로 넘어가서 너무 크면 그리지 못한다 */
   private const val MAX_ROWS = 150
 
@@ -197,60 +200,8 @@ object HomeWidget {
     v.setOnClickPendingIntent(R.id.widget_brand, activity(ctx, id, openApp(ctx, data.folderId, id)))
     v.setContentDescription(R.id.widget_brand, ctx.getString(R.string.widget_open_app))
 
-    // 폴더 탭(로고 오른쪽, 누르면 그 폴더의 첫 쪽으로): 기본 + 폴더들. 폭이 모자라면 지금 폴더를 가운데 두고 양옆을 채운 뒤
-    // 가려진 쪽 끝에 바로 옆 폴더를 잘린 채로("제주…") 보여 준다(안 그리면 네 번째 폴더부터 있는지조차 몰랐다).
-    // 위젯은 옆으로 밀 수 없어서, 잘린 탭을 누르면 그 폴더로 가며 가운데로 오고 그 옆이 드러난다
-    v.removeAllViews(R.id.widget_tabs)
-    val tabs = listOf<Pair<String?, String>>(null to ctx.getString(R.string.base_folder)) + data.folders.map { it.id to it.name }
-    val curTab = tabs.indexOfFirst { it.first == data.folderId }.coerceAtLeast(0)
-    val tabPaint = paint(sp(15f), 0f)
-    val boldPaint = paint(sp(15f), 0f).apply { typeface = Typeface.create("sans-serif", Typeface.BOLD) }
-    val widths = tabs.mapIndexed { i, (_, name) -> (if (i == curTab) boldPaint else tabPaint).measureText(name) + dp(TAB_GAP) }
-    /** 지금 폴더에서 시작해 오른쪽·왼쪽을 번갈아 채운 범위와 쓴 폭 */
-    fun window(room: Float): Triple<Int, Int, Float> {
-      var first = curTab
-      var last = curTab
-      var used = widths[curTab]
-      while (true) {
-        val right = last + 1 < tabs.size && used + widths[last + 1] <= room
-        if (right) { last++; used += widths[last] }
-        val left = first > 0 && used + widths[first - 1] <= room
-        if (left) { first--; used += widths[first] }
-        if (!right && !left) break
-      }
-      return Triple(first, last, used)
-    }
-    /** 가려진 쪽마다 끝 탭이 적어도 차지할 폭(왼쪽 끝 탭은 뒤 탭과의 사이까지) */
-    fun peekRoom(first: Int, last: Int) = (if (first > 0) dp(PEEK_MIN + TAB_GAP) else 0f) + (if (last < tabs.size - 1) dp(PEEK_MIN) else 0f)
-    val room = dp(wDp - PAD_START - PAD_END - MARK_W - MARK_GAP)
-    var (first, last, used) = window(room)
-    // 남는 폭이 끝 탭에 모자라면 그만큼 비우고 다시. 끝 탭이 둘이면 남는 폭을 반씩 나눠 쓴다
-    val need = peekRoom(first, last) * (if (first > 0 && last < tabs.size - 1) 2 else 1)
-    if (room - used < need) {
-      val fit = window(room - need)
-      first = fit.first
-      last = fit.second
-    }
-    // 지금 폴더 이름이 줄보다 길면 끝을 …로(옆 폴더 탭이 들어갈 자리를 남긴다)
-    val curMax = (room - peekRoom(first, last)).coerceAtLeast(dp(48f)).toInt()
-    fun addTab(i: Int, layout: Int = R.layout.widget_home_tab) {
-      val (fid, name) = tabs[i]
-      val tab = RemoteViews(ctx.packageName, layout)
-      val sel = i == curTab
-      if (sel) tab.setInt(R.id.tab, "setMaxWidth", curMax)
-      tab.setTextViewText(R.id.tab, if (sel) SpannableString(name).apply { setSpan(StyleSpan(Typeface.BOLD), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) } else name)
-      c.set(tab, R.id.tab, "setTextColor") { if (sel) it.text else it.muted }
-      val go = Intent(ctx, NotesWidgetProvider::class.java).setAction(NotesWidgetProvider.ACTION_FOLDER)
-        .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id)
-        .putExtra(NotesWidgetProvider.EXTRA_FOLDER, fid ?: "")
-        .setData(Uri.parse("naegirok://widget-folder/$id/${fid ?: "base"}"))
-      tab.setOnClickPendingIntent(R.id.tab, broadcast(ctx, id, go))
-      tab.setContentDescription(R.id.tab, ctx.getString(if (sel) R.string.widget_folder_tab_current else R.string.widget_folder_tab, name))
-      v.addView(R.id.widget_tabs, tab)
-    }
-    if (first > 0) addTab(first - 1, R.layout.widget_home_tab_peek_start)
-    for (i in first..last) addTab(i)
-    if (last < tabs.size - 1) addTab(last + 1, R.layout.widget_home_tab_peek)
+    // 폴더 탭(로고 오른쪽, 누르면 그 폴더로): folderTabs
+    folderTabs(ctx, v, R.id.widget_tabs, id, data.folders, data.folderId, c, dp(wDp - PAD_START - PAD_END - MARK_W - MARK_GAP))
 
     // 몸통: 메모(맨 위, 전체) + 남은 할 일을 한 목록으로. 위아래로 굴려 본다
     val lang = ctx.resources.configuration.locales[0].language
@@ -287,6 +238,68 @@ object HomeWidget {
       .setData(Uri.parse("naegirok://quickadd/$id"))
     v.setOnClickPendingIntent(R.id.widget_add, activity(ctx, id, add))
     return v
+  }
+
+  /**
+   * 폴더 탭 줄(로고 오른쪽, 누르면 그 폴더로. 홈 위젯 머리 · 작은 칸 위젯 위 줄이 같이 쓴다): 기본 + 폴더들.
+   * 폭이 모자라면 지금 폴더를 가운데 두고 양옆을 채운 뒤 가려진 쪽 끝에 바로 옆 폴더를 잘린 채로("제주…") 보여 준다
+   * (안 그리면 네 번째 폴더부터 있는지조차 몰랐다). 위젯은 옆으로 밀 수 없어서, 잘린 탭을 누르면 그 폴더로 가며 가운데로 오고 그 옆이 드러난다.
+   * 맨 앞·맨 끝 폴더는 그 끝에 그대로 붙어 있다(가운데로 끌어오지 않는다). room = 탭이 쓸 수 있는 폭(px)
+   */
+  private fun folderTabs(ctx: Context, v: RemoteViews, container: Int, id: Int, folders: List<NotesDb.Folder>, current: String?, c: Colors, room: Float) {
+    val dm = ctx.resources.displayMetrics
+    fun dp(x: Float) = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, x, dm)
+    fun sp(x: Float) = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, x, dm)
+    v.removeAllViews(container)
+    val tabs = listOf<Pair<String?, String>>(null to ctx.getString(R.string.base_folder)) + folders.map { it.id to it.name }
+    val curTab = tabs.indexOfFirst { it.first == current }.coerceAtLeast(0)
+    val tabPaint = paint(sp(15f), 0f)
+    val boldPaint = paint(sp(15f), 0f).apply { typeface = Typeface.create("sans-serif", Typeface.BOLD) }
+    val widths = tabs.mapIndexed { i, (_, name) -> (if (i == curTab) boldPaint else tabPaint).measureText(name) + dp(TAB_GAP) }
+    /** 지금 폴더에서 시작해 오른쪽·왼쪽을 번갈아 채운 범위와 쓴 폭 */
+    fun window(room: Float): Triple<Int, Int, Float> {
+      var first = curTab
+      var last = curTab
+      var used = widths[curTab]
+      while (true) {
+        val right = last + 1 < tabs.size && used + widths[last + 1] <= room
+        if (right) { last++; used += widths[last] }
+        val left = first > 0 && used + widths[first - 1] <= room
+        if (left) { first--; used += widths[first] }
+        if (!right && !left) break
+      }
+      return Triple(first, last, used)
+    }
+    /** 가려진 쪽마다 끝 탭이 적어도 차지할 폭(왼쪽 끝 탭은 뒤 탭과의 사이까지) */
+    fun peekRoom(first: Int, last: Int) = (if (first > 0) dp(PEEK_MIN + TAB_GAP) else 0f) + (if (last < tabs.size - 1) dp(PEEK_MIN) else 0f)
+    var (first, last, used) = window(room)
+    // 남는 폭이 끝 탭에 모자라면 그만큼 비우고 다시. 끝 탭이 둘이면 남는 폭을 반씩 나눠 쓴다
+    val need = peekRoom(first, last) * (if (first > 0 && last < tabs.size - 1) 2 else 1)
+    if (room - used < need) {
+      val fit = window(room - need)
+      first = fit.first
+      last = fit.second
+    }
+    // 지금 폴더 이름이 줄보다 길면 끝을 …로(옆 폴더 탭이 들어갈 자리를 남긴다)
+    val curMax = (room - peekRoom(first, last)).coerceAtLeast(dp(48f)).toInt()
+    fun addTab(i: Int, layout: Int = R.layout.widget_home_tab) {
+      val (fid, name) = tabs[i]
+      val tab = RemoteViews(ctx.packageName, layout)
+      val sel = i == curTab
+      if (sel) tab.setInt(R.id.tab, "setMaxWidth", curMax)
+      tab.setTextViewText(R.id.tab, if (sel) SpannableString(name).apply { setSpan(StyleSpan(Typeface.BOLD), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) } else name)
+      c.set(tab, R.id.tab, "setTextColor") { if (sel) it.text else it.muted }
+      val go = Intent(ctx, NotesWidgetProvider::class.java).setAction(NotesWidgetProvider.ACTION_FOLDER)
+        .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id)
+        .putExtra(NotesWidgetProvider.EXTRA_FOLDER, fid ?: "")
+        .setData(Uri.parse("naegirok://widget-folder/$id/${fid ?: "base"}"))
+      tab.setOnClickPendingIntent(R.id.tab, broadcast(ctx, id, go))
+      tab.setContentDescription(R.id.tab, ctx.getString(if (sel) R.string.widget_folder_tab_current else R.string.widget_folder_tab, name))
+      v.addView(container, tab)
+    }
+    if (first > 0) addTab(first - 1, R.layout.widget_home_tab_peek_start)
+    for (i in first..last) addTab(i)
+    if (last < tabs.size - 1) addTab(last + 1, R.layout.widget_home_tab_peek)
   }
 
   /**
@@ -367,27 +380,29 @@ object HomeWidget {
 
   /** 작은 칸·잠금화면 모양에 쓰는 것: 지금 폴더·메모·남은 할 일·보던 자리. privacy = 잠금화면 공개 범위(홈은 늘 public) */
   private class Small(
-    val colors: Colors, val folderId: String?, val folderName: String, val todos: List<NotesDb.Todo>, val count: Int,
+    val colors: Colors, val folderId: String?, val folders: List<NotesDb.Folder>, val todos: List<NotesDb.Todo>, val count: Int,
     val signedIn: Boolean, val readOnly: Boolean, val privacy: String, val wp: WidgetPrefs, val keyguard: Boolean,
     val memo: CharSequence = "",
+    /** 위젯 폭(dp, 세로 화면): 위 줄에 폴더 탭을 몇 개 그릴지 */
+    val widthDp: Int = 260,
   )
 
   private fun loadSmall(ctx: Context, id: Int, keyguard: Boolean): Small {
     val wp = WidgetPrefs.load(ctx, id)
-    val base = ctx.getString(R.string.base_folder)
+    val w = AppWidgetManager.getInstance(ctx).getAppWidgetOptions(id).getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0).takeIf { it > 0 } ?: 260
     return NotesDb.use(ctx) { db ->
       val prefs = NotesDb.prefs(db)
       // 잠금화면에서는 잠금화면 알림과 같은 공개 범위(내용 보이기 · 개수만 · 숨기기)를 따른다
       val privacy = if (keyguard) prefs.optJSONObject("lock")?.optString("visibility", "private") ?: "private" else "public"
-      if (!NotesDb.signedIn(db)) return@use Small(Colors.of(ctx, prefs), null, base, emptyList(), 0, false, false, privacy, wp, keyguard)
+      if (!NotesDb.signedIn(db)) return@use Small(Colors.of(ctx, prefs), null, emptyList(), emptyList(), 0, false, false, privacy, wp, keyguard, widthDp = w)
       // 홈에서 숨긴 공유 폴더·없어진 폴더는 기본 폴더로(큰 위젯과 같다)
-      val folder = NotesDb.folders(db).firstOrNull { it.id == wp.folderId }
-      val fid = folder?.id
+      val folders = NotesDb.folders(db)
+      val fid = folders.firstOrNull { it.id == wp.folderId }?.id
       Small(
-        Colors.of(ctx, prefs), fid, folder?.name ?: base, NotesDb.todos(db, fid, limit = NEXT_LIMIT), NotesDb.countTodos(db, fid),
-        true, NotesDb.viewOnly(db, fid), privacy, wp, keyguard, memoText(NotesDb.memo(db, fid)),
+        Colors.of(ctx, prefs), fid, folders, NotesDb.todos(db, fid, limit = NEXT_LIMIT), NotesDb.countTodos(db, fid),
+        true, NotesDb.viewOnly(db, fid), privacy, wp, keyguard, memoText(NotesDb.memo(db, fid)), w,
       )
-    } ?: Small(Colors.of(ctx, org.json.JSONObject()), null, base, emptyList(), 0, false, false, "private", wp, keyguard)
+    } ?: Small(Colors.of(ctx, org.json.JSONObject()), null, emptyList(), emptyList(), 0, false, false, "private", wp, keyguard, widthDp = w)
   }
 
   /** 바탕: 위젯마다 고른 투명도가 없으면 꾸미기의 위젯 투명도(잠금화면이면 잠금화면 위젯 투명도) */
@@ -431,19 +446,9 @@ object HomeWidget {
     // 앱은 로고로만 연다(폴더 이름·빈 곳을 눌러 앱이 켜지지 않게)
     setOnClickPendingIntent(R.id.lock_brand, activity(ctx, id, openApp(ctx, s.folderId, id)))
     setContentDescription(R.id.lock_brand, ctx.getString(R.string.widget_open_app))
-    setTextViewText(R.id.lock_folder, s.folderName)
-    setTextViewTextSize(R.id.lock_folder, TypedValue.COMPLEX_UNIT_SP, s.wp.textSize - 1)
-    c.set(this, R.id.lock_folder, "setTextColor") { it.text }
-    for ((view, step) in listOf(R.id.lock_prev to -1, R.id.lock_next to 1)) {
-      c.set(this, view, "setColorFilter") { it.text }
-      setInt(view, "setImageAlpha", 200)
-      val page = Intent(ctx, NotesWidgetProvider::class.java).setAction(NotesWidgetProvider.ACTION_PAGE)
-        .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id).putExtra(NotesWidgetProvider.EXTRA_STEP, step)
-        .setData(Uri.parse("naegirok://widget-page/$id/$step"))
-      setOnClickPendingIntent(view, broadcast(ctx, id, page))
-    }
-    setContentDescription(R.id.lock_prev, ctx.getString(R.string.prev_folder))
-    setContentDescription(R.id.lock_next, ctx.getString(R.string.next_folder))
+    // 폴더 이름들: 홈 위젯 머리와 같은 탭 줄(누르면 그 폴더로·가운데로, ‹ ›는 뺐다, 사용자 요청 2026-10-24)
+    val room = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, s.widthDp - LOCK_SIDE_PAD * 2 - LOCK_BRAND_W, ctx.resources.displayMetrics)
+    folderTabs(ctx, this, R.id.lock_tabs, id, s.folders, s.folderId, c, room)
     one(this, ctx, id, s, tall = true, roomy = roomy)
   }
 

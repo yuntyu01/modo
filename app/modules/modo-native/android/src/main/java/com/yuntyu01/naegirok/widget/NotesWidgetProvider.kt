@@ -96,23 +96,6 @@ open class NotesWidgetProvider : AppWidgetProvider() {
       }
       return
     }
-    if (intent.action == ACTION_PAGE) {
-      val id = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
-      if (id == AppWidgetManager.INVALID_APPWIDGET_ID) return
-      val step = intent.getIntExtra(EXTRA_STEP, 1)
-      val target = intent.getIntExtra(EXTRA_INDEX, -1)
-      Work.run(this) {
-        // 기본 → 폴더들 → 다시 기본 순서로 돈다. 고른 폴더는 이 위젯의 설정으로 남는다.
-        val pages = listOf<String?>(null) + (NotesDb.use(ctx) { NotesDb.folders(it).map { f -> f.id } } ?: emptyList())
-        val wp = WidgetPrefs.load(ctx, id)
-        val cur = pages.indexOf(wp.folderId).coerceAtLeast(0)
-        // 점을 누르면 그 자리로, ‹ ›는 한 칸씩
-        val next = if (target in pages.indices) target else Math.floorMod(cur + step, pages.size)
-        wp.withFolder(pages[next]).save(ctx, id)
-        update(ctx, AppWidgetManager.getInstance(ctx), id, scrollTop = true)
-      }
-      return
-    }
     // 한 줄·작은 칸(잠금화면) 모양: 글자를 누르면 다음 할 일(끝에서 누르면 처음으로)
     if (intent.action == ACTION_NEXT) {
       val id = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
@@ -129,7 +112,6 @@ open class NotesWidgetProvider : AppWidgetProvider() {
 
   companion object {
     const val ACTION_TOGGLE = "com.yuntyu01.naegirok.widget.TOGGLE"
-    const val ACTION_PAGE = "com.yuntyu01.naegirok.widget.PAGE"
     const val ACTION_ITEM = "com.yuntyu01.naegirok.widget.ITEM"
     const val ACTION_NEXT = "com.yuntyu01.naegirok.widget.NEXT"
     const val ACTION_FOLDER = "com.yuntyu01.naegirok.widget.FOLDER"
@@ -140,8 +122,6 @@ open class NotesWidgetProvider : AppWidgetProvider() {
     const val ITEM_EDIT = "edit"
     const val ITEM_MEMO = "memo"
     const val ITEM_OPEN = "open"
-    const val EXTRA_STEP = "step"
-    const val EXTRA_INDEX = "index"
     const val EXTRA_TODO = "todo_id"
 
     /** 동그라미를 눌러 완료하는 중인 할 일(그릴 때 채운 동그라미 + 체크로, HomeWidget) */

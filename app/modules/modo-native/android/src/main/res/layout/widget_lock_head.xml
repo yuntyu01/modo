@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 작은 칸 위젯의 위 줄(widget_lock · widget_lock_roomy): 로고(누르면 앱) · 폴더 이름 · 이전/다음 폴더. 26dp라 56dp 칸에도 들어간다 -->
+<!-- 작은 칸 위젯의 위 줄(widget_lock · widget_lock_roomy): 로고(누르면 앱) · 폴더 이름들. 26dp라 56dp 칸에도 들어간다 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
   android:id="@+id/lock_head"
   android:layout_width="match_parent"
@@ -22,37 +22,13 @@
       android:importantForAccessibility="no"
       android:src="@drawable/naegirok_mark" />
   </FrameLayout>
-  <TextView
-    android:id="@+id/lock_folder"
+  <!-- 폴더 이름들(홈 위젯 머리와 같은 탭 줄, HomeWidget.folderTabs): 누르면 그 폴더로, 가운데로 온다. 맨 앞·맨 끝은 그 끝에.
+       ‹ ›는 뺐다(사용자 요청 2026-10-24) -->
+  <LinearLayout
+    android:id="@+id/lock_tabs"
     android:layout_width="0dp"
-    android:layout_height="wrap_content"
+    android:layout_height="match_parent"
     android:layout_weight="1"
-    android:ellipsize="end"
-    android:fontFamily="sans-serif"
-    android:maxLines="1"
-    android:textColor="#FFFFFF"
-    android:textSize="14sp"
-    android:textStyle="bold" />
-  <ImageView
-    android:id="@+id/lock_prev"
-    android:layout_width="32dp"
-    android:layout_height="match_parent"
-    android:contentDescription="@string/prev_folder"
-    android:paddingStart="8dp"
-    android:paddingTop="5dp"
-    android:paddingEnd="8dp"
-    android:paddingBottom="5dp"
-    android:src="@drawable/naegirok_chevron_left" />
-  <!-- › 끝 = 아래 몇 번째/몇 개 끝(누르는 자리는 32dp 그대로, 오른쪽 여백 안으로 들어간다) -->
-  <ImageView
-    android:id="@+id/lock_next"
-    android:layout_width="32dp"
-    android:layout_height="match_parent"
-    android:layout_marginEnd="-11.5dp"
-    android:contentDescription="@string/next_folder"
-    android:paddingStart="8dp"
-    android:paddingTop="5dp"
-    android:paddingEnd="8dp"
-    android:paddingBottom="5dp"
-    android:src="@drawable/naegirok_chevron_right" />
+    android:gravity="center_vertical"
+    android:orientation="horizontal" />
 </LinearLayout>

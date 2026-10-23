@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 위젯 고르기 화면의 한 줄(4×1) 위젯 미리보기(Android 12+): 폴더 이름 · 이전/다음 폴더 / 할 일 카드 하나 · 1/3(위아래로 튕겨 넘긴다) -->
+<!-- 위젯 고르기 화면의 한 줄(4×1) 위젯 미리보기(Android 12+): 로고 · 폴더 이름 / 할 일 하나 · 1/3(누르면 다음 할 일) -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
   android:layout_width="match_parent"
   android:layout_height="match_parent">
@@ -37,18 +37,6 @@
         android:textColor="#F5F5F7"
         android:textSize="14sp"
         android:textStyle="bold" />
-      <ImageView
-        android:layout_width="30dp"
-        android:layout_height="30dp"
-        android:padding="7dp"
-        android:src="@drawable/naegirok_chevron_left"
-        android:tint="#F5F5F7" />
-      <ImageView
-        android:layout_width="30dp"
-        android:layout_height="30dp"
-        android:padding="7dp"
-        android:src="@drawable/naegirok_chevron_right"
-        android:tint="#F5F5F7" />
     </LinearLayout>
     <LinearLayout
       android:layout_width="match_parent"

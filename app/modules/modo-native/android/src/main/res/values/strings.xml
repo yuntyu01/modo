@@ -36,8 +36,6 @@
   <string name="channel_reminders">할 일 알림</string>
   <string name="reminder_title">할 일 알림</string>
   <string name="preview_memo">회의 때 배포 일정 확인하기</string>
-  <string name="prev_folder">이전 폴더</string>
-  <string name="next_folder">다음 폴더</string>
   <string name="lock_hidden">잠금을 풀면 보여요</string>
   <string name="edit_todo">할 일 고치기</string>
   <string name="edit_memo">메모 고치기</string>

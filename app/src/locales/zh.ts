@@ -342,6 +342,7 @@ export const zh: Record<StringKey, string> = {
   pcStep1: '在电脑上打开 Microsoft Store，搜索 modo 并安装。',
   pcStep2: '使用与手机相同的账号（Google·Kakao）登录。',
   pcStep3: '可在桌面上放一个小小的迷你备忘窗口，随时记录。',
+  pcStoreOpen: '在 Microsoft Store 中查看',
   pcStoreLink: '把 Microsoft Store 链接发到电脑',
   pcNote: '支持 Windows 10 和 11。',
   howtoVaries: '菜单名称和位置因手机和启动器略有不同。',

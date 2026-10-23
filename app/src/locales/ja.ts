@@ -342,6 +342,7 @@ export const ja: Record<StringKey, string> = {
   pcStep1: 'PCで Microsoft Store を開き、modo を検索してインストールします。',
   pcStep2: 'スマホと同じアカウント（Google・カカオ）でログインします。',
   pcStep3: 'デスクトップに小さなミニメモ窓を出しておけば、すぐに書き込めます。',
+  pcStoreOpen: 'Microsoft Store で見る',
   pcStoreLink: 'Microsoft Store のリンクをPCに送る',
   pcNote: 'Windows 10・11 で使えます。',
   howtoVaries: 'メニューの名前や場所は端末・ランチャーによって少し異なります。',

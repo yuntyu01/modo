@@ -5,15 +5,18 @@ import { WINDOWS_STORE_URL } from '../../policies';
 import { Group, Row } from '../../ui/primitives';
 import { shareText } from '../../ui/share';
 import { Note, SubScreen } from '../../ui/SubScreen';
+import { useOpenUrl } from '../../ui/openUrl';
 
 const STEPS = ['pcStep1', 'pcStep2', 'pcStep3'] as const;
 
 /**
  * PC에서도 쓰기(도움말): Windows용 modo는 Microsoft Store에서 받아 같은 계정으로 로그인하면 휴대폰과 저절로 맞춰진다.
- * 휴대폰에서는 Windows 앱을 설치할 수 없어서, 스토어 링크를 PC로 보내는 버튼을 둔다(카카오톡·메일 등 공유, 안 되면 복사)
+ * 휴대폰에서는 Windows 앱을 설치할 수 없어서, 스토어 링크를 PC로 보내는 버튼을 둔다(카카오톡·메일 등 공유, 안 되면 복사).
+ * 스토어 페이지(소개·사진·평점)는 휴대폰에서도 바로 열어 볼 수 있다
  */
 export default function PcGuide() {
   const { theme, t, showToast } = useUi();
+  const open = useOpenUrl();
   return (
     <SubScreen title={t('pcUse')}>
       <Text style={theme.kfont(15.5, { color: theme.subtle, marginLeft: 6.5, marginTop: -5, marginBottom: 16, lineHeight: 22 })}>{t('pcIntro')}</Text>
@@ -26,6 +29,7 @@ export default function PcGuide() {
         </View>
       ))}
       <Group style={{ marginTop: 10 }}>
+        <Row label={t('pcStoreOpen')} onPress={() => open(WINDOWS_STORE_URL)} />
         <Row
           label={t('pcStoreLink')}
           onPress={async () => {

@@ -683,9 +683,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   tab: { marginRight: 18, alignItems: 'center' },
-  // 접은 모양: 한 줄(높이 46), 로고 옆에 폴더
+  // 접은 모양: 한 줄(높이 45, 펼친 머리와 같게), 로고 옆에 폴더
   top: { zIndex: 5 },
-  collapsedHead: { height: 46 },
+  collapsedHead: { height: 45 },
   collapsedTabsBox: { flex: 1, flexGrow: 1, marginLeft: 16 },
   collapsedTabs: { alignItems: 'center', paddingRight: 8 },
   tools: { flexDirection: 'row', alignItems: 'center', overflow: 'hidden' },
@@ -736,7 +736,8 @@ const styles = StyleSheet.create({
   menu: {
     position: 'absolute',
     zIndex: 10,
-    top: 46,
+    // 펼친 머리(45) 바로 아래, ⋯ 단추 밑
+    top: 41,
     right: 10,
     minWidth: 190,
     borderRadius: 14,

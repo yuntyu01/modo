@@ -10,7 +10,7 @@ import type { SheetState } from '../ItemSheets';
 import { DoneHeader, MemoBlock, TodoCard, type Editing } from './Cards';
 import { Composer } from './Composer';
 import { HomeList } from './HomeList';
-import { buildBlocks, isOrdered, neighborKeys, type Block, visibleParagraphs } from './model';
+import { buildBlocks, folderLabelOf, isOrdered, neighborKeys, type Block, visibleParagraphs } from './model';
 import { sweepStore } from './sweep';
 import { BlurTargetContext, BottomFade } from '../glass';
 import { useBottomInset, useWide } from '../layout';
@@ -77,13 +77,13 @@ export function FolderBody({
   const sweeping = useRef<string[] | null>(null);
   const clearDone = () => {
     if (sweeping.current) return;
-    // 저장소의 clearDone과 같은 대상(완료한 보통 할 일. 반복은 다음 회차가 있어 남는다)
-    const ids = blocks.flatMap((b) => (b.kind === 'todo' && b.todo.done && !b.todo.repeat_freq ? [b.key] : []));
+    // 저장소의 clearDone과 같은 대상(완료한 보통 할 일. 반복은 다음 회차가 있어 남는다). 전체 탭은 여러 폴더에 걸쳐 보이는 것만(보기만 폴더 빼고)
+    const ids = blocks.flatMap((b) => (b.kind === 'todo' && b.todo.done && !b.todo.repeat_freq && canWrite(b.todo.folder_id) ? [b.key] : []));
     sweeping.current = ids;
     const wait = Platform.OS === 'web' ? 0 : sweepStore.start(ids);
     setTimeout(async () => {
       try {
-        const removed = await repo.clearDone(filter);
+        const removed = await repo.clearDone(filter, filter === null ? ids : undefined);
         showToast({ message: t('deleted'), action: { label: t('undo'), run: () => repo.restore('todo', removed) } });
       } finally {
         // 보통은 목록에서 빠지면 바로 비운다(아래). 남아 있으면 잠시 뒤 비워 제자리로
@@ -149,6 +149,7 @@ export function FolderBody({
         onRepeatPress={repeatPressFor(b.todo.id)}
         onInfo={infoFor(b.todo.id)}
         active={o.active}
+        folderLabel={filter === null ? folderLabelOf(b.todo.folder_id, snap.folders) : undefined}
       />
     );
   };

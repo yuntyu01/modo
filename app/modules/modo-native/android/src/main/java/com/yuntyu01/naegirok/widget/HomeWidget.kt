@@ -87,6 +87,8 @@ object HomeWidget {
     val colors: Colors, val folderId: String?, val memo: CharSequence, val todos: List<NotesDb.Todo>,
     val folders: List<NotesDb.Folder>, val signedIn: Boolean = true, val readOk: Boolean = false, val readOnly: Boolean = false,
     val todoCount: Int = 0,
+    /** 보기만 공유된 폴더들(전체 탭에는 여러 폴더 할 일이 섞여 줄마다 본다) */
+    val viewOnly: Set<String> = emptySet(),
   )
 
   /** 위젯 색 한 벌(라이트 또는 다크) */
@@ -159,6 +161,7 @@ object HomeWidget {
         readOk = true,
         readOnly = NotesDb.viewOnly(db, fid),
         todoCount = NotesDb.countTodos(db, fid),
+        viewOnly = folders.filter { NotesDb.viewOnly(db, it.id) }.map { it.id }.toSet(),
       )
     } ?: Data(Colors.of(ctx, org.json.JSONObject()), null, "", emptyList(), emptyList(), signedIn = false)
     // 고른 폴더를 기본으로 바꿔 남기는 것은 DB를 제대로 읽어 그 폴더가 정말 없을 때만(잠깐 못 읽었거나 로그아웃 중이면 그대로 둔다:
@@ -208,7 +211,10 @@ object HomeWidget {
     var n = 0L
     if (data.signedIn && hasMemo) items.addItem(n++, memoItem(ctx, data, c, memoSp))
     if (data.signedIn && showTodos) {
-      for (todo in data.todos) items.addItem(n++, todoRow(ctx, todo, lang, c, titleSp, metaSp, titleH, metaH, blockH, plainLines, rowPad, data.readOnly))
+      for (todo in data.todos) {
+        val readOnly = data.readOnly || todo.folderId in data.viewOnly
+        items.addItem(n++, todoRow(ctx, todo, lang, c, titleSp, metaSp, titleH, metaH, blockH, plainLines, rowPad, readOnly, data.folderId, data.folders))
+      }
       val more = data.todoCount - data.todos.size
       if (more > 0) items.addItem(n++, moreItem(ctx, data.folderId, more, c, metaSp + 1))
     }
@@ -384,6 +390,8 @@ object HomeWidget {
     val memo: CharSequence = "",
     /** 위젯 폭(dp, 세로 화면): 위 줄에 폴더 탭을 몇 개 그릴지 */
     val widthDp: Int = 260,
+    /** 보기만 공유된 폴더들(전체 탭에는 여러 폴더 할 일이 섞여 할 일마다 본다) */
+    val viewOnly: Set<String> = emptySet(),
   )
 
   private fun loadSmall(ctx: Context, id: Int, keyguard: Boolean): Small {
@@ -402,6 +410,7 @@ object HomeWidget {
       Small(
         Colors.of(ctx, prefs, look), fid, folders, NotesDb.todos(db, fid, limit = NEXT_LIMIT), NotesDb.countTodos(db, fid),
         true, NotesDb.viewOnly(db, fid), privacy, wp, keyguard, memoText(NotesDb.memo(db, fid)), w,
+        folders.filter { NotesDb.viewOnly(db, it.id) }.map { it.id }.toSet(),
       )
     } ?: Small(Colors.of(ctx, org.json.JSONObject(), look), null, emptyList(), emptyList(), 0, false, false, "private", wp, keyguard, widthDp = w)
   }
@@ -504,15 +513,16 @@ object HomeWidget {
     }
     val i = Math.floorMod(s.wp.pos, n)
     val t = s.todos[i]
+    val readOnly = s.readOnly || t.folderId in s.viewOnly
     val done = t.id in NotesWidgetProvider.completing
     setTextViewText(R.id.one_text, if (done) struck(Rich.spanned(t.text)) else Rich.spanned(t.text))
     c.set(this, R.id.one_text, "setTextColor") { if (done) it.muted else it.text }
     if (tall) {
-      val parts = if (!roomy) emptyList() else CardMeta.parts(t.due, t.remindAt, t.repeatFreq, t.repeatDays, false, ctx.resources.configuration.locales[0].language)
+      val parts = if (!roomy) emptyList() else withFolder(CardMeta.parts(t.due, t.remindAt, t.repeatFreq, t.repeatDays, false, ctx.resources.configuration.locales[0].language), s.folderId, t, s.folders)
       setViewVisibility(R.id.one_meta, if (parts.isEmpty()) View.GONE else View.VISIBLE)
       setInt(R.id.one_text, "setMaxLines", if (roomy && parts.isEmpty()) 2 else 1)
       if (parts.isNotEmpty()) {
-        setTextViewText(R.id.one_meta, metaLine(parts))
+        setTextViewText(R.id.one_meta, metaLine(parts, c.now.accent))
         setTextViewTextSize(R.id.one_meta, TypedValue.COMPLEX_UNIT_SP, s.wp.textSize - 2)
         c.set(this, R.id.one_meta, "setTextColor") { it.muted }
       }
@@ -526,8 +536,8 @@ object HomeWidget {
     val toggle = Intent(ctx, NotesWidgetProvider::class.java).setAction(NotesWidgetProvider.ACTION_TOGGLE)
       .putExtra(NotesWidgetProvider.EXTRA_TODO, t.id)
       .setData(Uri.parse("naegirok://toggle/$id/${t.id}"))
-    setOnClickPendingIntent(ck.flip, if (s.readOnly) open else broadcast(ctx, id, toggle))
-    setContentDescription(ck.flip, if (s.readOnly) ctx.getString(R.string.widget_open_app) else ctx.getString(R.string.mark_done, Rich.plain(t.text)))
+    setOnClickPendingIntent(ck.flip, if (readOnly) open else broadcast(ctx, id, toggle))
+    setContentDescription(ck.flip, if (readOnly) ctx.getString(R.string.widget_open_app) else ctx.getString(R.string.mark_done, Rich.plain(t.text)))
     // 몇 번째/몇 개: 맨 오른쪽(하나뿐이면 숨긴다)
     setViewVisibility(R.id.one_pos, if (s.count > 1) View.VISIBLE else View.GONE)
     setTextViewText(R.id.one_pos, "${i + 1}/${s.count}")
@@ -545,7 +555,7 @@ object HomeWidget {
         .putExtra(WidgetEditActivity.EXTRA_TODO, t.id)
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
         .setData(Uri.parse("naegirok://edit/todo/${t.id}/$id"))
-      setOnClickPendingIntent(tap, if (s.readOnly) open else activity(ctx, id, edit))
+      setOnClickPendingIntent(tap, if (readOnly) open else activity(ctx, id, edit))
       setContentDescription(tap, ctx.getString(R.string.edit_todo) + ": " + Rich.plain(t.text))
     }
   }
@@ -566,6 +576,7 @@ object HomeWidget {
   private fun todoRow(
     ctx: Context, t: NotesDb.Todo, lang: String, c: Colors,
     titleSp: Float, metaSp: Float, titleH: Int, metaH: Int, blockH: Int, plainLines: Int, rowPad: Int, readOnly: Boolean,
+    current: String?, folders: List<NotesDb.Folder>,
   ) = RemoteViews(ctx.packageName, R.layout.widget_home_todo).apply {
     setViewPadding(R.id.item_row, 0, rowPad, 0, rowPad)
     // 체크 위치(꾸미기 홈 위젯 탭, 없으면 공통): 그쪽 동그라미만, 글과 동그라미 사이 8dp
@@ -578,7 +589,7 @@ object HomeWidget {
     setTextViewText(R.id.item_text, if (done) struck(Rich.spanned(t.text)) else Rich.spanned(t.text))
     setTextViewTextSize(R.id.item_text, TypedValue.COMPLEX_UNIT_SP, titleSp)
     c.set(this, R.id.item_text, "setTextColor") { if (done) it.muted else it.text }
-    val parts = CardMeta.parts(t.due, t.remindAt, t.repeatFreq, t.repeatDays, false, lang)
+    val parts = withFolder(CardMeta.parts(t.due, t.remindAt, t.repeatFreq, t.repeatDays, false, lang), current, t, folders)
     if (parts.isEmpty()) {
       // 제목만: 보조 줄 자리까지 같은 높이에 세로 가운데, plainLines줄까지 …
       // (setHeight가 최대 줄 수를 픽셀 높이로 덮어써 …없이 잘리므로 줄 수는 그 뒤에 다시 준다)
@@ -587,7 +598,7 @@ object HomeWidget {
       setInt(R.id.item_text, "setMaxLines", plainLines)
     } else {
       setViewVisibility(R.id.item_meta, View.VISIBLE)
-      setTextViewText(R.id.item_meta, metaLine(parts))
+      setTextViewText(R.id.item_meta, metaLine(parts, c.now.accent))
       setTextViewTextSize(R.id.item_meta, TypedValue.COMPLEX_UNIT_SP, metaSp)
       c.set(this, R.id.item_meta, "setTextColor") { it.muted }
       setInt(R.id.item_text, "setHeight", titleH)
@@ -631,16 +642,24 @@ object HomeWidget {
   private fun struck(text: CharSequence): CharSequence =
     SpannableStringBuilder(text).apply { setSpan(StrikethroughSpan(), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) }
 
-  /** 할 일 아래 줄: 조각을 '  ·  '로 잇고 기한이 지난 조각은 빨간색(잠금화면 위젯도 같은 줄을 쓴다) */
-  internal fun metaLine(parts: List<CardMeta.Part>): CharSequence {
+  /** 할 일 아래 줄: 조각을 '  ·  '로 잇고 기한이 지난 조각은 빨간색, 폴더 이름은 테마색(accent)(잠금화면 위젯도 같은 줄을 쓴다) */
+  internal fun metaLine(parts: List<CardMeta.Part>, accent: Int? = null): CharSequence {
     val line = SpannableStringBuilder()
     parts.forEachIndexed { i, p ->
       if (i > 0) line.append("  ·  ")
       val start = line.length
       line.append(p.text)
-      if (p.late) line.setSpan(ForegroundColorSpan(LATE), start, line.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+      val color = if (p.late) LATE else if (p.folder) accent else null
+      if (color != null) line.setSpan(ForegroundColorSpan(color), start, line.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
     }
     return line
+  }
+
+  /** 전체 탭(folderId = null)에서 할 일 아래 줄 끝에 붙일 폴더 이름(앱 카드와 같다, 폴더 없는 할 일은 없음) */
+  private fun withFolder(parts: List<CardMeta.Part>, current: String?, t: NotesDb.Todo, folders: List<NotesDb.Folder>): List<CardMeta.Part> {
+    if (current != null) return parts
+    val name = folders.firstOrNull { it.id == t.folderId }?.name ?: return parts
+    return parts + CardMeta.Part(name, folder = true)
   }
 
   private fun paint(px: Float, letterSpacing: Float) = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {

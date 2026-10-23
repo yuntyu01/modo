@@ -1,5 +1,5 @@
 import type { Folder, Paragraph, Snapshot, Todo } from '../../../core/types';
-import { buildBlocks, neighborKeys, trimTrailingBlank } from '../model';
+import { buildBlocks, folderLabelOf, neighborKeys, trimTrailingBlank } from '../model';
 
 const todo = (id: string, position: string, done_at: number | null = null, folder_id: string | null = null): Todo => ({
   id, folder_id, text: id, done: done_at != null, done_at, due_date: null, remind_at: null, repeat_freq: null, repeat_days: null, position,
@@ -53,10 +53,20 @@ describe('폴더마다 메모 하나 + 그 폴더의 할 일', () => {
     expect(r.paragraphs.map((p) => p.id)).toEqual(['p-work', 'p-work2']);
   });
 
-  test('기본은 폴더 없는 항목 + 지워진 폴더를 가리키는 항목(잃어버리지 않게), 다른 폴더 메모는 복제하지 않는다', () => {
+  test('전체(예전 기본)는 모든 폴더의 할 일 + 폴더 없는 할 일, 메모는 폴더 없는 메모만(다른 폴더 메모는 복제하지 않는다)', () => {
     const r = build({ folders, todos, paragraphs, filter: null });
-    expect(r.blocks.map((b) => b.key)).toEqual(['t-base', 't-gone']);
+    expect(r.blocks.map((b) => b.key)).toEqual(['t-base', 't-work', 't-home', 't-gone']);
     expect(r.paragraphs.map((p) => p.id)).toEqual(['p-base']);
+    // 홈에서 숨긴 공유 폴더의 할 일은 전체에도 없다(함께 탭에서 본다)
+    const hidden = buildBlocks({
+      snap: { folders, todos, paragraphs, shared: [{ folder_id: 'home', role: 'edit', owner: { id: 'o', email: '', name: '' }, home: false }] } as Snapshot,
+      filter: null,
+      showDone: true,
+      query: '',
+    });
+    expect(hidden.blocks.map((b) => b.key)).toEqual(['t-base', 't-work', 't-gone']);
+    expect(folderLabelOf('work', folders)).toBe('work');
+    expect([folderLabelOf(null, folders), folderLabelOf('gone', folders)]).toEqual([undefined, undefined]);
   });
 });
 

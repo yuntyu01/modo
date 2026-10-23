@@ -1,7 +1,7 @@
 <resources>
   <string name="app_name_widget">modo</string>
   <string name="widget_description">备忘与待办，尽在一处。</string>
-  <string name="base_folder">默认</string>
+  <string name="base_folder">全部</string>
   <string name="add">添加</string>
   <string name="widget_empty">空空如也。点 + 直接记录吧</string>
   <string name="mark_done">完成“%1$s”</string>

@@ -738,16 +738,20 @@ export class Repo {
     });
   }
   /** 한 폴더의 완료한 할 일을 휴지통으로. null = 기본 폴더(폴더 없음, 또는 없어진 폴더를 가리키는 항목). */
-  clearDone(folderId: string | null) {
+  /** 완료 비우기. only를 주면 그 할 일만(전체 탭: 여러 폴더에 걸쳐 화면에 보이는 것, 보기만 공유된 폴더 것은 빼고) */
+  clearDone(folderId: string | null, only?: string[]) {
     return this.write(async () => {
-      const where = folderId
-        ? `AND folder_id = ?`
-        : `AND (folder_id IS NULL OR folder_id NOT IN (SELECT id FROM folders WHERE deleted_at IS NULL))`;
-      const rows = await this.db.all<{ id: string }>(
-        // 반복 할 일은 완료해도 다음 회차가 있어 지우지 않는다
-        `SELECT id FROM todos WHERE done_at IS NOT NULL AND repeat_freq IS NULL AND deleted_at IS NULL ${where}`,
-        folderId ? [folderId] : [],
-      );
+      // 반복 할 일은 완료해도 다음 회차가 있어 지우지 않는다
+      const base = `SELECT id FROM todos WHERE done_at IS NOT NULL AND repeat_freq IS NULL AND deleted_at IS NULL`;
+      const rows: { id: string }[] = [];
+      if (only) {
+        for (const ids of chunks(only)) rows.push(...(await this.db.all<{ id: string }>(`${base} AND id IN (${marks(ids.length)})`, ids)));
+      } else {
+        const where = folderId
+          ? `AND folder_id = ?`
+          : `AND (folder_id IS NULL OR folder_id NOT IN (SELECT id FROM folders WHERE deleted_at IS NULL))`;
+        rows.push(...(await this.db.all<{ id: string }>(`${base} ${where}`, folderId ? [folderId] : [])));
+      }
       const t = this.now();
       for (const r of rows) await this.patch('todo', r.id, { deleted_at: t });
       return rows.map((r) => r.id);

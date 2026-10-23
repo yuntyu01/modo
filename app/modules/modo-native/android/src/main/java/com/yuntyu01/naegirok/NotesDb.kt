@@ -48,6 +48,8 @@ object NotesDb {
    * 앱이 다른 프로세스에서 언제 옮길지 몰라 DB를 열 때마다 다시 본다(PRAGMA 한 번이라 가볍다).
    */
   @Volatile private var live = ""
+  /** 홈에서 숨긴 공유 폴더의 할 일을 빼는 조건(전체 탭). 공유 표나 그 home 열이 아직 없으면(앱을 새 버전으로 켜기 전) 빼지 않는다 */
+  @Volatile private var shown = ""
 
   /**
    * 앱을 새 버전으로 바꾼 뒤 앱을 열기 전에 위젯이 먼저 DB를 열 수 있다. 앱(schema.ts MIGRATE_V3)과 같은 열을 여기서도 맞춘다.
@@ -63,6 +65,8 @@ object NotesDb {
     // 루틴을 한 날 기록(schema.ts MIGRATE_V5)
     if (cols.isNotEmpty() && "done_log" !in cols) runCatching { db.execSQL("ALTER TABLE todos ADD COLUMN done_log TEXT") }
     live = if ("purged" in cols) " AND purged = 0" else ""
+    val shared = runCatching { db.rawQuery("PRAGMA table_info(shared_folders)", null).use { c -> buildSet { while (c.moveToNext()) add(c.getString(1)) } } }.getOrDefault(emptySet())
+    shown = if ("home" in shared) " AND (folder_id IS NULL OR folder_id NOT IN (SELECT folder_id FROM shared_folders WHERE home = 0))" else ""
   }
 
   fun <T> write(ctx: Context, block: (SQLiteDatabase) -> T): T? = use(ctx) { db ->
@@ -108,7 +112,8 @@ object NotesDb {
   }
 
   /**
-   * 폴더 조건. null = 기본 폴더: 폴더가 없거나 없어진 폴더를 가리키는 항목(앱의 homeFolder와 같은 규칙).
+   * 폴더 조건. null = 폴더 없음: 폴더가 없거나 없어진 폴더를 가리키는 항목(앱의 homeFolder와 같은 규칙). 메모와 폴더 탭에 쓴다
+   * (할 일의 전체 탭은 undoneWhere)
    */
   private fun folderWhere(folderId: String?): Pair<String, List<String>> =
     if (folderId != null) " AND folder_id = ?" to listOf(folderId)
@@ -141,14 +146,18 @@ object NotesDb {
     return db.rawQuery("SELECT COUNT(*) FROM todos WHERE $where", args.toTypedArray()).use { c -> if (c.moveToFirst()) c.getInt(0) else 0 }
   }
 
+  /**
+   * 남은 할 일 조건. folderId = null은 전체 탭(예전 '기본' 폴더): 홈에 보이는 모든 폴더의 할 일 + 폴더 없는 할 일
+   * (앱 model.todoInView와 같은 규칙, 사용자 요청 2026-10-24). all = 숨긴 공유 폴더까지 모두(잠금화면 알림)
+   */
   private fun undoneWhere(folderId: String?, all: Boolean): Pair<String, List<String>> {
     val where = StringBuilder("deleted_at IS NULL$live AND NOT $DONE_NOW")
     val args = mutableListOf(java.time.LocalDate.now().toString())
-    if (!all) {
-      val (w, a) = folderWhere(folderId)
-      where.append(w)
-      args.addAll(a)
-    }
+    if (all) return where.toString() to args
+    if (folderId == null) return where.append(shown).toString() to args
+    val (w, a) = folderWhere(folderId)
+    where.append(w)
+    args.addAll(a)
     return where.toString() to args
   }
 

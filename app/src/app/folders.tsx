@@ -7,11 +7,11 @@ import { EditIcon, PeopleIcon, PlusIcon, ShareIcon, TrashIcon } from '../ui/Icon
 import { ItemSheets, type SheetState } from '../ui/ItemSheets';
 import { Group, Row } from '../ui/primitives';
 import { Note, SubScreen } from '../ui/SubScreen';
-import { liveFolders } from '../ui/home/model';
+import { hiddenFolderIds, liveFolderIds, liveFolders, todoInView } from '../ui/home/model';
 
 /**
  * 폴더 관리: 폴더 추가 · 이름 바꾸기 · 삭제 · 공유(서버에 닿을 때만) 를 한곳에서.
- * 기본 폴더는 지울 수 없고, 공유받은 폴더는 이름·삭제 없이 공유 표시만 한다.
+ * 전체(예전 '기본' 폴더: 모든 폴더의 할 일 + 폴더 없는 메모·할 일)는 지울 수 없고, 공유받은 폴더는 이름·삭제 없이 공유 표시만 한다.
  */
 export default function Folders() {
   const { theme, t, snap, serverApi, account } = useApp();
@@ -19,7 +19,10 @@ export default function Folders() {
   const folders = liveFolders(snap.folders);
   const sharedIds = new Set(snap.shared.map((s) => s.folder_id));
   const count = (id: string) => snap.todos.filter((x) => x.folder_id === id && !x.deleted_at && !x.done).length;
-  const baseCount = snap.todos.filter((x) => !x.folder_id && !x.deleted_at && !x.done).length;
+  // 전체 탭에 보이는 남은 할 일(홈에서 숨긴 공유 폴더 것은 빼고)
+  const live = liveFolderIds(snap.folders);
+  const hidden = hiddenFolderIds(snap.shared);
+  const baseCount = snap.todos.filter((x) => !x.deleted_at && !x.done && todoInView(x.folder_id, null, live, hidden)).length;
   const iconBtn = (label: string, icon: ReactNode, onPress: () => void) => (
     <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} hitSlop={8} style={styles.icon}>
       {icon}
@@ -28,7 +31,7 @@ export default function Folders() {
   return (
     <SubScreen title={t('manageFolders')}>
       <Group>
-        {/* 기본 폴더는 고치기·지우기가 없지만 개수는 다른 줄과 같은 자리에(아이콘 자리만큼 비운다) */}
+        {/* 전체는 고치기·지우기가 없지만 개수는 다른 줄과 같은 자리에(아이콘 자리만큼 비운다) */}
         <Row
           label={t('baseFolder')}
           last={!folders.length}

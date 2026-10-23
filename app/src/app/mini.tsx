@@ -10,7 +10,7 @@ import { withAlpha } from '../ui/color';
 import { EditableText } from '../ui/EditableText';
 import { MINI_CARD_GAP, MINI_RADIUS, TodoCard, type Editing } from '../ui/home/Cards';
 import { Composer } from '../ui/home/Composer';
-import { homeFolder, isRepeatDone, liveFolderIds, splitDone, trimTrailingBlank, countTrash, liveFolders } from '../ui/home/model';
+import { folderLabelOf, hiddenFolderIds, homeFolder, isRepeatDone, liveFolderIds, splitDone, todoInView, trimTrailingBlank, countTrash, liveFolders } from '../ui/home/model';
 import { useWebReorder } from '../ui/home/webReorder';
 import { useTabScroller } from '../ui/home/tabScroller';
 import { CloseIcon, CollapseIcon, DotsIcon, ExpandIcon, PinIcon, PlusIcon } from '../ui/Icons';
@@ -92,12 +92,12 @@ function MiniWindow() {
   useEffect(() => {
     if (hiddenFilter) setFilter(null);
   }, [hiddenFilter, setFilter]);
-  // 선택한 폴더의 메모 하나와 그 폴더의 할 일(null = 기본)
+  // 선택한 폴더의 메모 하나와 그 폴더의 할 일. 전체(null)는 모든 폴더의 할 일 + 폴더 없는 메모·할 일(model.todoInView)
   const live = liveFolderIds(snap.folders);
-  const inView = (id: string | null) => homeFolder(id, live) === filter;
-  const paragraphs: Paragraph[] = snap.paragraphs.filter((p) => !p.deleted_at && inView(p.folder_id));
+  const hidden = hiddenFolderIds(snap.shared);
+  const paragraphs: Paragraph[] = snap.paragraphs.filter((p) => !p.deleted_at && homeFolder(p.folder_id, live) === filter);
   // 앞날에 시작하는 반복도 보인다(아래 줄에 시작일). 이번 회차를 끝낸 반복은 다음 회차까지 체크된 채로 맨 아래에(완료 숨기기여도)
-  const [openTodos, doneTodos] = splitDone(snap.todos.filter((x) => !x.deleted_at && inView(x.folder_id)));
+  const [openTodos, doneTodos] = splitDone(snap.todos.filter((x) => !x.deleted_at && todoInView(x.folder_id, filter, live, hidden)));
   const shownDone = showDone ? doneTodos : doneTodos.filter(isRepeatDone);
   // 꾹 눌러 끌어서 순서 바꾸기(놓으면 앞뒤 할 일 사이로 옮긴다). 그냥 꾹 누르기·오른쪽 클릭은 항목 정보
   const byId = new Map(openTodos.map((x) => [x.id, x]));
@@ -239,6 +239,7 @@ function MiniWindow() {
       onLongPress={handlersFor(todo.id).long}
       onRepeatPress={handlersFor(todo.id).repeat}
       surface={block}
+      folderLabel={filter === null ? folderLabelOf(todo.folder_id, snap.folders) : undefined}
     />
   );
   const iconBtn = (label: string, onPress: () => void, child: React.ReactNode) => (

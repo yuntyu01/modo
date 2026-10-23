@@ -23,9 +23,28 @@ export function countTrash(snap: Pick<Snapshot, 'todos' | 'paragraphs'>) {
   return n;
 }
 
-/** 항목이 실제로 속한 폴더(null = 기본) */
+/** 항목이 실제로 속한 폴더(null = 폴더 없음, 전체 탭의 메모·추가 자리) */
 export function homeFolder(folderId: string | null, live: Set<string>): FolderFilter {
   return folderId && live.has(folderId) ? folderId : null;
+}
+
+/** 홈에서 숨긴 공유 폴더(함께 탭에서만 본다) */
+export function hiddenFolderIds(shared: Snapshot['shared']) {
+  return new Set(shared.filter((s) => !s.home).map((s) => s.folder_id));
+}
+
+/**
+ * 할 일이 지금 보는 탭에 들어가는지. 전체(filter = null, 예전 '기본' 폴더)는 홈에 보이는 모든 폴더의 할 일 + 폴더 없는 할 일
+ * (사용자 요청 2026-10-24), 폴더 탭은 그 폴더 것만. 메모는 전체에서도 폴더 없는 메모만(visibleParagraphs)
+ */
+export function todoInView(folderId: string | null, filter: FolderFilter, live: Set<string>, hidden: Set<string>) {
+  if (filter === null) return !(folderId && live.has(folderId) && hidden.has(folderId));
+  return homeFolder(folderId, live) === filter;
+}
+
+/** 전체 탭에서 할 일 아래 줄에 붙일 폴더 이름(폴더 없는 할 일은 없음) */
+export function folderLabelOf(folderId: string | null, folders: Folder[]) {
+  return folderId ? folders.find((f) => f.id === folderId && !f.deleted_at)?.name : undefined;
 }
 
 /**
@@ -78,8 +97,8 @@ export function visibleParagraphs(snap: Pick<Snapshot, 'paragraphs' | 'folders'>
 export function buildBlocks(args: { snap: Snapshot; filter: FolderFilter; showDone: boolean; query: string }) {
   const { snap, filter, showDone, query } = args;
   const live = liveFolderIds(snap.folders);
-  const inView = (folderId: string | null) => homeFolder(folderId, live) === filter;
-  const all = snap.todos.filter((t) => !t.deleted_at && inView(t.folder_id) && matches(toPlain(t.text), query));
+  const hidden = hiddenFolderIds(snap.shared);
+  const all = snap.todos.filter((t) => !t.deleted_at && todoInView(t.folder_id, filter, live, hidden) && matches(toPlain(t.text), query));
   // 완료 항목을 숨기면(⋯ 메뉴) 보통 할 일만 숨는다. 완료한 반복 할 일은 다음 회차까지 묶음 맨 위에 체크된 채로 보인다
   // (매월 반복을 만들면 목록에서 사라진 것처럼 보였다, 사용자 제보 2026-10-18). 찾는 중이면 다 보인다.
   const doneOpen = showDone || !!query;

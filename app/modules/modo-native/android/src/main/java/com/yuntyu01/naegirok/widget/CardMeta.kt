@@ -11,8 +11,8 @@ import java.time.temporal.ChronoUnit
  * Android 의존이 없어 단위 테스트로 확인한다(src/test/.../CardMetaTest.kt).
  */
 object CardMeta {
-  /** 한 덩어리 글과, 기한이 지나 빨간색으로 그릴지 */
-  data class Part(val text: String, val late: Boolean = false)
+  /** 한 덩어리 글과, 기한이 지나 빨간색으로 그릴지. folder = 전체 탭에서 붙는 폴더 이름(테마색) */
+  data class Part(val text: String, val late: Boolean = false, val folder: Boolean = false)
 
   private class W(
     val week: List<String>, // 일요일부터

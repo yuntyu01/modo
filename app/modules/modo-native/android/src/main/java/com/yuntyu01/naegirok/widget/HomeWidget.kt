@@ -100,6 +100,8 @@ object HomeWidget {
     val onAccent = t.onAccent
     val opacity = t.opacity
     val lockOpacity = t.lockOpacity
+    val checkEnd = t.checkEnd
+    val lockCheckEnd = t.lockCheckEnd
   }
 
   /**
@@ -453,6 +455,12 @@ object HomeWidget {
    */
   private fun one(v: RemoteViews, ctx: Context, id: Int, s: Small, tall: Boolean, roomy: Boolean = false) = v.apply {
     val c = s.colors
+    // 체크 위치(꾸미기, 홈·잠금화면 따로). 동그라미가 오른쪽이면 글자가 왼쪽 끝(위 줄 로고 자리)에서 시작하게 줄 여백을 바꾼다
+    val end = if (s.keyguard) c.now.lockCheckEnd else c.now.checkEnd
+    val dp = ctx.resources.displayMetrics.density
+    fun px(v: Float) = (v * dp).roundToInt()
+    if (tall) setViewPadding(R.id.one_row, 0, 0, if (end) 0 else px(2f), 0)
+    else setViewPadding(R.id.one_row, px(if (end) 10f else 6f), 0, px(if (end) 6f else 14f), 0)
     val size = if (tall) s.wp.textSize + 1 else s.wp.textSize
     setTextViewTextSize(R.id.one_text, TypedValue.COMPLEX_UNIT_SP, size)
     c.set(this, R.id.one_pos, "setTextColor") { it.muted }
@@ -468,7 +476,8 @@ object HomeWidget {
     if (n == 0) {
       // 할 일 대신: 안내, 또는 메모(누르면 메모 고치기)
       val memo = note == null && s.wp.show != WidgetPrefs.Show.TODOS && s.memo.isNotBlank()
-      setViewVisibility(R.id.one_check, View.GONE)
+      setViewVisibility(ONE_START.flip, View.GONE)
+      setViewVisibility(ONE_END.flip, View.GONE)
       setViewVisibility(R.id.one_pos, View.GONE)
       if (tall) {
         setViewVisibility(R.id.one_meta, View.GONE)
@@ -503,17 +512,17 @@ object HomeWidget {
         c.set(this, R.id.one_meta, "setTextColor") { it.muted }
       }
     }
-    setViewVisibility(R.id.one_check, View.VISIBLE)
-    setImageViewResource(R.id.one_ring, if (t.repeatFreq != null) R.drawable.naegirok_check_repeat else R.drawable.naegirok_check_off)
-    c.set(this, R.id.one_ring, "setColorFilter") { it.circle }
-    c.set(this, R.id.one_fill, "setColorFilter") { it.accent }
-    c.set(this, R.id.one_tick, "setColorFilter") { it.onAccent }
-    setDisplayedChild(R.id.one_check, if (done) 1 else 0)
+    val ck = pick(this, end, ONE_START, ONE_END)
+    setImageViewResource(ck.ring, if (t.repeatFreq != null) R.drawable.naegirok_check_repeat else R.drawable.naegirok_check_off)
+    c.set(this, ck.ring, "setColorFilter") { it.circle }
+    c.set(this, ck.fill, "setColorFilter") { it.accent }
+    c.set(this, ck.tick, "setColorFilter") { it.onAccent }
+    setDisplayedChild(ck.flip, if (done) 1 else 0)
     val toggle = Intent(ctx, NotesWidgetProvider::class.java).setAction(NotesWidgetProvider.ACTION_TOGGLE)
       .putExtra(NotesWidgetProvider.EXTRA_TODO, t.id)
       .setData(Uri.parse("naegirok://toggle/$id/${t.id}"))
-    setOnClickPendingIntent(R.id.one_check, if (s.readOnly) open else broadcast(ctx, id, toggle))
-    setContentDescription(R.id.one_check, if (s.readOnly) ctx.getString(R.string.widget_open_app) else ctx.getString(R.string.mark_done, Rich.plain(t.text)))
+    setOnClickPendingIntent(ck.flip, if (s.readOnly) open else broadcast(ctx, id, toggle))
+    setContentDescription(ck.flip, if (s.readOnly) ctx.getString(R.string.widget_open_app) else ctx.getString(R.string.mark_done, Rich.plain(t.text)))
     // 몇 번째/몇 개: 맨 오른쪽(하나뿐이면 숨긴다)
     setViewVisibility(R.id.one_pos, if (s.count > 1) View.VISIBLE else View.GONE)
     setTextViewText(R.id.one_pos, "${i + 1}/${s.count}")
@@ -554,6 +563,11 @@ object HomeWidget {
     titleSp: Float, metaSp: Float, titleH: Int, metaH: Int, blockH: Int, plainLines: Int, rowPad: Int, readOnly: Boolean,
   ) = RemoteViews(ctx.packageName, R.layout.widget_home_todo).apply {
     setViewPadding(R.id.item_row, 0, rowPad, 0, rowPad)
+    // 체크 위치(꾸미기 홈 위젯 탭, 없으면 공통): 그쪽 동그라미만, 글과 동그라미 사이 8dp
+    val end = c.now.checkEnd
+    val ck = pick(this, end, ITEM_START, ITEM_END)
+    val gap = (8 * ctx.resources.displayMetrics.density).roundToInt()
+    setViewPadding(R.id.item_body, if (end) 0 else gap, 0, if (end) gap else 0, 0)
     // 완료하는 중(동그라미를 막 눌렀다): 채운 동그라미 + 체크, 글은 회색 줄 그음. 잠시 뒤 목록에서 빠진다(NotesWidgetProvider.complete)
     val done = t.id in NotesWidgetProvider.completing
     setTextViewText(R.id.item_text, if (done) struck(Rich.spanned(t.text)) else Rich.spanned(t.text))
@@ -577,21 +591,35 @@ object HomeWidget {
       setInt(R.id.item_meta, "setMaxLines", 1)
     }
     // 일반은 빈 원, 반복은 원 테두리가 두 곡선 화살표(앱 카드와 같은 모양)
-    setImageViewResource(R.id.item_ring, if (t.repeatFreq != null) R.drawable.naegirok_check_repeat else R.drawable.naegirok_check_off)
-    c.set(this, R.id.item_ring, "setColorFilter") { it.circle }
-    c.set(this, R.id.item_fill, "setColorFilter") { it.accent }
-    c.set(this, R.id.item_tick, "setColorFilter") { it.onAccent }
-    setDisplayedChild(R.id.item_check, if (done) 1 else 0)
-    setContentDescription(R.id.item_check, if (readOnly) ctx.getString(R.string.widget_open_app) else ctx.getString(R.string.mark_done, Rich.plain(t.text)))
+    setImageViewResource(ck.ring, if (t.repeatFreq != null) R.drawable.naegirok_check_repeat else R.drawable.naegirok_check_off)
+    c.set(this, ck.ring, "setColorFilter") { it.circle }
+    c.set(this, ck.fill, "setColorFilter") { it.accent }
+    c.set(this, ck.tick, "setColorFilter") { it.onAccent }
+    setDisplayedChild(ck.flip, if (done) 1 else 0)
+    setContentDescription(ck.flip, if (readOnly) ctx.getString(R.string.widget_open_app) else ctx.getString(R.string.mark_done, Rich.plain(t.text)))
     // 동그라미 = 완료(반복은 이번 회차만, 앱과 같은 저장·동기화 경로), 글자 = 그 할 일 고치기.
     // 보기만 공유된 폴더: 완료·고치기 대신 앱의 그 폴더로(위젯에서 바꿔도 서버가 받지 않는다)
     val open = fill(NotesWidgetProvider.ITEM_OPEN, folder = t.folderId)
-    setOnClickFillInIntent(R.id.item_check, if (readOnly) open else fill(NotesWidgetProvider.ITEM_TOGGLE, todo = t.id))
+    setOnClickFillInIntent(ck.flip, if (readOnly) open else fill(NotesWidgetProvider.ITEM_TOGGLE, todo = t.id))
     // 글자뿐 아니라 줄 위아래 빈 곳을 눌러도 고치기(동그라미는 따로 완료)
     val edit = if (readOnly) open else fill(NotesWidgetProvider.ITEM_EDIT, todo = t.id)
     setOnClickFillInIntent(R.id.item_row, edit)
     setOnClickFillInIntent(R.id.item_body, edit)
     setContentDescription(R.id.item_body, ctx.getString(R.string.edit_todo) + ": " + Rich.plain(t.text))
+  }
+
+  /** 동그라미 한 벌의 id(줄 왼쪽 · 오른쪽 자리) */
+  private class Check(val flip: Int, val ring: Int, val fill: Int, val tick: Int)
+  private val ITEM_START = Check(R.id.item_check, R.id.item_ring, R.id.item_fill, R.id.item_tick)
+  private val ITEM_END = Check(R.id.item_check_end, R.id.item_ring_end, R.id.item_fill_end, R.id.item_tick_end)
+  private val ONE_START = Check(R.id.one_check, R.id.one_ring, R.id.one_fill, R.id.one_tick)
+  private val ONE_END = Check(R.id.one_check_end, R.id.one_ring_end, R.id.one_fill_end, R.id.one_tick_end)
+
+  /** 체크 위치 쪽 동그라미만 보이고 그 id를 돌려준다(꾸미기의 체크 위치, 사용자 요청 2026-10-24) */
+  private fun pick(v: RemoteViews, end: Boolean, start: Check, endIds: Check): Check {
+    v.setViewVisibility(start.flip, if (end) View.GONE else View.VISIBLE)
+    v.setViewVisibility(endIds.flip, if (end) View.VISIBLE else View.GONE)
+    return if (end) endIds else start
   }
 
   /** 완료하는 중인 글: 전체에 줄을 긋는다(꾸밈은 그대로) */

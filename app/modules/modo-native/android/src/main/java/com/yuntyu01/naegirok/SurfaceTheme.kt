@@ -26,6 +26,10 @@ data class SurfaceTheme(
   val lockOpacity: Float = opacity,
   /** 꾸미기에서 카드색을 직접 골랐는지(홈 위젯은 고르지 않았을 때만 파란 기 없는 차콜을 쓴다) */
   val tinted: Boolean = false,
+  /** 홈 화면 위젯의 동그라미를 오른쪽에(꾸미기 홈 위젯 탭의 체크 위치, 없으면 공통 체크 위치: 사용자 요청 2026-10-24) */
+  val checkEnd: Boolean = false,
+  /** 잠금화면 위젯의 동그라미를 오른쪽에(잠금 위젯 탭의 체크 위치, 없으면 공통) */
+  val lockCheckEnd: Boolean = checkEnd,
 ) {
   companion object {
     /** 대표색: src/brand.ts와 같은 값(src/__tests__/brand.test.ts가 확인). 테마 설정이 아직 없으면 이 색 */
@@ -55,6 +59,9 @@ data class SurfaceTheme(
       val hsv = FloatArray(3).also { Color.colorToHSV(raw, it) }
       val flat = hsv[1] < 0.2f && contrast(raw, Color.parseColor(baseCard)) < 2
       val accent = if (flat) Color.parseColor(if (dark) "#F2F3F5" else "#1B1C20") else ensureContrast(raw, Color.parseColor(baseCard))
+      // 체크 위치: 위젯 탭에서 고른 것, 없으면 공통(앱 기본값 state/prefs.ts DEFAULT_PREFS.checkSide = 오른쪽). 테마 따르기와 상관없다
+      fun side(v: Any?) = (v as? String)?.takeIf { it == "left" || it == "right" }
+      val common = side(prefs.opt("checkSide")) ?: "right"
       return SurfaceTheme(
         dark = dark,
         accent = accent,
@@ -68,6 +75,8 @@ data class SurfaceTheme(
         opacity = (surface?.optDouble("opacity", DEFAULT_OPACITY) ?: DEFAULT_OPACITY).toFloat().coerceIn(0f, 1f),
         lockOpacity = (surface?.optDouble("lockOpacity", DEFAULT_OPACITY) ?: DEFAULT_OPACITY).toFloat().coerceIn(0f, 1f),
         tinted = cardHex != null,
+        checkEnd = (side(surface?.opt("checkSide")) ?: common) == "right",
+        lockCheckEnd = (side(surface?.opt("lockCheckSide")) ?: common) == "right",
       )
     }
 

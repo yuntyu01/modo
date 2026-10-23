@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   홈 위젯 할 일 한 줄(상자·구분선 없음): 동그라미 = 완료, 글자 = 그 할 일 고치기.
+  동그라미는 왼쪽(item_check) 또는 오른쪽(item_check_end) 하나만 보인다(꾸미기 홈 위젯 탭의 체크 위치, 사용자 요청 2026-10-24).
   줄 높이는 HomeWidget이 글자 높이로 정해 모든 줄이 같다(보조 줄 없는 줄은 제목이 세로 가운데).
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
@@ -51,8 +52,8 @@
     android:layout_width="0dp"
     android:layout_height="wrap_content"
     android:layout_weight="1"
-    android:layout_marginStart="8dp"
-    android:orientation="vertical">
+    android:orientation="vertical"
+    android:paddingStart="8dp">
     <TextView
       android:id="@+id/item_text"
       android:layout_width="match_parent"
@@ -78,4 +79,39 @@
       android:textSize="13sp"
       android:visibility="gone" />
   </LinearLayout>
+  <!-- 오른쪽 동그라미(체크 위치 = 오른쪽): 왼쪽 것과 같은 모양, 바깥으로 같은 만큼 -->
+  <ViewFlipper
+    android:id="@+id/item_check_end"
+    android:layout_width="44dp"
+    android:layout_height="44dp"
+    android:layout_marginEnd="-12dp"
+    android:inAnimation="@anim/widget_check_in"
+    android:outAnimation="@anim/widget_check_out"
+    android:visibility="gone">
+    <ImageView
+      android:id="@+id/item_ring_end"
+      android:layout_width="match_parent"
+      android:layout_height="match_parent"
+      android:importantForAccessibility="no"
+      android:padding="9.5dp"
+      android:src="@drawable/naegirok_check_off" />
+    <FrameLayout
+      android:layout_width="match_parent"
+      android:layout_height="match_parent">
+      <ImageView
+        android:id="@+id/item_fill_end"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no"
+        android:padding="11dp"
+        android:src="@drawable/naegirok_circle" />
+      <ImageView
+        android:id="@+id/item_tick_end"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no"
+        android:padding="12dp"
+        android:src="@drawable/naegirok_tick" />
+    </FrameLayout>
+  </ViewFlipper>
 </LinearLayout>

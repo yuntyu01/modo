@@ -13,6 +13,12 @@ export type SurfaceTheme = {
   opacity: number;
   /** 잠금화면 위젯의 배경 불투명도 0~1(위젯만, 홈과 따로: 사용자 요청 2026-10-22) */
   lockOpacity?: number;
+  /**
+   * 위젯 동그라미 자리(위젯만, 홈·잠금화면 따로: 사용자 요청 2026-10-24). 없으면 공통 체크 위치(Prefs.checkSide)를 따르고,
+   * 공통에서 바꾸면 둘 다 같이 바뀐다(customize.tsx). Android HomeWidget이 읽는다
+   */
+  checkSide?: 'left' | 'right';
+  lockCheckSide?: 'left' | 'right';
 };
 
 export type Prefs = {

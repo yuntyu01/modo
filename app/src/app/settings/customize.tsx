@@ -112,11 +112,11 @@ function ModeSegment() {
   );
 }
 
-/** 체크 위치: 왼쪽 체크 / 오른쪽 체크 작은 그림 두 개 */
-function CheckSide() {
-  const { theme, prefs, setPrefs, t } = useUi();
+/** 체크 위치: 왼쪽 체크 / 오른쪽 체크 작은 그림 두 개(공통 · 홈 위젯 · 잠금 위젯 탭이 같이 쓴다) */
+function CheckSide({ value, onChange }: { value: Prefs['checkSide']; onChange: (side: Prefs['checkSide']) => void }) {
+  const { theme, t } = useUi();
   const tile = (side: Prefs['checkSide']) => {
-    const on = prefs.checkSide === side;
+    const on = value === side;
     const box = on ? (
       <View style={[styles.miniBox, { backgroundColor: theme.accent, borderColor: theme.accent }]}>
         <CheckIcon color={theme.onAccent} size={10} strokeWidth={3} />
@@ -136,7 +136,7 @@ function CheckSide() {
         accessibilityRole="radio"
         accessibilityState={{ selected: on }}
         accessibilityLabel={`${t('checkSide')} ${side === 'left' ? '←' : '→'}`}
-        onPress={() => setPrefs({ checkSide: side })}
+        onPress={() => onChange(side)}
         style={[styles.tile, { borderColor: on ? theme.accent : theme.dark ? '#2C3036' : theme.outline }]}
       >
         {side === 'left' ? box : lines}
@@ -203,7 +203,17 @@ export default function Customize() {
           </View>
           <Group style={{ marginBottom: 9.5 }} inset={[3, 1]}>
             <Row size="sm" label={t('textSize')} value={sizes.find((x) => x.value === prefs.size)?.label} onPress={() => setSizeSheet(true)} />
-            <Row size="sm" label={t('checkSide')} right={<CheckSide />} />
+            {/* 공통에서 바꾸면 홈·잠금화면 위젯도 같이(위젯 탭에서 따로 고를 수 있다, 사용자 요청 2026-10-24) */}
+            <Row
+              size="sm"
+              label={t('checkSide')}
+              right={
+                <CheckSide
+                  value={prefs.checkSide}
+                  onChange={(side) => setPrefs({ checkSide: side, widget: { ...prefs.widget, checkSide: side, lockCheckSide: side } })}
+                />
+              }
+            />
             <Row
               size="sm"
               label={t('bgGradient')}
@@ -222,6 +232,10 @@ export default function Customize() {
           <SurfaceColors value={prefs.widget} onChange={(widget) => setPrefs({ widget })} />
           <OpacityCard label={t('homeWidgetOpacity')} opacity={prefs.widget.opacity} onCommit={(v) => setPrefs({ widget: { ...prefs.widget, opacity: v } })} />
           <Group>
+            <Row
+              label={t('checkSide')}
+              right={<CheckSide value={prefs.widget.checkSide ?? prefs.checkSide} onChange={(side) => setPrefs({ widget: { ...prefs.widget, checkSide: side } })} />}
+            />
             <Row label={t('addHomeWidget')} onPress={() => router.push('/settings/widgets')} last />
           </Group>
         </>
@@ -248,6 +262,12 @@ export default function Customize() {
           </View>
           <Text style={theme.kfont(13, { color: theme.subtle, marginLeft: 4, marginBottom: 14 })}>{t('lockWidgetColorNote')}</Text>
           <Group>
+            <Row
+              label={t('checkSide')}
+              right={
+                <CheckSide value={prefs.widget.lockCheckSide ?? prefs.checkSide} onChange={(side) => setPrefs({ widget: { ...prefs.widget, lockCheckSide: side } })} />
+              }
+            />
             <Row label={t('howtoLock')} onPress={() => router.push({ pathname: '/settings/howto/[topic]', params: { topic: 'lock' } })} last />
           </Group>
         </>

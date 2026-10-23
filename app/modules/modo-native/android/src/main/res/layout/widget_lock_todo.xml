@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 작은 칸 위젯의 할 일 하나(widget_lock · widget_lock_roomy): 동그라미 · (할 일 + 아래 줄) · 몇 번째/몇 개. id는 widget_line과 같은 one_* -->
+<!-- 작은 칸 위젯의 할 일 하나(widget_lock · widget_lock_roomy): 동그라미 · (할 일 + 아래 줄) · 몇 번째/몇 개. id는 widget_line과 같은 one_*.
+     동그라미는 왼쪽(one_check) 또는 맨 오른쪽(one_check_end) 하나만(꾸미기 잠금 위젯 탭의 체크 위치, 사용자 요청 2026-10-24) -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  android:id="@+id/one_row"
   android:layout_width="match_parent"
   android:layout_height="wrap_content"
   android:gravity="center_vertical"
@@ -81,4 +83,39 @@
     android:gravity="center_vertical"
     android:textColor="#A1A1A6"
     android:textSize="12sp" />
+  <ViewFlipper
+    android:id="@+id/one_check_end"
+    android:layout_width="40dp"
+    android:layout_height="40dp"
+    android:layout_marginStart="4dp"
+    android:layout_marginEnd="-6dp"
+    android:inAnimation="@anim/widget_check_in"
+    android:outAnimation="@anim/widget_check_out"
+    android:visibility="gone">
+    <ImageView
+      android:id="@+id/one_ring_end"
+      android:layout_width="match_parent"
+      android:layout_height="match_parent"
+      android:importantForAccessibility="no"
+      android:padding="8dp"
+      android:src="@drawable/naegirok_check_off" />
+    <FrameLayout
+      android:layout_width="match_parent"
+      android:layout_height="match_parent">
+      <ImageView
+        android:id="@+id/one_fill_end"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no"
+        android:padding="9.5dp"
+        android:src="@drawable/naegirok_circle" />
+      <ImageView
+        android:id="@+id/one_tick_end"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no"
+        android:padding="10.5dp"
+        android:src="@drawable/naegirok_tick" />
+    </FrameLayout>
+  </ViewFlipper>
 </LinearLayout>

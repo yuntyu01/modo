@@ -26,9 +26,13 @@ object ModoEvents {
     ctx.sendBroadcast(intent)
   }
 
-  /** :native가 DB를 바꾼 뒤(위젯 체크·고치기·빠른 추가·알림의 완료): 앱에 알리고 위젯·잠금화면 알림·알람을 맞춘다 */
+  /**
+   * :native가 DB를 바꾼 뒤(위젯 체크·고치기·빠른 추가·알림의 완료): 앱에 알리고 위젯·잠금화면 알림·알람을 맞춘다.
+   * 서버로도 바로 보낸다(앱을 열지 않아도 PC에 보이게, NotesSync)
+   */
   fun afterWrite(ctx: Context, vararg tables: String) {
     dataChanged(ctx, tables.toList())
+    NotesSync.request(ctx)
     refresh(ctx, tables.toList())
   }
 

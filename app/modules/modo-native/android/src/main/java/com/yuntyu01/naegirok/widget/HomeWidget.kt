@@ -470,8 +470,11 @@ object HomeWidget {
       val next = Intent(ctx, NotesWidgetProvider::class.java).setAction(NotesWidgetProvider.ACTION_NEXT)
         .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id)
         .setData(Uri.parse("naegirok://widget-next/$id"))
+      // 글자와 맨 오른쪽 몇 번째/몇 개 어느 쪽을 눌러도 다음 할 일
       setOnClickPendingIntent(R.id.line_text, broadcast(ctx, id, next))
+      setOnClickPendingIntent(R.id.line_pos, broadcast(ctx, id, next))
       setContentDescription(R.id.line_text, Rich.plain(t.text) + ". " + ctx.getString(R.string.next_todo))
+      setContentDescription(R.id.line_pos, "${i + 1}/${s.count}. " + ctx.getString(R.string.next_todo))
     } else {
       val edit = Intent(ctx, WidgetEditActivity::class.java)
         .putExtra(WidgetEditActivity.EXTRA_TODO, t.id)

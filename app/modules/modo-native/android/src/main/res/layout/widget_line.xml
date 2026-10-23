@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   한 줄만 들어가는 낮은 칸(삼성 잠금화면의 넓은 칸 등, HomeWidget.line): 동그라미(완료) · 할 일 한 줄(누르면 다음 할 일) · 몇 번째/몇 개(맨 오른쪽).
-  화살표 단추 없이 글자를 누르면 넘어간다(마지막에서 누르면 처음으로, 사용자 요청 2026-10-23).
+  화살표 단추 없이 글자나 몇 번째/몇 개를 누르면 넘어간다(마지막에서 누르면 처음으로, 사용자 요청 2026-10-23).
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
   android:id="@+id/line_root"

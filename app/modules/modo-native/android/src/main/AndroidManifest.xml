@@ -2,6 +2,9 @@
   <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
   <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
   <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+  <!-- 위젯·잠금화면에서 바꾼 것을 앱 없이 서버로 보내는 작업(NotesSync): 인터넷이 될 때 돌게 건다 -->
+  <uses-permission android:name="android.permission.INTERNET" />
+  <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
   <!-- DB를 여는 부품은 모두 :native 프로세스(ModoEvents.kt 설명). -->
   <application>
@@ -73,6 +76,9 @@
     </activity>
 
     <receiver android:name="com.yuntyu01.naegirok.RefreshReceiver" android:process=":native" android:exported="false" />
+    <service android:name="com.yuntyu01.naegirok.SyncJobService"
+      android:process=":native" android:exported="false"
+      android:permission="android.permission.BIND_JOB_SERVICE" />
     <receiver android:name="com.yuntyu01.naegirok.notify.ReminderReceiver"
       android:process=":native" android:exported="false" />
     <receiver android:name="com.yuntyu01.naegirok.notify.BootReceiver"

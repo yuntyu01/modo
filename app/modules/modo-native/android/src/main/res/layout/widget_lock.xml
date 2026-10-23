@@ -3,7 +3,7 @@
   잠금화면·작은 칸 위젯(HomeWidget.card): 위 = 로고(누르면 앱) · 폴더 이름 · 이전/다음 폴더, 아래 = 할 일 하나
   (동그라미 = 완료 · 할 일 · 아래 줄(날짜·반복) · 몇 번째/몇 개). 글자나 몇 번째/몇 개를 누르면 다음 할 일(마지막이면 처음으로).
   카드 넘기기(StackView)는 이상하게 보여 한 줄 칸(widget_line)과 같은 방식으로 바꿨다(사용자 요청 2026-10-23). 할 일 칸 id는 widget_line과 같다(one_*).
-  칸이 낮으면 위 줄은 빼고 할 일만. 할 일이 없으면 메모·안내(one_text). 폴더 이름·빈 곳은 누르지 않는다(예전엔 이름 칸이 › 버튼 옆까지 늘어나 있어,
+  위 줄은 늘 보인다(예전엔 100dp부터라 잠금화면 칸에서 로고·폴더 이름이 빠졌다, 사용자 제보 2026-10-23). 할 일이 없으면 메모·안내(one_text). 폴더 이름·빈 곳은 누르지 않는다(예전엔 이름 칸이 › 버튼 옆까지 늘어나 있어,
   맨 끝 폴더에서 ›를 조금 비껴 누르면 앱이 켜졌다).
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
@@ -25,14 +25,15 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:paddingStart="12dp"
-    android:paddingTop="4dp"
+    android:paddingTop="2dp"
     android:paddingEnd="12dp"
-    android:paddingBottom="6dp">
+    android:paddingBottom="4dp">
 
+    <!-- 56dp 칸에도 들어가게 낮게(26dp): 남는 24dp에 동그라미(24dp)가 들어간다 -->
     <LinearLayout
       android:id="@+id/lock_head"
       android:layout_width="match_parent"
-      android:layout_height="28dp"
+      android:layout_height="26dp"
       android:gravity="center_vertical"
       android:orientation="horizontal">
       <FrameLayout
@@ -64,7 +65,7 @@
       <ImageView
         android:id="@+id/lock_prev"
         android:layout_width="32dp"
-        android:layout_height="28dp"
+        android:layout_height="match_parent"
         android:contentDescription="@string/prev_folder"
         android:paddingStart="8dp"
         android:paddingTop="5dp"
@@ -74,7 +75,7 @@
       <ImageView
         android:id="@+id/lock_next"
         android:layout_width="32dp"
-        android:layout_height="28dp"
+        android:layout_height="match_parent"
         android:contentDescription="@string/next_folder"
         android:paddingStart="8dp"
         android:paddingTop="5dp"

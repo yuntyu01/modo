@@ -61,13 +61,13 @@ object HomeWidget {
   private const val META_GAP = 0f
   /** 작은 칸 모양을 고르는 크기(dp): 이 폭보다 좁으면 동그라미 모양, 이 높이부터 한 줄 모양의 위 줄(폴더), 이 높이부터 목록 */
   private const val SMALL_W = 110f
-  /** 이 높이부터 할 일 하나 칸(card: 아래 줄·위 줄), 그보다 낮으면 한 줄(line) */
+  /** 이 높이부터 위 줄 + 할 일 하나(card), 그보다 낮으면 한 줄(line) */
   private const val CARD_H = 56f
+  /** card: 이 높이부터 할 일 아래 줄(날짜·반복)·두 줄 글·여러 줄 메모(낮으면 할 일 한 줄만: 위 줄 아래 24dp쯤뿐) */
+  private const val ROOMY_H = 84f
   private const val FULL_H = 150f
   /** 눌러 넘겨 보는 할 일 수(그리는 것은 하나라 많아도 위젯 내용은 작다. 예전 카드 넘기기는 카드를 다 실어 30장까지였다) */
   private const val NEXT_LIMIT = 500
-  /** 잠금화면 위젯: 이 높이부터 위 줄(로고 · 폴더 이름 · 이전/다음 폴더)을 보인다 */
-  private const val LOCK_HEAD_H = 100f
   /** 위젯 목록에 싣는 할 일 수(더 있으면 끝에 '외 N개'). 위젯 내용은 한 번에 시스템으로 넘어가서 너무 크면 그리지 못한다 */
   private const val MAX_ROWS = 150
 
@@ -335,8 +335,8 @@ object HomeWidget {
 
   /**
    * 칸 크기에 맞는 모양. Android 12+는 크기별 모양을 함께 넘겨 런처·잠금화면이 실제 칸에 맞는 것을 고르고, 그 아래는 런처가 알려 준 크기로:
-   * 폭 110dp 미만(동그라미 칸) = 로고 + 남은 개수, 높이 56dp 미만 = 한 줄(line), 100dp 미만 = 할 일 하나(card, 아래 줄까지),
-   * 그 위 = 위 줄(로고 · 폴더 · 이전/다음 폴더) + 할 일 하나, full이 있으면(홈) 150dp부터 목록. 어느 모양이든 글자를 누르면 다음 할 일.
+   * 폭 110dp 미만(동그라미 칸) = 로고 + 남은 개수, 높이 56dp 미만 = 한 줄(line), 그 위 = 위 줄(로고 · 폴더 · 이전/다음 폴더) + 할 일 하나(card),
+   * full이 있으면(홈) 150dp부터 목록. 어느 모양이든 글자를 누르면 다음 할 일.
    * 작은 칸은 홈이든 잠금화면이든 같은 모양: 삼성 잠금화면이 잠금화면 위젯을 홈 화면 위젯처럼 알려 줘도 같게,
    * 넓은 칸의 높이가 30~40dp쯤이라 그보다 낮아도 한 줄로(예전엔 40dp 아래면 개수만 보였다, 사용자 제보 2026-10-23)
    */
@@ -345,8 +345,8 @@ object HomeWidget {
       val map = linkedMapOf(
         SizeF(40f, 40f) to tiny(ctx, id, s),
         SizeF(SMALL_W, 1f) to line(ctx, id, s),
-        SizeF(SMALL_W, CARD_H) to card(ctx, id, s, head = false),
-        SizeF(SMALL_W, LOCK_HEAD_H) to card(ctx, id, s, head = true),
+        SizeF(SMALL_W, CARD_H) to card(ctx, id, s, roomy = false),
+        SizeF(SMALL_W, ROOMY_H) to card(ctx, id, s, roomy = true),
       )
       if (full != null) map[SizeF(160f, FULL_H)] = full
       return RemoteViews(map)
@@ -357,9 +357,9 @@ object HomeWidget {
     return when {
       w in 1 until SMALL_W.toInt() -> tiny(ctx, id, s)
       h in 1 until CARD_H.toInt() -> line(ctx, id, s)
-      h in 1 until LOCK_HEAD_H.toInt() -> card(ctx, id, s, head = false)
+      h in 1 until ROOMY_H.toInt() -> card(ctx, id, s, roomy = false)
       full != null && (h == 0 || h >= FULL_H) -> full
-      else -> card(ctx, id, s, head = true)
+      else -> card(ctx, id, s, roomy = true)
     }
   }
 
@@ -419,12 +419,12 @@ object HomeWidget {
   /**
    * 잠금화면·작은 칸 위젯: 할 일 하나씩(동그라미 · 할 일 · 아래 줄 · 몇 번째/몇 개), 누르면 다음 할 일(one).
    * 카드 넘기기(StackView)는 이상하게 보여 한 줄 칸과 같은 방식으로 바꿨다(사용자 요청 2026-10-23).
-   * 위 줄은 로고(누르면 앱) · 폴더 이름 · 이전/다음 폴더, 칸이 낮으면 할 일만. 잠금화면 알림의 공개 범위(내용 · 개수만 · 숨기기)를 따른다.
+   * 위 줄(로고(누르면 앱) · 폴더 이름 · 이전/다음 폴더)은 늘 보인다: 예전엔 100dp부터라 잠금화면 칸에서는 빠져 로고·폴더 이름이 안 보였다
+   * (사용자 제보 2026-10-23). 잠금화면 알림의 공개 범위(내용 · 개수만 · 숨기기)를 따른다.
    */
-  private fun card(ctx: Context, id: Int, s: Small, head: Boolean) = RemoteViews(ctx.packageName, R.layout.widget_lock).apply {
+  private fun card(ctx: Context, id: Int, s: Small, roomy: Boolean) = RemoteViews(ctx.packageName, R.layout.widget_lock).apply {
     val c = s.colors
     background(this, c, s)
-    setViewVisibility(R.id.lock_head, if (head) View.VISIBLE else View.GONE)
     // 앱은 로고로만 연다(폴더 이름·빈 곳을 눌러 앱이 켜지지 않게)
     setOnClickPendingIntent(R.id.lock_brand, activity(ctx, id, openApp(ctx, s.folderId, id)))
     setContentDescription(R.id.lock_brand, ctx.getString(R.string.widget_open_app))
@@ -441,16 +441,16 @@ object HomeWidget {
     }
     setContentDescription(R.id.lock_prev, ctx.getString(R.string.prev_folder))
     setContentDescription(R.id.lock_next, ctx.getString(R.string.next_folder))
-    one(this, ctx, id, s, tall = true)
+    one(this, ctx, id, s, tall = true, roomy = roomy)
   }
 
   /**
    * 할 일 하나를 보이는 칸(한 줄 widget_line · 작은 칸 widget_lock, 같은 one_* id). 동그라미 = 완료(완료 움직임),
    * 글자나 몇 번째/몇 개를 누르면 다음 할 일(마지막이면 처음으로, WidgetPrefs.pos), 할 일이 하나뿐이면 누르면 고치기.
    * 할 일이 없으면 메모(누르면 메모 고치기) 또는 안내(로그인 · 개수만 · 숨기기, 누르면 앱).
-   * tall = 작은 칸: 글자 한 단계 크게, 아래 줄(날짜·반복), 메모는 여러 줄. 누르는 자리는 할 일과 아래 줄 전체(one_body)
+   * tall = 작은 칸: 글자 한 단계 크게, 누르는 자리는 할 일과 아래 줄 전체(one_body). roomy = 넉넉한 작은 칸: 아래 줄(날짜·반복)·두 줄 글·여러 줄 메모
    */
-  private fun one(v: RemoteViews, ctx: Context, id: Int, s: Small, tall: Boolean) = v.apply {
+  private fun one(v: RemoteViews, ctx: Context, id: Int, s: Small, tall: Boolean, roomy: Boolean = false) = v.apply {
     val c = s.colors
     val size = if (tall) s.wp.textSize + 1 else s.wp.textSize
     setTextViewTextSize(R.id.one_text, TypedValue.COMPLEX_UNIT_SP, size)
@@ -471,7 +471,7 @@ object HomeWidget {
       setViewVisibility(R.id.one_pos, View.GONE)
       if (tall) {
         setViewVisibility(R.id.one_meta, View.GONE)
-        setInt(R.id.one_text, "setMaxLines", 4)
+        setInt(R.id.one_text, "setMaxLines", if (roomy) 4 else 1)
       }
       setTextViewText(R.id.one_text, note ?: if (memo) s.memo else "")
       c.set(this, R.id.one_text, "setTextColor") { if (note != null) it.muted else it.text }
@@ -493,9 +493,9 @@ object HomeWidget {
     setTextViewText(R.id.one_text, if (done) struck(Rich.spanned(t.text)) else Rich.spanned(t.text))
     c.set(this, R.id.one_text, "setTextColor") { if (done) it.muted else it.text }
     if (tall) {
-      val parts = CardMeta.parts(t.due, t.remindAt, t.repeatFreq, t.repeatDays, false, ctx.resources.configuration.locales[0].language)
+      val parts = if (!roomy) emptyList() else CardMeta.parts(t.due, t.remindAt, t.repeatFreq, t.repeatDays, false, ctx.resources.configuration.locales[0].language)
       setViewVisibility(R.id.one_meta, if (parts.isEmpty()) View.GONE else View.VISIBLE)
-      setInt(R.id.one_text, "setMaxLines", if (parts.isEmpty()) 2 else 1)
+      setInt(R.id.one_text, "setMaxLines", if (roomy && parts.isEmpty()) 2 else 1)
       if (parts.isNotEmpty()) {
         setTextViewText(R.id.one_meta, metaLine(parts))
         setTextViewTextSize(R.id.one_meta, TypedValue.COMPLEX_UNIT_SP, s.wp.textSize - 2)

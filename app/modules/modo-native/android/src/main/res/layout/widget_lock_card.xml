@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  잠금화면 위젯의 할 일 카드 한 장(HomeWidget.lock): 동그라미(완료) · 할 일 · 아래 줄(날짜·반복) · 몇 번째/몇 개.
+  카드 뒤로 다음 카드가 비치지 않게 바탕은 거의 불투명(카드색).
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  android:id="@+id/card_root"
+  android:layout_width="match_parent"
+  android:layout_height="match_parent">
+  <ImageView
+    android:id="@+id/card_bg"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:importantForAccessibility="no"
+    android:scaleType="fitXY"
+    android:src="@drawable/naegirok_card_bg" />
+  <LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingStart="6dp"
+    android:paddingEnd="12dp">
+    <ViewFlipper
+      android:id="@+id/card_check"
+      android:layout_width="40dp"
+      android:layout_height="40dp"
+      android:inAnimation="@anim/widget_check_in"
+      android:outAnimation="@anim/widget_check_out">
+      <ImageView
+        android:id="@+id/card_ring"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no"
+        android:padding="8dp"
+        android:src="@drawable/naegirok_check_off" />
+      <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+        <ImageView
+          android:id="@+id/card_fill"
+          android:layout_width="match_parent"
+          android:layout_height="match_parent"
+          android:importantForAccessibility="no"
+          android:padding="9.5dp"
+          android:src="@drawable/naegirok_circle" />
+        <ImageView
+          android:id="@+id/card_tick"
+          android:layout_width="match_parent"
+          android:layout_height="match_parent"
+          android:importantForAccessibility="no"
+          android:padding="10.5dp"
+          android:src="@drawable/naegirok_tick" />
+      </FrameLayout>
+    </ViewFlipper>
+    <LinearLayout
+      android:id="@+id/card_body"
+      android:layout_width="0dp"
+      android:layout_height="match_parent"
+      android:layout_weight="1"
+      android:layout_marginStart="4dp"
+      android:gravity="center_vertical"
+      android:orientation="vertical">
+      <TextView
+        android:id="@+id/card_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:fontFamily="sans-serif"
+        android:letterSpacing="-0.02"
+        android:maxLines="2"
+        android:textColor="#FFFFFF"
+        android:textSize="16sp" />
+      <TextView
+        android:id="@+id/card_meta"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:fontFamily="sans-serif"
+        android:fontFeatureSettings="tnum"
+        android:maxLines="1"
+        android:textColor="#A1A1A6"
+        android:textSize="13sp"
+        android:visibility="gone" />
+    </LinearLayout>
+    <TextView
+      android:id="@+id/card_pos"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_marginStart="8dp"
+      android:fontFamily="sans-serif"
+      android:fontFeatureSettings="tnum"
+      android:textColor="#A1A1A6"
+      android:textSize="12sp" />
+  </LinearLayout>
+</FrameLayout>

@@ -4,7 +4,7 @@
   화살표 단추 없이 글자나 몇 번째/몇 개를 누르면 넘어간다(마지막에서 누르면 처음으로, 사용자 요청 2026-10-23).
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-  android:id="@+id/one_root"
+  android:id="@+id/line_root"
   android:layout_width="match_parent"
   android:layout_height="match_parent">
   <ImageView
@@ -22,13 +22,13 @@
     android:paddingStart="6dp"
     android:paddingEnd="14dp">
     <ViewFlipper
-      android:id="@+id/one_check"
+      android:id="@+id/line_check"
       android:layout_width="34dp"
       android:layout_height="34dp"
       android:inAnimation="@anim/widget_check_in"
       android:outAnimation="@anim/widget_check_out">
       <ImageView
-        android:id="@+id/one_ring"
+        android:id="@+id/line_ring"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:importantForAccessibility="no"
@@ -38,14 +38,14 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent">
         <ImageView
-          android:id="@+id/one_fill"
+          android:id="@+id/line_fill"
           android:layout_width="match_parent"
           android:layout_height="match_parent"
           android:importantForAccessibility="no"
           android:padding="8.5dp"
           android:src="@drawable/naegirok_circle" />
         <ImageView
-          android:id="@+id/one_tick"
+          android:id="@+id/line_tick"
           android:layout_width="match_parent"
           android:layout_height="match_parent"
           android:importantForAccessibility="no"
@@ -54,7 +54,7 @@
       </FrameLayout>
     </ViewFlipper>
     <TextView
-      android:id="@+id/one_text"
+      android:id="@+id/line_text"
       android:layout_width="0dp"
       android:layout_height="match_parent"
       android:layout_weight="1"
@@ -66,7 +66,7 @@
       android:textColor="#FFFFFF"
       android:textSize="15sp" />
     <TextView
-      android:id="@+id/one_pos"
+      android:id="@+id/line_pos"
       android:layout_width="wrap_content"
       android:layout_height="match_parent"
       android:layout_marginStart="10dp"

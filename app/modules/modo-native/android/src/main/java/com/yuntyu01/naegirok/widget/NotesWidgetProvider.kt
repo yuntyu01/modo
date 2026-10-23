@@ -113,7 +113,7 @@ open class NotesWidgetProvider : AppWidgetProvider() {
       }
       return
     }
-    // 한 줄·작은 칸(잠금화면) 모양: 글자를 누르면 다음 할 일(끝에서 누르면 처음으로)
+    // 한 줄 모양: 글자를 누르면 다음 할 일(끝에서 누르면 처음으로)
     if (intent.action == ACTION_NEXT) {
       val id = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
       if (id == AppWidgetManager.INVALID_APPWIDGET_ID) return

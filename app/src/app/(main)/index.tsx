@@ -5,6 +5,7 @@ import { Keyboard, View } from 'react-native';
 import { toPlain } from '../../core/rich';
 import { useApp } from '../../state/AppContext';
 import { ItemSheets, type SheetState } from '../../ui/ItemSheets';
+import { takeMenuPoint } from '../../ui/webLongPress';
 import type { Editing } from '../../ui/home/Cards';
 import { FolderBody } from '../../ui/home/FolderBody';
 import { FolderTabs, HomeHeader, SearchBar } from '../../ui/home/Header';
@@ -93,7 +94,7 @@ export default function Home() {
             setEditing(null);
             setFilter(id);
           }}
-          onLongPress={(f) => setSheet({ type: 'folder', id: f.id })}
+          onLongPress={(f) => setSheet({ type: 'folder', id: f.id, at: takeMenuPoint() })}
           onAdd={() => setSheet({ type: 'newFolder' })}
           sharedIds={sharedIds}
         />

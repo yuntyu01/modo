@@ -37,6 +37,7 @@ export const zh: Record<StringKey, string> = {
   deleteFolderBody: '其中的备忘和待办会以无文件夹的形式留在“全部”中。',
   todoInfo: '待办详情',
   paragraphInfo: '所选备忘段落详情',
+  details: '详情',
   createdAt: '创建时间',
   updatedAt: '最后修改',
   folder: '文件夹',

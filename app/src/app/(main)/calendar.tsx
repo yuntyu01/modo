@@ -16,6 +16,7 @@ import { TodoCard, type Editing } from '../../ui/home/Cards';
 import { homeFolder, liveFolderIds, splitDone } from '../../ui/home/model';
 import { LogoBar } from '../../ui/home/Header';
 import { ChevronIcon, PlusIcon } from '../../ui/Icons';
+import { takeMenuPoint } from '../../ui/webLongPress';
 import { dayTitle, localDate, monthName, monthTitle } from '../../ui/format';
 import { Sheet } from '../../ui/primitives';
 
@@ -125,6 +126,8 @@ export default function Calendar() {
   // 카드마다 같은 함수(카드는 memo라 함수가 바뀌면 다시 그려진다. 예전엔 그릴 때마다 새로 만들어 날짜를 바꿀 때마다 카드 전부가 다시 그려졌다)
   const h = useIdHandlers((id) => ({
     info: () => setSheet({ type: 'todo', id }),
+    // 길게 누르기: PC는 누른 자리에 작은 메뉴(오른쪽 클릭·꾹 누르기)
+    menu: () => setSheet({ type: 'todo', id, at: takeMenuPoint() }),
     repeat: () => setSheet({ type: 'repeat', id }),
     date: () => setSheet({ type: 'date', id }),
   }));
@@ -137,7 +140,7 @@ export default function Calendar() {
         editing={editing}
         setEditing={setEditing}
         readOnly={!writable || (todo.due_date !== selected && !undatedRow)}
-        onLongPress={h(todo.id).info}
+        onLongPress={h(todo.id).menu}
         onInfo={h(todo.id).info}
         folderLabel={undatedRow ? undefined : folderLabel(todo.folder_id)}
         // 고른 날짜의 할 일은 날짜를 빼고 시간만. 날짜 없는 할 일은 알림 날짜까지 보여 준다(시간만 있으면 언제인지 모른다)

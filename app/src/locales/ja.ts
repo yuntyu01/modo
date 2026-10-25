@@ -37,6 +37,7 @@ export const ja: Record<StringKey, string> = {
   deleteFolderBody: '中のメモとToDoはフォルダなしで「すべて」にそのまま残ります。',
   todoInfo: 'ToDoの詳細',
   paragraphInfo: '選択したメモの段落情報',
+  details: '詳細',
   createdAt: '作成日時',
   updatedAt: '最終更新',
   folder: 'フォルダ',

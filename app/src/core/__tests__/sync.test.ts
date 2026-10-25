@@ -147,3 +147,78 @@ test('failed deletion preserves the local account and private records for retry'
   expect(await sync.account()).not.toBeNull();
   expect((await repo.snapshot()).todos[0].text).toBe('keep on failure');
 });
+
+test('바로 받기: 서버가 바뀌었다고 답하면 바로 받고 다시 기다린다. 멈추면 끊고, 예전 서버(404)면 한동안 묻지 않는다', async () => {
+  const db = await memoryDb();
+  const repo = new Repo(db, randomUUID);
+  await repo.init();
+  const json = (x: unknown, status = 200) => new Response(JSON.stringify(x), { status });
+  let serverCursor = 5;
+  let old = false;
+  let wake: (() => void) | null = null;
+  const urls: string[] = [];
+  const fakeFetch = (async (url: string, init?: RequestInit) => {
+    urls.push(url);
+    if (url.endsWith('/api/auth/exchange')) return json(user);
+    if (url.includes('/api/sync/pull')) return json({ folders: [], todos: [], paragraphs: [], deleted: [], cursor: serverCursor, more: false, shared: [], foreign_ids: [] });
+    if (url.includes('/api/sync/wait')) {
+      if (old) return json({ error: 'not found' }, 404);
+      if (Number(/since=(\d+)/.exec(url)![1]) < serverCursor) return json({ changed: true });
+      // 바뀐 것이 없으면 다른 기기가 고치거나(wake) 앱이 끊을 때까지 기다린다
+      return new Promise<Response>((resolve, reject) => {
+        wake = () => resolve(json({ changed: true }));
+        init?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+      });
+    }
+    return json({ results: [] });
+  }) as typeof fetch;
+  const sync = new SyncEngine(repo, fakeFetch, 'test');
+  const waits = (since?: number) => urls.filter((u) => u.includes(since == null ? '/api/sync/wait' : `/api/sync/wait?since=${since}`)).length;
+  const until = async (ok: () => boolean) => {
+    for (let i = 0; i < 400 && !ok(); i++) await new Promise((r) => setTimeout(r, 5));
+    expect(ok()).toBe(true);
+  };
+
+  await sync.loginExternal('http://srv', 'google', async () => `${AUTH_REDIRECT}?code=c&state=s`, pkce, 's');
+  // 앞에 있을 때만 건다(로그인만으로는 걸지 않는다)
+  expect(waits()).toBe(0);
+  sync.start(60_000, false);
+  await until(() => waits(5) === 1);
+  // 다른 기기가 고쳤다 → 바로 받아 오고(pull) 새 커서로 다시 기다린다
+  const pulls = urls.filter((u) => u.includes('/api/sync/pull')).length;
+  serverCursor = 9;
+  wake!();
+  await until(() => waits(9) === 1);
+  expect(urls.filter((u) => u.includes('/api/sync/pull')).length).toBe(pulls + 1);
+  // 뒤로 가면 끊는다
+  sync.stop();
+  await new Promise((r) => setTimeout(r, 20));
+  expect(waits()).toBe(2);
+  // 예전 서버(바로 받기 없음): 한 번 묻고는 주기 동기화만
+  old = true;
+  sync.start(60_000, false);
+  await until(() => waits() === 3);
+  sync.start(60_000, false);
+  await new Promise((r) => setTimeout(r, 20));
+  expect(waits()).toBe(3);
+  sync.stop();
+});
+
+test('바로 받기: 기다리지 않고 바로 없다고 답하는 서버에는 쉬지 않고 다시 묻지 않는다', async () => {
+  const db = await memoryDb();
+  const repo = new Repo(db, randomUUID);
+  await repo.init();
+  const urls: string[] = [];
+  const fakeFetch = (async (url: string) => {
+    urls.push(url);
+    if (url.endsWith('/api/auth/exchange')) return new Response(JSON.stringify(user));
+    if (url.includes('/api/sync/pull')) return new Response(JSON.stringify({ folders: [], todos: [], paragraphs: [], deleted: [], cursor: 1, more: false, shared: [], foreign_ids: [] }));
+    return new Response('{}');
+  }) as typeof fetch;
+  const sync = new SyncEngine(repo, fakeFetch, 'test');
+  await sync.loginExternal('http://srv', 'kakao', async () => `${AUTH_REDIRECT}?code=c&state=s`, pkce, 's');
+  sync.start(60_000, false);
+  await new Promise((r) => setTimeout(r, 50));
+  expect(urls.filter((u) => u.includes('/api/sync/wait')).length).toBe(1);
+  sync.stop();
+});

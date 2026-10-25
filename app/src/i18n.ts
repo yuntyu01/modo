@@ -40,6 +40,8 @@ const ko = {
   deleteFolderBody: '안에 있던 메모와 할 일은 폴더 없이 전체에 그대로 남아요.',
   todoInfo: '할 일 정보',
   paragraphInfo: '선택한 메모 문단 정보',
+  /** PC 오른쪽 클릭 메뉴에서 정보 시트 열기 */
+  details: '정보',
   createdAt: '만든 시각',
   updatedAt: '마지막 수정',
   folder: '폴더',
@@ -447,6 +449,7 @@ const en: Record<StringKey, string> = {
   deleteFolderBody: 'Its memo and to-dos stay in All, without a folder.',
   todoInfo: 'To-do details',
   paragraphInfo: 'Selected memo paragraph',
+  details: 'Details',
   createdAt: 'Created',
   updatedAt: 'Last edited',
   folder: 'Folder',

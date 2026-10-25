@@ -126,6 +126,8 @@ func (s *Server) push(w http.ResponseWriter, r *http.Request) {
 		serverError(w, err)
 		return
 	}
+	// 커밋한 뒤: 다른 기기·함께 쓰는 사람이 기다리던 요청을 깨운다(wait.go)
+	s.changes.bump()
 	writeJSON(w, http.StatusOK, map[string]any{"results": results})
 }
 

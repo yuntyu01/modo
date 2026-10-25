@@ -533,11 +533,20 @@ function releaseTx() {
 // One system-browser login at a time; cancel pending loopback listener on app shutdown.
 let pendingAuth;
 app.on('before-quit', () => pendingAuth?.abort());
-function openAuth(_parent, url, redirect) {
+function openAuth(parent, url, redirect) {
   pendingAuth?.abort();
   const controller = new AbortController();
   pendingAuth = controller;
   return openSystemAuth(url, redirect, (target) => shell.openExternal(target), { signal: controller.signal })
+    .then((back) => {
+      // 브라우저에서 로그인을 마치면 로그인을 시작한 창을 앞으로(브라우저 탭에 남아 있지 않게)
+      if (back && parent && !parent.isDestroyed()) {
+        if (parent.isMinimized()) parent.restore();
+        parent.show();
+        parent.focus();
+      }
+      return back;
+    })
     .finally(() => { if (pendingAuth === controller) pendingAuth = null; });
 }
 

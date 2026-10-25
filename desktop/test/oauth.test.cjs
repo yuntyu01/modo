@@ -24,10 +24,13 @@ const start = `https://modo.kodeploy.com/api/auth/google/start?redirect_uri=modo
     assert.equal(malformedStatus,400); // Malformed local requests cannot crash the app.
     let res = await fetch(callback + '?state=wrong&code=stolen');
     assert.equal(res.status,400); // Invalid probes must not terminate the real login.
-    res = await fetch(callback + `?state=${state}&code=one-use-code`);
+    res = await fetch(callback + `?state=${state}&code=one-use-code`, { headers: { 'accept-language': 'ko-KR,ko;q=0.9,en;q=0.8' } });
     assert.equal(res.status,200);
     assert.equal(res.headers.get('cache-control'),'no-store');
     assert.match(res.headers.get('content-security-policy'),/default-src 'none'/);
+    assert.doesNotMatch(res.headers.get('content-security-policy'),/unsafe-inline|script-src/); // No script on the result page.
+    assert.match(res.headers.get('content-type'),/text\/html/);
+    assert.match(await res.text(),/로그인했어요/);
   });
   const back = new URL(result);
   assert.equal(back.origin,'null');

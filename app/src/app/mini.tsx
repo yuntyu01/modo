@@ -15,8 +15,9 @@ import { useWebReorder } from '../ui/home/webReorder';
 import { useTabScroller } from '../ui/home/tabScroller';
 import { CloseIcon, CollapseIcon, DotsIcon, ExpandIcon, PinIcon, PlusIcon } from '../ui/Icons';
 import { IconButton } from '../ui/IconButton';
-import { ItemSheets, type SheetState } from '../ui/ItemSheets';
+import { ItemSheets, isPointMenu, type SheetState } from '../ui/ItemSheets';
 import { Logo, Mark } from '../ui/Logo';
+import { takeMenuPoint, webContextMenu } from '../ui/webLongPress';
 
 const drag = Platform.OS === 'web' ? ({ WebkitAppRegion: 'drag' } as object) : null;
 const noDrag = Platform.OS === 'web' ? ({ WebkitAppRegion: 'no-drag' } as object) : null;
@@ -62,8 +63,9 @@ function MiniWindow() {
   const opacity = prefs.mini.opacity;
   const [editing, setEditing] = useState<Editing>(null);
   const [sheet, setSheet] = useState<SheetState>(null);
-  // 시트(항목 정보·날짜·알림·반복·폴더)를 여는 동안 창이 짧으면 시트가 들어가게 잠깐 키운다(닫으면 원래 높이·자리로)
-  const sheetOpen = sheet != null;
+  // 시트(항목 정보·날짜·알림·반복·폴더)를 여는 동안 창이 짧으면 시트가 들어가게 잠깐 키운다(닫으면 원래 높이·자리로).
+  // 오른쪽 클릭 메뉴는 누른 자리에 작게 떠서 창을 키우지 않는다
+  const sheetOpen = sheet != null && !isPointMenu(sheet);
   const sheetWas = useRef(false);
   useEffect(() => {
     if (sheetOpen === sheetWas.current) return;
@@ -116,7 +118,7 @@ function MiniWindow() {
       if (prev == null && next != null) prev = [...keys].reverse().find((k) => k < next!) ?? null;
       repo.moveTo('todo', id, prev, next);
     },
-    (id) => setSheet({ type: 'todo', id }),
+    (id) => setSheet({ type: 'todo', id, at: takeMenuPoint() }),
   );
   // 메모 칸 높이: 아래 가장자리를 끌어 늘리거나 줄인다(두 번 누르면 내용에 맞게). 이 PC에만 기억한다.
   const [memoH, setMemoH] = useState<number | null>(() => {
@@ -266,7 +268,9 @@ function MiniWindow() {
   // 폴더 줄: 넘치면 휠·끌기로 옆으로, 고른 폴더는 가운데로
   const tabsRef = useRef<ScrollView>(null);
   const tabsScroll = useTabScroller(tabsRef, filter ?? 'base', collapsed);
-  const tab = (key: string, label: string, on: boolean, press: () => void) => (
+  // 폴더 이름은 오른쪽 클릭하면 그 자리에 폴더 메뉴(전체는 없다)
+  const folderMenu = (id: string) => () => setSheet({ type: 'folder', id, at: takeMenuPoint() });
+  const tab = (key: string, label: string, on: boolean, press: () => void, long?: () => void) => (
     <Pressable
       key={key}
       accessibilityRole="tab"
@@ -275,6 +279,7 @@ function MiniWindow() {
       onLayout={tabsScroll.tabLayout(key)}
       hitSlop={8}
       style={[styles.tab, noDrag]}
+      {...webContextMenu(long)}
     >
       {/* 고른 폴더는 진한 색 + 굵게, 나머지는 연한 회색(밑줄·배경 없이). 끌어서 넘길 때 글자가 선택돼 남지 않게 선택 막기 */}
       <Text
@@ -343,7 +348,7 @@ function MiniWindow() {
               >
                 {/* 도구를 펼친 동안엔 고른 폴더 이름만(다른 폴더가 반쯤 잘려 보이지 않게) */}
                 {!tools || filter === null ? tab('base', t('baseFolder'), filter === null, () => setFilter(null)) : null}
-                {folders.filter((f) => !tools || filter === f.id).map((f) => tab(f.id, f.name, filter === f.id, () => setFilter(f.id)))}
+                {folders.filter((f) => !tools || filter === f.id).map((f) => tab(f.id, f.name, filter === f.id, () => setFilter(f.id), folderMenu(f.id)))}
               </ScrollView>
               <View
                 style={[styles.tools, { maxWidth: tools ? 112 : 0, opacity: tools ? 1 : 0 }, toolsSettled && { overflow: 'visible' }, toolsMotion]}
@@ -404,7 +409,7 @@ function MiniWindow() {
                 style={{ flexGrow: 0 }}
               >
                 {tab('base', t('baseFolder'), filter === null, () => setFilter(null))}
-                {folders.map((f) => tab(f.id, f.name, filter === f.id, () => setFilter(f.id)))}
+                {folders.map((f) => tab(f.id, f.name, filter === f.id, () => setFilter(f.id), folderMenu(f.id)))}
                 <Pressable accessibilityLabel={t('addFolder')} onPress={() => setSheet({ type: 'newFolder' })} hitSlop={8} style={[styles.tab, noDrag]}>
                   <PlusIcon color={idleTab} size={16} strokeWidth={1.7} />
                 </Pressable>
@@ -455,7 +460,7 @@ function MiniWindow() {
                     onStartEdit={(caret) => setEditing({ id: p.id, caret })}
                     onEndEdit={() => setEditing(null)}
                     onSave={(text) => repo.setParagraphText(p.id, text)}
-                    onLongPress={() => setSheet({ type: 'paragraph', id: p.id })}
+                    onLongPress={() => setSheet({ type: 'paragraph', id: p.id, at: takeMenuPoint() })}
                     onSplit={async (before, after, caret) => {
                       const ids = await repo.splitParagraph(p.id, before, after);
                       if (ids.length) setEditing({ id: ids[ids.length - 1], caret });

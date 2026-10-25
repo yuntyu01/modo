@@ -1,31 +1,34 @@
 import { router } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { toPlain } from '../core/rich';
-import type { Folder } from '../core/types';
+import type { Folder, Paragraph, Todo } from '../core/types';
 import { native } from '../native/bridge';
 import { errorText } from '../i18n';
 import { useApp, useUi } from '../state/AppContext';
 import { useFriends } from '../state/friends';
 import { ruleOf } from '../core/repeat';
 import { describeRepeat, formatDate, formatDateTime, localDate, parseLocalDate } from './format';
-import { BellIcon, CalendarIcon, ChevronIcon, EditIcon, FolderIcon, PeopleIcon, RepeatIcon, ShareIcon, TrashIcon } from './Icons';
+import { Dropdown, type MenuItem } from './Dropdown';
+import { BellIcon, CalendarIcon, ChevronIcon, EditIcon, FolderIcon, InfoIcon, PeopleIcon, RepeatIcon, ShareIcon, TrashIcon } from './Icons';
 import { MonthGrid } from './MonthGrid';
 import { ConfirmDialog, InfoRow, PromptDialog, Sheet, SheetButton, SheetTitle } from './primitives';
 import { RepeatSheet } from './RepeatSheet';
 import { folderAsText, shareText } from './share';
 import { CopySheet } from './together/CopySheet';
 import { FriendShareSheet, joinNames } from './together/ShareSheets';
+import type { MenuPoint } from './webLongPress';
 
+/** at: PC에서 오른쪽 클릭·꾹 눌러 열었으면 그 자리(시트 대신 그 자리에 작은 메뉴, webLongPress.takeMenuPoint) */
 export type SheetState =
-  | { type: 'todo'; id: string }
-  | { type: 'paragraph'; id: string }
+  | { type: 'todo'; id: string; at?: MenuPoint }
+  | { type: 'paragraph'; id: string; at?: MenuPoint }
   | { type: 'folderPick'; entity: 'todo' | 'paragraph'; id: string }
   | { type: 'date'; id: string }
   | { type: 'remind'; id: string }
   | { type: 'repeat'; id: string }
-  | { type: 'folder'; id: string }
+  | { type: 'folder'; id: string; at?: MenuPoint }
   | { type: 'rename'; id: string }
   | { type: 'deleteFolder'; id: string }
   | { type: 'newFolder' }
@@ -37,9 +40,14 @@ export type SheetState =
   | { type: 'leave'; id: string }
   | null;
 
+/** 시트가 아니라 누른 자리에 작은 메뉴로 열린 상태인지(미니창은 이때 창을 키우지 않는다) */
+export const isPointMenu = (s: SheetState) => !!s && 'at' in s && !!s.at;
+
+type Icon = (p: { color: string; size?: number }) => ReactNode;
+
 export function ItemSheets({ state, setState }: { state: SheetState; setState: (s: SheetState) => void }) {
   const app = useApp();
-  const { snap, repo, t, theme, showToast, canWrite, setFilter, filter, lang } = app;
+  const { snap, repo, t, theme, showToast, canWrite, setFilter, filter, lang, serverApi, account } = app;
   const friends = useFriends();
   const close = () => setState(null);
   const foreign = (folderId: string | null) => !!folderId && snap.shared.some((s) => s.folder_id === folderId);
@@ -67,9 +75,98 @@ export function ItemSheets({ state, setState }: { state: SheetState; setState: (
     return { folderId, todoIds: ids ? ids.split(',') : undefined };
   }, [copyKey]);
 
+  // 항목에서 할 수 있는 것. 휴대폰 시트의 단추와 PC 오른쪽 클릭 메뉴가 같은 목록을 쓴다(size = 아이콘 크기)
+  const item = (label: string, I: Icon, size: number, onPress: () => void, danger?: boolean): MenuItem => ({
+    label,
+    icon: <I color={danger ? theme.danger : theme.text} size={size} />,
+    onPress,
+    danger,
+  });
+  const todoItems = (x: Todo, size: number): MenuItem[] => {
+    const share = item(t('share'), ShareIcon, size, () => doShare(x.text));
+    // 보기만 공유된 할 일도 내 폴더로 독립 복사할 수 있다
+    const copy = foreign(x.folder_id) ? item(t('copyToMine'), FolderIcon, size, () => setState({ type: 'copy', folderId: x.folder_id ?? '', todoIds: [x.id] })) : null;
+    if (!canWrite(x.folder_id)) return copy ? [share, copy] : [share];
+    return [
+      item(t('classify'), FolderIcon, size, () => setState({ type: 'folderPick', entity: 'todo', id: x.id })),
+      item(t('setDate'), CalendarIcon, size, () => setState({ type: 'date', id: x.id })),
+      item(t('setReminder'), BellIcon, size, () => setState({ type: 'remind', id: x.id })),
+      item(t('repeat'), RepeatIcon, size, () => setState({ type: 'repeat', id: x.id })),
+      share,
+      ...(copy ? [copy] : []),
+      item(t('delete'), TrashIcon, size, () => trashWithUndo('todo', x.id), true),
+    ];
+  };
+  const paragraphItems = (p: Paragraph, size: number): MenuItem[] => {
+    const share = item(t('share'), ShareIcon, size, () => doShare(p.text));
+    if (!canWrite(p.folder_id)) return [share];
+    return [
+      item(t('classify'), FolderIcon, size, () => setState({ type: 'folderPick', entity: 'paragraph', id: p.id })),
+      share,
+      item(t('delete'), TrashIcon, size, () => trashWithUndo('paragraph', p.id), true),
+    ];
+  };
+  const folderItems = (f: Folder, size: number): MenuItem[] => {
+    const shared = snap.shared.find((x) => x.folder_id === f.id);
+    // 친구·계정 공유는 서버가 있어야 해서 서버에 닿고 로그인했을 때만
+    const online = !!serverApi && !!account;
+    const list: (MenuItem | false)[] = [
+      !shared && item(t('rename'), EditIcon, size, () => setState({ type: 'rename', id: f.id })),
+      item(t('shareText'), ShareIcon, size, () =>
+        doShare(
+          folderAsText(
+            f.name,
+            snap.paragraphs.filter((p) => p.folder_id === f.id && !p.deleted_at),
+            snap.todos.filter((x) => x.folder_id === f.id && !x.deleted_at),
+          ),
+        ),
+      ),
+      !shared && online && item(t('shareToFriend'), PeopleIcon, size, () => setState({ type: 'shareFriend', id: f.id })),
+      online &&
+        item(shared ? t('manageSharing') : t('shareAccount'), PeopleIcon, size, () => {
+          close();
+          router.push({ pathname: '/share/[id]', params: { id: f.id } });
+        }),
+      !!shared &&
+        online &&
+        item(shared.home === false ? t('showOnHome') : t('hideFromHome'), FolderIcon, size, () => {
+          const home = shared.home === false;
+          close();
+          friends
+            .setHome(f.id, home)
+            .then(() => showToast({ message: home ? t('shownOnHome') : t('hiddenFromHome') }))
+            .catch((e: unknown) => showToast({ message: errorText(e, t) }));
+        }),
+      !!shared && item(t('copyToMine'), FolderIcon, size, () => setState({ type: 'copy', folderId: f.id })),
+      !shared && item(t('delete'), TrashIcon, size, () => setState({ type: 'deleteFolder', id: f.id }), true),
+      !!shared && online && item(t('leaveFolder'), TrashIcon, size, () => setState({ type: 'leave', id: f.id }), true),
+    ];
+    return list.filter((x): x is MenuItem => !!x);
+  };
+  const buttons = (items: MenuItem[]) =>
+    items.map((it) => <SheetButton key={it.label} icon={it.icon} label={it.label} danger={it.danger} onPress={it.onPress} />);
+
+  // PC 오른쪽 클릭: 같은 항목을 누른 자리에(만든 때·고친 때 같은 정보는 '정보'로 여는 시트에서). 지우기 같은 빨간 항목은 맨 아래
+  const at = state && 'at' in state ? state.at : undefined;
+  const withInfo = (items: MenuItem[], info: MenuItem) => {
+    const i = items.findIndex((x) => x.danger);
+    return i < 0 ? [...items, info] : [...items.slice(0, i), info, ...items.slice(i)];
+  };
+  const menu = !at
+    ? null
+    : state?.type === 'todo' && todo
+      ? { title: toPlain(todo.text), items: withInfo(todoItems(todo, 17), item(t('details'), InfoIcon, 17, () => setState({ type: 'todo', id: todo.id }))) }
+      : state?.type === 'paragraph' && para
+        ? { title: toPlain(para.text), items: withInfo(paragraphItems(para, 17), item(t('details'), InfoIcon, 17, () => setState({ type: 'paragraph', id: para.id }))) }
+        : state?.type === 'folder' && folder
+          ? { title: folder.name, items: folderItems(folder, 17) }
+          : null;
+
   return (
     <>
-      <Sheet visible={state?.type === 'todo' && !!todo} onClose={close}>
+      <Dropdown visible={!!menu} onClose={close} point={at} title={menu?.title} items={menu?.items ?? []} />
+
+      <Sheet visible={state?.type === 'todo' && !!todo && !at} onClose={close}>
         {todo ? (
           <>
             <SheetTitle title={t('todoInfo')} subtitle={toPlain(todo.text)} />
@@ -83,32 +180,12 @@ export function ItemSheets({ state, setState }: { state: SheetState; setState: (
               {ruleOf(todo) ? <InfoRow label={t('repeat')} value={describeRepeat(ruleOf(todo)!, lang, todo.due_date)} /> : null}
               {todo.remind_at ? <InfoRow label={t('remindAt')} value={formatDateTime(todo.remind_at, lang)} /> : null}
             </View>
-            {canWrite(todo.folder_id) ? (
-              <>
-                <SheetButton icon={<FolderIcon color={theme.text} size={20} />} label={t('classify')} onPress={() => setState({ type: 'folderPick', entity: 'todo', id: todo.id })} />
-                <SheetButton icon={<CalendarIcon color={theme.text} size={20} />} label={t('setDate')} onPress={() => setState({ type: 'date', id: todo.id })} />
-                <SheetButton icon={<BellIcon color={theme.text} size={20} />} label={t('setReminder')} onPress={() => setState({ type: 'remind', id: todo.id })} />
-                <SheetButton icon={<RepeatIcon color={theme.text} size={20} />} label={t('repeat')} onPress={() => setState({ type: 'repeat', id: todo.id })} />
-                <SheetButton icon={<ShareIcon color={theme.text} size={20} />} label={t('share')} onPress={() => doShare(todo.text)} />
-                {foreign(todo.folder_id) ? (
-                  <SheetButton icon={<FolderIcon color={theme.text} size={20} />} label={t('copyToMine')} onPress={() => setState({ type: 'copy', folderId: todo.folder_id ?? '', todoIds: [todo.id] })} />
-                ) : null}
-                <SheetButton icon={<TrashIcon color={theme.danger} size={20} />} label={t('delete')} danger onPress={() => trashWithUndo('todo', todo.id)} />
-              </>
-            ) : (
-              <>
-                <SheetButton icon={<ShareIcon color={theme.text} size={20} />} label={t('share')} onPress={() => doShare(todo.text)} />
-                {/* 보기만 공유된 할 일도 내 폴더로 독립 복사할 수 있다 */}
-                {foreign(todo.folder_id) ? (
-                  <SheetButton icon={<FolderIcon color={theme.text} size={20} />} label={t('copyToMine')} onPress={() => setState({ type: 'copy', folderId: todo.folder_id ?? '', todoIds: [todo.id] })} />
-                ) : null}
-              </>
-            )}
+            {buttons(todoItems(todo, 20))}
           </>
         ) : null}
       </Sheet>
 
-      <Sheet visible={state?.type === 'paragraph' && !!para} onClose={close}>
+      <Sheet visible={state?.type === 'paragraph' && !!para && !at} onClose={close}>
         {para ? (
           <>
             <SheetTitle title={t('paragraphInfo')} subtitle={toPlain(para.text) || ' '} />
@@ -117,15 +194,7 @@ export function ItemSheets({ state, setState }: { state: SheetState; setState: (
               <InfoRow label={t('updatedAt')} value={formatDateTime(para.updated_at, lang)} />
               <InfoRow label={t('folder')} value={folderName(para.folder_id)} />
             </View>
-            {canWrite(para.folder_id) ? (
-              <>
-                <SheetButton icon={<FolderIcon color={theme.text} size={20} />} label={t('classify')} onPress={() => setState({ type: 'folderPick', entity: 'paragraph', id: para.id })} />
-                <SheetButton icon={<ShareIcon color={theme.text} size={20} />} label={t('share')} onPress={() => doShare(para.text)} />
-                <SheetButton icon={<TrashIcon color={theme.danger} size={20} />} label={t('delete')} danger onPress={() => trashWithUndo('paragraph', para.id)} />
-              </>
-            ) : (
-              <SheetButton icon={<ShareIcon color={theme.text} size={20} />} label={t('share')} onPress={() => doShare(para.text)} />
-            )}
+            {buttons(paragraphItems(para, 20))}
           </>
         ) : null}
       </Sheet>
@@ -170,36 +239,12 @@ export function ItemSheets({ state, setState }: { state: SheetState; setState: (
 
       <RepeatSheet todo={state?.type === 'repeat' ? todo : undefined} onClose={close} />
 
-      <Sheet visible={state?.type === 'folder' && !!folder} onClose={close}>
+      <Sheet visible={state?.type === 'folder' && !!folder && !at} onClose={close}>
         {folder ? (
-          <FolderMenu
-            folder={folder}
-            onRename={() => setState({ type: 'rename', id: folder.id })}
-            onShareText={() =>
-              doShare(
-                folderAsText(
-                  folder.name,
-                  snap.paragraphs.filter((p) => p.folder_id === folder.id && !p.deleted_at),
-                  snap.todos.filter((x) => x.folder_id === folder.id && !x.deleted_at),
-                ),
-              )
-            }
-            onShareAccount={() => {
-              close();
-              router.push({ pathname: '/share/[id]', params: { id: folder.id } });
-            }}
-            onDelete={() => setState({ type: 'deleteFolder', id: folder.id })}
-            onShareFriend={() => setState({ type: 'shareFriend', id: folder.id })}
-            onCopy={() => setState({ type: 'copy', folderId: folder.id })}
-            onLeave={() => setState({ type: 'leave', id: folder.id })}
-            onHome={(home) => {
-              close();
-              friends
-                .setHome(folder.id, home)
-                .then(() => showToast({ message: home ? t('shownOnHome') : t('hiddenFromHome') }))
-                .catch((e: unknown) => showToast({ message: errorText(e, t) }));
-            }}
-          />
+          <>
+            <SheetTitle title={t('folder')} subtitle={folder.name} />
+            {buttons(folderItems(folder, 20))}
+          </>
         ) : null}
       </Sheet>
 
@@ -387,48 +432,6 @@ function Chip({ label, onPress, color }: { label: string; onPress: () => void; c
  * 폴더 메뉴. 내 폴더: 이름 바꾸기·글로 공유·친구에게 공유·계정으로 공유(공유 관리)·삭제.
  * 공유받은 폴더: 글로 공유·공유 관리(참여자 보기)·홈에서 숨기기(내 설정만, 공유는 그대로)·내 폴더에 복사·공유 폴더 나가기(셋을 분명히 나눈다).
  */
-function FolderMenu({
-  folder,
-  onRename,
-  onShareText,
-  onShareAccount,
-  onDelete,
-  onShareFriend,
-  onCopy,
-  onLeave,
-  onHome,
-}: {
-  folder: Folder;
-  onRename: () => void;
-  onShareText: () => void;
-  onShareAccount: () => void;
-  onDelete: () => void;
-  onShareFriend: () => void;
-  onCopy: () => void;
-  onLeave: () => void;
-  onHome: (home: boolean) => void;
-}) {
-  const { theme, t, snap, serverApi, account } = useApp();
-  const shared = snap.shared.find((s) => s.folder_id === folder.id);
-  // 친구·계정 공유는 서버가 있어야 해서 서버에 닿고 로그인했을 때만
-  const online = !!serverApi && !!account;
-  return (
-    <>
-      <SheetTitle title={t('folder')} subtitle={folder.name} />
-      {!shared ? <SheetButton icon={<EditIcon color={theme.text} size={20} />} label={t('rename')} onPress={onRename} /> : null}
-      <SheetButton icon={<ShareIcon color={theme.text} size={20} />} label={t('shareText')} onPress={onShareText} />
-      {!shared && online ? <SheetButton icon={<PeopleIcon color={theme.text} size={20} />} label={t('shareToFriend')} onPress={onShareFriend} /> : null}
-      {online ? <SheetButton icon={<PeopleIcon color={theme.text} size={20} />} label={shared ? t('manageSharing') : t('shareAccount')} onPress={onShareAccount} /> : null}
-      {shared && online ? (
-        <SheetButton icon={<FolderIcon color={theme.text} size={20} />} label={shared.home === false ? t('showOnHome') : t('hideFromHome')} onPress={() => onHome(shared.home === false)} />
-      ) : null}
-      {shared ? <SheetButton icon={<FolderIcon color={theme.text} size={20} />} label={t('copyToMine')} onPress={onCopy} /> : null}
-      {!shared ? <SheetButton icon={<TrashIcon color={theme.danger} size={20} />} label={t('delete')} danger onPress={onDelete} /> : null}
-      {shared && online ? <SheetButton icon={<TrashIcon color={theme.danger} size={20} />} label={t('leaveFolder')} danger onPress={onLeave} /> : null}
-    </>
-  );
-}
-
 const styles = StyleSheet.create({
   info: { paddingBottom: 10 },
   quick: { flexDirection: 'row', gap: 8, paddingHorizontal: 8, marginVertical: 10, alignItems: 'center' },

@@ -7,6 +7,7 @@ import { escapePlain } from '../../core/rich';
 import type { FolderFilter, Paragraph } from '../../core/types';
 import { useApp } from '../../state/AppContext';
 import type { SheetState } from '../ItemSheets';
+import { takeMenuPoint } from '../webLongPress';
 import { DoneHeader, MemoBlock, TodoCard, type Editing } from './Cards';
 import { Composer } from './Composer';
 import { HomeList } from './HomeList';
@@ -109,7 +110,8 @@ export function FolderBody({
   const longPressFor = (id: string, base: (info: () => void) => void) => {
     const hit = longPressCache.current.get(id);
     if (hit && hit.base === base) return hit.fn;
-    const fn = () => base(() => setSheet({ type: 'todo', id }));
+    // PC는 누른 자리에 작은 메뉴(오른쪽 클릭·꾹 누르기), 휴대폰은 정보 시트
+    const fn = () => base(() => setSheet({ type: 'todo', id, at: takeMenuPoint() }));
     longPressCache.current.set(id, { base, fn });
     return fn;
   };
@@ -158,7 +160,7 @@ export function FolderBody({
   // 보기만 공유된 폴더에 메모가 없으면 빈 '메모' 자리를 두지 않는다(눌러도 쓸 수 없다)
   const showMemo = (!search || paragraphs.length > 0) && (writable || paragraphs.length > 0);
   // 메모 카드에 넘기는 것은 바뀔 때만 새로(memo): 할 일을 고쳐 저장할 때마다 문단 전부가 다시 그려졌다
-  const onLongPressParagraph = useCallback((p: Paragraph) => setSheet({ type: 'paragraph', id: p.id }), [setSheet]);
+  const onLongPressParagraph = useCallback((p: Paragraph) => setSheet({ type: 'paragraph', id: p.id, at: takeMenuPoint() }), [setSheet]);
   const onEmptyPress = useCallback(async () => {
     const [id] = await repo.appendParagraphs('', filter);
     if (id) setEditing({ id, caret: 0 });

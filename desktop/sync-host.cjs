@@ -1,6 +1,7 @@
 // PC 동기화는 Electron 메인 프로세스 한 곳에서만 돈다(예전에는 미니창·큰 창이 각자 엔진·서버 확인·테마 동기화를 따로 돌려
 // 같은 요청이 창 수만큼 나갔고, 숨긴 미니창은 동기화가 멈췄다). 창은 IPC로 상태를 받고 명령만 보낸다(preload.cjs sync, app/src/native/desktopSync.ts).
 // - 창을 닫거나 숨겨도 동기화는 계속된다. 보이는 창이 있으면 30초, 모두 숨으면 5분마다. 창을 다시 보이면 바로 한 번.
+//   창이 보이는 동안은 바로 받기(서버가 바뀐 것을 바로 알린다, app/src/core/sync.ts live)로 휴대폰에서 고친 것이 1~2초 안에 온다.
 // - 저장소·동기화 코드는 휴대폰 앱과 같은 것(core.cjs = app/src/core 묶음)이라 오프라인 큐·중복 방지·충돌 사본·영구 삭제 규칙이 같다.
 const { randomUUID } = require('node:crypto');
 const { Repo, SyncEngine, AuthCancelled, touchesData, BRAND, SCHEMA_VERSION, localLook, applyLook } = require('./core.cjs');
@@ -120,10 +121,11 @@ function createSyncHost({ db, fetch, device, broadcast, hasVisibleWindow, openAu
   let currentEvery = 0;
   function applyInterval(immediate) {
     if (!started) return;
-    const every = hasVisibleWindow() ? VISIBLE_EVERY : HIDDEN_EVERY;
+    const visible = hasVisibleWindow();
+    const every = visible ? VISIBLE_EVERY : HIDDEN_EVERY;
     if (!immediate && every === currentEvery) return;
     currentEvery = every;
-    engine.start(every, immediate);
+    engine.start(every, immediate, visible);
   }
 
   // 창마다 고치는 중인 항목. 창이 닫히면(endEdit 없이) 메인 엔진의 '고치는 중'이 영영 남아 그 항목의 원격 변경이 미뤄졌다.

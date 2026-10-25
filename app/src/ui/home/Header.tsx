@@ -11,6 +11,7 @@ import { desktop } from '../../native/bridge';
 import { Logo } from '../Logo';
 import { TrashTargetIcon } from '../trashFlight';
 import { useTabScroller } from './tabScroller';
+import { webContextMenu } from '../webLongPress';
 
 /** 위쪽 기준선(useTop)에서 로고까지 */
 const HEADER_GAP = -6;
@@ -160,6 +161,8 @@ export function FolderTabs({
       onPress={scroller.guard(press)}
       onLayout={scroller.tabLayout(key)}
       onLongPress={long}
+      // PC: 오른쪽 클릭도 길게 누르기(react-native-web의 Pressable은 마우스로 꾹 누르기만 받는다)
+      {...webContextMenu(long)}
       hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
       style={[styles.tab, desktop ? { marginRight: 33 } : { marginRight: 32 * theme.zoom }]}
     >

@@ -83,9 +83,12 @@ export class HttpError extends CodedError {
  * 요청이 영영 끝나지 않아 동기화 상태가 '동기화 중'에 멈추고 로그아웃·계정 삭제도 돌아오지 않았다.
  */
 export async function api<T>(fetchFn: Fetch, server: string, path: string, init: RequestInit & { token?: string; timeoutMs?: number } = {}) {
-  const { token, timeoutMs, ...rest } = init;
+  const { token, timeoutMs, signal, ...rest } = init;
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), timeoutMs ?? (path.startsWith('/api/sync/') ? 60_000 : 30_000));
+  // 부르는 쪽이 끊으면(바로 받기를 멈출 때) 같이 끊는다
+  if (signal?.aborted) ac.abort();
+  signal?.addEventListener('abort', () => ac.abort(), { once: true });
   try {
     let res: Response;
     try {
@@ -121,6 +124,15 @@ export class SyncEngine {
   private timer: ReturnType<typeof setTimeout> | null = null;
   private interval: ReturnType<typeof setInterval> | null = null;
   private backoff = 0;
+  /**
+   * 바로 받기(사용자 요청 2026-10-25: 휴대폰에서 지운 것이 PC에 다음 주기(30초)에야 보였다). 서버에 '커서 뒤에 바뀐 것이 생기면 답해 달라'는
+   * 요청(/api/sync/wait, 최대 25초)을 하나 걸어 두고, 답이 오면 바로 동기화한다. start()가 켜고 stop()이 끈다(휴대폰은 앞에 있을 때만, PC는 창이 보일 때만)
+   */
+  private live = false;
+  private liveRun: Promise<void> | null = null;
+  private liveAbort: AbortController | null = null;
+  /** 서버가 바로 받기를 모르면(예전 서버) 이때까지 묻지 않는다(그동안은 주기 동기화만) */
+  private liveOffUntil = 0;
   private listeners = new Set<(s: SyncStatus) => void>();
   /** 지금 화면에서 편집 중인 항목 id(원격 text 반영을 미룬다) */
   readonly editing = new Set<string>();
@@ -235,21 +247,26 @@ export class SyncEngine {
     if (this.paused) throw new Error('Account change is already in progress');
     this.paused = true;
     const wasPolling = this.interval != null;
+    const wasLive = this.live;
     this.stop();
     try {
       await this.running;
       await fn();
     } finally {
       this.paused = false;
-      if (wasPolling) this.start(30_000, false);
+      if (wasPolling) this.start(30_000, false, wasLive);
     }
   }
 
   /**
    * 앞에 있는 동안 주기적으로(기본 30초), 로컬 변경 뒤에는 조금 기다렸다가 동기화.
    * PC는 창이 모두 숨으면 간격을 늘린다(desktop/main.cjs). immediate=false면 지금 한 번 돌리지 않고 간격만 바꾼다.
+   * live: 다른 기기에서 바꾼 것을 바로 받기(위 live). PC는 창이 모두 숨으면 끈다
    */
-  start(every = 30_000, immediate = true) {
+  start(every = 30_000, immediate = true, live = true) {
+    this.live = live;
+    if (live) this.kickLive();
+    else this.liveAbort?.abort();
     // 간격만 바꿀 때는 기다리던 '로컬 변경 뒤 1.5초' 타이머를 살려 둔다(PC에서 창을 숨기거나 닫을 때마다 start가 불려
     // 방금 고친 것이 다음 주기(숨긴 창은 5분)까지 올라가지 않았다). 바로 한 번 돌릴 때는 어차피 보내니 지운다
     if (this.interval) clearInterval(this.interval);
@@ -264,6 +281,41 @@ export class SyncEngine {
     if (this.interval) clearInterval(this.interval);
     if (this.timer) clearTimeout(this.timer);
     this.interval = this.timer = null;
+    this.live = false;
+    this.liveAbort?.abort();
+  }
+
+  private kickLive() {
+    if (!this.live || this.liveRun || this.paused || Date.now() < this.liveOffUntil) return;
+    this.liveRun = this.liveLoop().finally(() => (this.liveRun = null));
+  }
+
+  /** 바로 받기: 서버가 바뀌었다고 답하면 동기화하고 다시 기다린다. 끊기거나 오류면 멈추고, 다음 동기화가 잘 끝나면 다시 건다 */
+  private async liveLoop() {
+    while (this.live && !this.paused) {
+      const acc = await this.account();
+      if (!acc) return;
+      const since = await this.repo.getKv<number>('sync_cursor', 0);
+      const ac = new AbortController();
+      this.liveAbort = ac;
+      const began = Date.now();
+      let changed = false;
+      try {
+        const r = await api<{ changed: boolean }>(this.fetchFn, acc.server, `/api/sync/wait?since=${since}`, { token: acc.token, signal: ac.signal, timeoutMs: 40_000 });
+        changed = !!r?.changed;
+      } catch (e) {
+        if (e instanceof HttpError && (e.status === 404 || e.status === 405)) this.liveOffUntil = Date.now() + 60 * 60_000;
+        return;
+      } finally {
+        if (this.liveAbort === ac) this.liveAbort = null;
+      }
+      // 기다리지 않고 바로 '없음'이 오면(서버 · 중간 프록시가 기다림을 모른다) 멈춘다: 쉬지 않고 다시 묻지 않게
+      if (!changed && Date.now() - began < 2000) return;
+      if (!changed || !this.live) continue;
+      await this.syncNow();
+      // 받았는데 커서가 그대로면(동기화 실패 · 받을 것이 없었음) 멈춘다: 서버와 어긋나도 쉬지 않고 묻지 않게
+      if ((await this.repo.getKv<number>('sync_cursor', 0)) === since) return;
+    }
   }
   schedule(delay = 1500) {
     if (this.paused) return;
@@ -304,6 +356,8 @@ export class SyncEngine {
       await this.pullAll(acc);
       this.backoff = 0;
       this.setStatus({ state: 'idle', lastSyncAt: Date.now(), pending: await this.repo.outboxCount(), message: undefined, code: undefined });
+      // 로그인 · 다시 연결된 뒤 등: 바로 받기가 멈춰 있었으면 다시 건다
+      this.kickLive();
     } catch (e) {
       const err = e instanceof HttpError ? e : new HttpError(-1, String(e), 'server');
       await this.repo.releaseOutbox();

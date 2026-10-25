@@ -20,6 +20,8 @@ type Server struct {
 	cfg            Config
 	popular        popularCache
 	googleVerifier *oidc.IDTokenVerifier
+	// push가 끝나면 바로 받기(/api/sync/wait)로 기다리는 요청을 깨운다
+	changes        changeHub
 }
 
 func New(db *pgxpool.Pool, cfg Config) *Server {
@@ -83,6 +85,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 
 	mux.HandleFunc("POST /api/sync/push", s.auth(s.push))
 	mux.HandleFunc("GET /api/sync/pull", s.auth(s.pull))
+	mux.HandleFunc("GET /api/sync/wait", s.auth(s.wait))
 
 	mux.HandleFunc("GET /api/folders/{id}/shares", s.auth(s.listShares))
 	mux.HandleFunc("POST /api/folders/{id}/members", s.auth(s.addMember))

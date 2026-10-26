@@ -178,9 +178,12 @@ func (s *Server) RunActivity(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			if err := s.FlushActivity(ctx); err != nil && ctx.Err() == nil {
+			// 끄는 중이어도 쓰던 것은 마저 쓴다(끊기면 되돌려 둔 숫자가 main의 마지막 쓰기보다 늦을 수 있다)
+			flushCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+			if err := s.FlushActivity(flushCtx); err != nil {
 				log.Print("activity_flush_failed_retry_pending")
 			}
+			cancel()
 		}
 	}
 }

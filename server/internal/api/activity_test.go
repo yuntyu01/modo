@@ -90,7 +90,7 @@ func signupOn(t *testing.T, srv *httptest.Server, email, device, ua string) *cli
 }
 
 type activityRow struct {
-	Day, Platform, Version  string
+	Day, Platform, Version string
 	Requests, Syncs, Waits int
 }
 
@@ -114,7 +114,9 @@ func activityOf(t *testing.T, pool *pgxpool.Pool, user string) []activityRow {
 	return out
 }
 
-func seoulDay(back int) string { return time.Now().In(seoul).AddDate(0, 0, -back).Format(time.DateOnly) }
+func seoulDay(back int) string {
+	return time.Now().In(seoul).AddDate(0, 0, -back).Format(time.DateOnly)
+}
 
 func TestActivityFlushAddsUp(t *testing.T) {
 	s, srv, pool := newActivityServer(t, Config{})
@@ -315,7 +317,7 @@ func TestAdminActivity(t *testing.T) {
 			WAU int    `json:"wau"`
 			MAU int    `json:"mau"`
 		} `json:"latest"`
-		Versions []activityVersion        `json:"versions"`
+		Versions []activityVersion         `json:"versions"`
 		Return   map[string]activityReturn `json:"return"`
 	}
 	if err := json.Unmarshal([]byte(body), &out); err != nil {

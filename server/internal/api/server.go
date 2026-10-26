@@ -21,7 +21,7 @@ type Server struct {
 	popular        popularCache
 	googleVerifier *oidc.IDTokenVerifier
 	// push가 끝나면 바로 받기(/api/sync/wait)로 기다리는 요청을 깨운다
-	changes        changeHub
+	changes changeHub
 	// 아직 DB에 안 쓴 활동 기록(activity.go). 5분마다 FlushActivity가 쓴다
 	activity activityLog
 }

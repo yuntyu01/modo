@@ -464,6 +464,47 @@ export const MemoBlock = memo(function MemoBlock({ paragraphs: all, editing, set
   );
 });
 
+/**
+ * 할 일을 입력하는 동안 실제로 들어갈 자리(맨 위·맨 아래, 설정의 새 할 일 위치)에 보이는 미리보기(저장하지 않음).
+ * 2026-10-19에 '입력창에만 쓰면 된다'고 뺐다가, 글자를 치는 동안에는 보이게 되살렸다(사용자 요청 2026-10-26).
+ * 빈 입력창에 포커스만 했을 때는 띄우지 않는다(테두리만 있는 빈 카드가 목록을 밀어냈다).
+ */
+export function PreviewCard({ folder }: { folder: string | null }) {
+  const { theme } = useUi();
+  const draft = useDrafts().draftOf(folder, true);
+  const st = useCardStyles();
+  const right = theme.checkRight;
+  const d = st.circle;
+  const circle = (
+    <View
+      style={[
+        styles.circle,
+        { borderColor: theme.outline, width: d, height: d, borderRadius: d / 2 },
+        right ? { marginLeft: st.circleGap } : { marginRight: st.circleGap },
+      ]}
+    />
+  );
+  return (
+    <View
+      pointerEvents="none"
+      importantForAccessibility="no-hide-descendants"
+      style={[
+        styles.card,
+        styles.preview,
+        // 할 일 카드와 같은 최소 높이·간격·좌우 여백(테두리 1만큼 안쪽 여백을 빼서 동그라미·제목 자리가 같다)
+        { borderColor: theme.outline, minHeight: st.minH, marginBottom: st.gap, paddingLeft: st.padL - 1, paddingRight: st.padR - 1 },
+        (theme.mini || theme.desk) && { borderRadius: theme.desk ? DESK_RADIUS : MINI_RADIUS },
+      ]}
+    >
+      {!right && circle}
+      <Text numberOfLines={TITLE_LINES.plain} style={[st.text, { flex: 1, paddingVertical: st.padY - 1, opacity: 0.75 }]}>
+        {draft.trim()}
+      </Text>
+      {right && circle}
+    </View>
+  );
+}
+
 /** 접혔을 때 보이는 메모 줄 수 */
 const MEMO_LINES = 7;
 const SHOWN_WHEN_FOLDED = MEMO_LINES + 1;
@@ -510,6 +551,8 @@ const styles = StyleSheet.create({
   // PC 큰 창(시안): 안쪽 16.7, 블록 사이 12
   memoDesk: { borderRadius: 12, paddingLeft: 16.7, paddingRight: 16.7, paddingTop: 12, paddingBottom: 9, marginBottom: 12 },
   more: { alignSelf: 'flex-start', marginTop: 8, paddingVertical: 4 },
+  // 입력 중 미리보기: 바탕 없이 테두리만
+  preview: { backgroundColor: 'transparent', borderWidth: 1 },
   caretRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' },
   caret: { width: 2, borderRadius: 1, marginLeft: -2 },
   doneHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 6, paddingTop: 22, paddingBottom: 12 },

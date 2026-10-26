@@ -17,7 +17,8 @@ import { ConfirmDialog, InfoRow, PromptDialog, Sheet, SheetButton, SheetTitle } 
 import { RepeatSheet } from './RepeatSheet';
 import { folderAsText, shareText } from './share';
 import { CopySheet } from './together/CopySheet';
-import { FriendShareSheet, joinNames } from './together/ShareSheets';
+import { ALL_FOLDERS, EVERYTHING, FriendShareSheet, joinNames } from './together/ShareSheets';
+import { hiddenFolderIds, liveFolderIds, liveFolders, todoInView, visibleParagraphs } from './home/model';
 import type { MenuPoint } from './webLongPress';
 
 /** at: PC에서 오른쪽 클릭·꾹 눌러 열었으면 그 자리(시트 대신 그 자리에 작은 메뉴, webLongPress.takeMenuPoint) */
@@ -29,10 +30,12 @@ export type SheetState =
   | { type: 'remind'; id: string }
   | { type: 'repeat'; id: string }
   | { type: 'folder'; id: string; at?: MenuPoint }
+  /** 전체 탭을 길게 누르거나 ⋯ '공유'(사용자 요청 2026-10-26): 글로 공유 · 친구에게 공유(전체) · 모든 폴더 공유 */
+  | { type: 'base'; at?: MenuPoint }
   | { type: 'rename'; id: string }
   | { type: 'deleteFolder'; id: string }
   | { type: 'newFolder' }
-  /** 내 폴더를 친구에게 공유(친구 고르기 + 보기만/함께 편집) */
+  /** 내 폴더를 친구에게 공유(친구 고르기 + 보기만/함께 편집). id는 폴더 id 또는 ALL_FOLDERS·EVERYTHING(ShareSheets) */
   | { type: 'shareFriend'; id: string }
   /** 공유받은 폴더(또는 그 안의 할 일)를 내 폴더에 복사 */
   | { type: 'copy'; folderId: string; todoIds?: string[] }
@@ -57,6 +60,11 @@ export function ItemSheets({ state, setState }: { state: SheetState; setState: (
     close();
     await repo.trash(entity, [id]);
     showToast({ message: t('deleted'), action: { label: t('undo'), run: () => repo.restore(entity, [id]) } });
+  };
+  const endRepeat = async (id: string) => {
+    close();
+    const prev = await repo.endRepeat(id);
+    if (prev) showToast({ message: t('repeatEnded'), action: { label: t('undo'), run: () => repo.undoEndRepeat(id, prev) } });
   };
   const doShare = async (text: string) => {
     close();
@@ -92,6 +100,8 @@ export function ItemSheets({ state, setState }: { state: SheetState; setState: (
       item(t('setDate'), CalendarIcon, size, () => setState({ type: 'date', id: x.id })),
       item(t('setReminder'), BellIcon, size, () => setState({ type: 'remind', id: x.id })),
       item(t('repeat'), RepeatIcon, size, () => setState({ type: 'repeat', id: x.id })),
+      // 반복 끝내기: 보통 할 일이 되어 다시 올라오지 않는다(사용자 요청 2026-10-26, repo.endRepeat)
+      ...(x.repeat_freq ? [item(t('endRepeat'), RepeatIcon, size, () => void endRepeat(x.id))] : []),
       share,
       ...(copy ? [copy] : []),
       item(t('delete'), TrashIcon, size, () => trashWithUndo('todo', x.id), true),
@@ -143,6 +153,28 @@ export function ItemSheets({ state, setState }: { state: SheetState; setState: (
     ];
     return list.filter((x): x is MenuItem => !!x);
   };
+  // 전체: 고치기·지우기는 없고 공유만. 친구에게 전체를 공유하는 것은 서버가 할 수 있을 때만(baseShare)
+  const baseItems = (size: number): MenuItem[] => {
+    const online = !!serverApi && !!account;
+    const sharedIds = new Set(snap.shared.map((x) => x.folder_id));
+    const mine = liveFolders(snap.folders).filter((f) => !sharedIds.has(f.id));
+    const live = liveFolderIds(snap.folders);
+    const hidden = hiddenFolderIds(snap.shared);
+    const list: (MenuItem | false)[] = [
+      item(t('shareText'), ShareIcon, size, () =>
+        doShare(
+          folderAsText(
+            t('baseFolder'),
+            visibleParagraphs(snap, null, ''),
+            snap.todos.filter((x) => !x.deleted_at && todoInView(x.folder_id, null, live, hidden)),
+          ),
+        ),
+      ),
+      online && !!serverApi?.baseShare && item(t('shareToFriend'), PeopleIcon, size, () => setState({ type: 'shareFriend', id: EVERYTHING })),
+      online && mine.length > 0 && item(t('shareAllFoldersAction'), PeopleIcon, size, () => setState({ type: 'shareFriend', id: ALL_FOLDERS })),
+    ];
+    return list.filter((x): x is MenuItem => !!x);
+  };
   const buttons = (items: MenuItem[]) =>
     items.map((it) => <SheetButton key={it.label} icon={it.icon} label={it.label} danger={it.danger} onPress={it.onPress} />);
 
@@ -160,7 +192,9 @@ export function ItemSheets({ state, setState }: { state: SheetState; setState: (
         ? { title: toPlain(para.text), items: withInfo(paragraphItems(para, 17), item(t('details'), InfoIcon, 17, () => setState({ type: 'paragraph', id: para.id }))) }
         : state?.type === 'folder' && folder
           ? { title: folder.name, items: folderItems(folder, 17) }
-          : null;
+          : state?.type === 'base'
+            ? { title: t('baseFolder'), items: baseItems(17) }
+            : null;
 
   return (
     <>
@@ -246,6 +280,11 @@ export function ItemSheets({ state, setState }: { state: SheetState; setState: (
             {buttons(folderItems(folder, 20))}
           </>
         ) : null}
+      </Sheet>
+
+      <Sheet visible={state?.type === 'base' && !at} onClose={close}>
+        <SheetTitle title={t('folder')} subtitle={t('baseFolder')} />
+        {state?.type === 'base' ? buttons(baseItems(20)) : null}
       </Sheet>
 
       <FriendShareSheet open={state?.type === 'shareFriend'} folderId={state?.type === 'shareFriend' ? state.id : null} onClose={close} />

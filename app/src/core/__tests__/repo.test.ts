@@ -587,3 +587,34 @@ test('공유 폴더의 홈 표시는 참여자 각자의 설정: 동기화로 �
   // 홈 표시는 내 설정이라 보낼 큐에 오르지 않는다
   expect(await outbox(repo)).toEqual([]);
 });
+
+test('반복 끝내기: 할 차례면 보통 할 일로, 이번 회차를 했으면 완료한 할 일로(다음 회차 예정일·알림은 지운다), 실행 취소', async () => {
+  const day = (y: number, m: number, d: number, h = 12) => new Date(y, m - 1, d, h).getTime();
+  let now = day(2026, 10, 19); // 월요일
+  const db = await memoryDb();
+  const repo = new Repo(db, randomUUID, () => now);
+  await repo.init();
+  const id = await repo.addTodo('운동', null, 'bottom');
+  await repo.setRemind(id, day(2026, 10, 19, 21));
+  await repo.setRepeat(id, { freq: 'daily', days: 0 }, '2026-10-19');
+  // 어제 회차를 하고(done_at이 남은 채) 오늘이 되어 다시 올라온 상태에서 끝내기 → 완료로 바뀌지 않고 할 일로
+  await repo.complete(id);
+  now = day(2026, 10, 20);
+  expect((await repo.snapshot()).todos[0].done).toBe(false);
+  const prev = await repo.endRepeat(id);
+  let t = (await repo.snapshot()).todos[0];
+  expect([t.repeat_freq, t.done, t.due_date, t.remind_at]).toEqual([null, false, '2026-10-20', day(2026, 10, 20, 21)]);
+  // 실행 취소: 그대로 돌아온다
+  await repo.undoEndRepeat(id, prev!);
+  t = (await repo.snapshot()).todos[0];
+  expect([t.repeat_freq, t.done, t.due_date]).toEqual(['daily', false, '2026-10-20']);
+  // 오늘 회차를 하고 내일을 기다리는 중에 끝내기 → 완료한 할 일(내일 예정일·알림은 없다), 다시 올라오지 않는다
+  await repo.complete(id);
+  await repo.endRepeat(id);
+  t = (await repo.snapshot()).todos[0];
+  expect([t.repeat_freq, t.done, t.due_date, t.remind_at]).toEqual([null, true, null, null]);
+  now = day(2026, 10, 22);
+  expect((await repo.snapshot()).todos[0].done).toBe(true);
+  // 반복이 아니면 아무것도 하지 않는다
+  expect(await repo.endRepeat(id)).toBeNull();
+});

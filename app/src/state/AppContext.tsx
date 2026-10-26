@@ -7,7 +7,7 @@ import { AppState, Platform, Text, View, useColorScheme } from 'react-native';
 import { openDb } from '../core/platform/openDb';
 import { Repo, touchesData, type Touched } from '../core/repo';
 import { applyLook, localLook, stampLook } from '../core/look';
-import { SyncEngine, type Account, type SyncApi, type SyncStatus, type ServerApi } from '../core/sync';
+import { SyncEngine, sameServerApi, serverApiOf, type Account, type SyncApi, type SyncStatus, type ServerApi } from '../core/sync';
 import type { FolderFilter, Snapshot } from '../core/types';
 import { resolveLang, translator, type Lang, type T } from '../i18n';
 import { desktop, native } from '../native/bridge';
@@ -453,7 +453,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     bridge.call('setDefaults', [{ server: prefs.server }]);
     const apply = (st: { api: ServerApi | null; at: number }) => {
       if (!st.at) return; // 메인이 아직 묻기 전
-      setServerApi((cur) => (cur && st.api && cur.kakao === st.api.kakao && cur.google === st.api.google && cur.password === st.api.password && cur.storeReview === st.api.storeReview ? cur : st.api));
+      setServerApi((cur) => (sameServerApi(cur, st.api) ? cur : st.api));
       setServerChecked(true);
     };
     probeNow.current = async () => {
@@ -479,7 +479,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
           // 끊겼다가 다시 닿으면 쌓아 둔 변경을 바로 보낸다(동기화 재시도 간격을 기다리지 않게)
           if (!reachable.current) boot.sync.account().then((acc) => acc && boot.sync.syncNow());
           reachable.current = true;
-          setServerApi((cur) => (cur && cur.kakao === !!p.kakao && cur.google === !!p.google && cur.password === !!p.password && cur.storeReview === !!p.storeReview ? cur : { kakao: !!p.kakao, google: !!p.google, password: !!p.password, storeReview: !!p.storeReview }));
+          setServerApi((cur) => {
+            const next = serverApiOf(p);
+            return sameServerApi(cur, next) ? cur : next;
+          });
           setServerChecked(true);
         })
         .catch(() => {

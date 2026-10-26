@@ -85,12 +85,12 @@ const until = async (fn, ms = 3000) => {
   host.begin(0);
   await until(() => sent.some((s) => s.channel === 'server:state'));
   const st = sent.find((s) => s.channel === 'server:state').payload;
-  assert.deepStrictEqual(st.api, { kakao: true, google: false, password: true });
+  assert.deepStrictEqual(st.api, { kakao: true, google: false, password: true, storeReview: false, baseShare: false });
 
   // 로그인 화면의 다시 시도: 바로 다시 묻고 모든 창에 알린다
   sent.length = 0;
   const pr = await host.call(null, 'probe', []);
-  assert.deepStrictEqual(pr.value.api, { kakao: true, google: false, password: true });
+  assert.deepStrictEqual(pr.value.api, { kakao: true, google: false, password: true, storeReview: false, baseShare: false });
   assert.ok(sent.some((s) => s.channel === 'server:state'));
 
   // 로그인 → 모든 창에 알리고 첫 동기화(다른 기기의 할 일을 받아 창들에 '바뀐 표' 알림)

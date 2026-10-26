@@ -22,8 +22,12 @@ type FriendsApi = {
   decline: (id: string) => Promise<void>;
   cancel: (id: string) => Promise<void>;
   remove: (userId: string) => Promise<void>;
-  /** 내 폴더를 친구들에게 공유(사용자 id로: 이미 친구라 다시 수락을 묻지 않는다) */
-  shareFolder: (folderId: string, userIds: string[], role: 'view' | 'edit') => Promise<void>;
+  /**
+   * 내 폴더(여럿이면 모두)를 친구들에게 공유(사용자 id로: 이미 친구라 다시 수락을 묻지 않는다).
+   * 내 전체(폴더 없는 할 일·메모)는 폴더 id 자리에 내 계정 id(서버가 baseShare일 때만, 사용자 요청 2026-10-26).
+   * 이미 함께 쓰는 사람은 건너뛴다(모든 폴더를 공유할 때 일부 폴더는 이미 공유했을 수 있다)
+   */
+  shareFolder: (folderId: string | string[], userIds: string[], role: 'view' | 'edit') => Promise<void>;
   /** 새 공유 폴더: 만들고 바로 친구들에게 공유. 돌려주는 값: 새 폴더 id */
   createShared: (name: string, userIds: string[], role: 'view' | 'edit') => Promise<string>;
   /** 공유받은 폴더를 내 홈에 보일지(내 설정만) */
@@ -178,10 +182,20 @@ export function FriendsProvider({ children }: { children: ReactNode }) {
       shareFolder: async (folderId, userIds, role) => {
         // 폴더가 서버에 올라가 있어야 공유할 수 있다
         await sync.syncNow();
-        for (const id of userIds) {
-          await sync.shareApi(`/api/folders/${folderId}/members`, { method: 'POST', body: JSON.stringify({ user_id: id, role }) });
+        try {
+          for (const folder of Array.isArray(folderId) ? folderId : [folderId]) {
+            for (const id of userIds) {
+              await sync
+                .shareApi(`/api/folders/${folder}/members`, { method: 'POST', body: JSON.stringify({ user_id: id, role }) })
+                .catch((e: unknown) => {
+                  if ((e as { code?: string })?.code !== 'already_shared') throw e;
+                });
+            }
+          }
+        } finally {
+          // 중간에 실패해도 그때까지 공유한 것은 목록에 보이게
+          await refresh();
         }
-        await refresh();
       },
       createShared: async (name, userIds, role) => {
         const id = await repo.createFolder(name);

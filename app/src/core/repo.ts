@@ -610,6 +610,35 @@ export class Repo {
   undoComplete(id: string, prev: { due_date: string | null; remind_at: number | null; done_at?: number | null; done_log?: string | null }) {
     return this.write(() => this.patch('todo', id, { done_at: null, ...prev }));
   }
+  /**
+   * 반복 끝내기(사용자 요청 2026-10-26): 보통 할 일이 되어 다시 올라오지 않는다.
+   * 지금 할 차례면 그대로 할 일로(예정일·알림은 이번 회차 것 그대로, 지난 회차의 완료 표시는 푼다),
+   * 이번 회차를 이미 했으면(다음 날을 기다리는 중) 완료한 할 일로 남기고 다음 회차의 예정일·알림은 지운다.
+   * 실행 취소용 이전 값을 돌려준다(undoEndRepeat). 반복이 아니면 null
+   */
+  endRepeat(id: string) {
+    return this.write(async () => {
+      const cur = await this.row('todo', id);
+      if (!cur?.repeat_freq) return null;
+      const prev = {
+        repeat_freq: cur.repeat_freq as Todo['repeat_freq'],
+        repeat_days: cur.repeat_days as number | null,
+        due_date: cur.due_date as string | null,
+        remind_at: cur.remind_at as number | null,
+        done_at: cur.done_at as number | null,
+      };
+      const waiting = isDoneNow(prev, localDay(this.now()));
+      await this.patch(
+        'todo',
+        id,
+        waiting ? { repeat_freq: null, repeat_days: null, due_date: null, remind_at: null } : { repeat_freq: null, repeat_days: null, done_at: null },
+      );
+      return prev;
+    });
+  }
+  undoEndRepeat(id: string, prev: NonNullable<Awaited<ReturnType<Repo['endRepeat']>>>) {
+    return this.write(() => this.patch('todo', id, prev));
+  }
   /** 완료해 둔 반복 할 일의 체크를 풀면 오늘 할 일로 되돌린다(알림도 같은 날만큼 당긴다). */
   reopenRepeat(id: string) {
     return this.write(async () => {

@@ -29,7 +29,8 @@ function measure(view: View | null): Promise<Rect | null> {
 async function currentTarget() {
   for (const t of [...targets].sort((a, b) => b.priority - a.priority)) {
     const r = await measure(t.view);
-    if (r) return { target: t, rect: r };
+    // 굴려서 접힌 홈 머리의 ⋯는 화면 위로 밀려나 있다: 그때는 하단바 ⋯로
+    if (r && r.y + r.height / 2 > 0) return { target: t, rect: r };
   }
   return null;
 }

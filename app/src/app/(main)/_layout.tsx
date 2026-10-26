@@ -1,5 +1,4 @@
 import { BlurTargetView } from 'expo-blur';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Slot } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { AppState, Keyboard, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
@@ -10,7 +9,7 @@ import { FriendsProvider } from '../../state/friends';
 import { desktop } from '../../native/bridge';
 import { BottomNav, NAV_HEIGHT } from '../../ui/BottomNav';
 import { FormatBarHost } from '../../ui/FormatBar';
-import { BlurTargetContext } from '../../ui/glass';
+import { BlurTargetContext, ScreenGradient } from '../../ui/glass';
 import { BottomInsetContext, contentColumn, useWide } from '../../ui/layout';
 import { LoginGate } from '../../ui/LoginGate';
 import { coachStore } from '../../ui/onboarding/coach';
@@ -67,13 +66,7 @@ export default function MainLayout() {
     // 친구 목록(함께 탭·하단바의 받은 요청 점)은 로그인한 화면에서만 받는다
     <FriendsProvider>
     <View style={[styles.root, { backgroundColor: theme.bg }]}>
-      <LinearGradient
-        pointerEvents="none"
-        colors={[theme.gradientTop, theme.gradientMid, theme.bg]}
-        // 테마마다 정한 위치(theme.gradientStops)에서 바탕색이 되게
-        locations={theme.gradientStops}
-        style={StyleSheet.absoluteFill}
-      />
+      <ScreenGradient />
       {/* PC 큰 창: 제목줄이 없어서 위쪽 띠를 잡고 창을 옮긴다(오른쪽 창 버튼 자리는 비움) */}
       {Platform.OS === 'web' ? <View style={[styles.drag, { WebkitAppRegion: 'drag' } as object]} /> : null}
       {/* 로그인하지 않았으면 로그인 화면만(로그인하면 늘 동기화) */}

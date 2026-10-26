@@ -17,7 +17,26 @@ export type Pkce = { verifier: string; challenge: string };
 export const SERVICE_ORIGIN = 'https://modo.kodeploy.com';
 export const AUTH_REDIRECT = 'modo://auth';
 /** 서버가 켜 둔 로그인 수단(/api/auth/providers) */
-export type ServerApi = { kakao: boolean; google: boolean; password: boolean; storeReview?: boolean };
+export type ServerApi = {
+  kakao: boolean;
+  google: boolean;
+  password: boolean;
+  storeReview?: boolean;
+  /** 전체(폴더 없는 할 일·메모)도 친구에게 공유할 수 있는 서버(사용자 요청 2026-10-26). 예전 서버는 없다 */
+  baseShare?: boolean;
+};
+type ProvidersReply = { password: boolean; kakao: boolean; google?: boolean; storeReview?: boolean; baseShare?: boolean };
+/** /api/auth/providers 답을 화면이 쓰는 모양으로 */
+export const serverApiOf = (p: ProvidersReply): ServerApi => ({
+  kakao: !!p.kakao,
+  google: !!p.google,
+  password: !!p.password,
+  storeReview: !!p.storeReview,
+  baseShare: !!p.baseShare,
+});
+/** 같은 서버 기능이면 같은 객체를 그대로 쓴다(바뀔 때만 다시 그리게) */
+export const sameServerApi = (a: ServerApi | null, b: ServerApi | null) =>
+  !!a && !!b && a.kakao === b.kakao && a.google === b.google && a.password === b.password && !!a.storeReview === !!b.storeReview && !!a.baseShare === !!b.baseShare;
 
 /** 'a=1&b=2' 꼴 쿼리(RN의 URL 구현에 기대지 않는다) */
 export function queryOf(url: string): Record<string, string> {
@@ -133,6 +152,14 @@ export class SyncEngine {
   private liveAbort: AbortController | null = null;
   /** 서버가 바로 받기를 모르면(예전 서버) 이때까지 묻지 않는다(그동안은 주기 동기화만) */
   private liveOffUntil = 0;
+  /**
+   * 서버에 기다려 달라는 시간(초, 서버 최대 25). 중간 프록시가 오래 열린 요청을 그보다 먼저 자르면 줄인다(liveLoop).
+   * 예전엔 끊기면 바로 받기를 멈추고 다음 주기 동기화(30초)까지 기다려, 그동안 다른 기기에서 고친 것이 늦게 왔다(사용자 제보 2026-10-26)
+   */
+  private liveMax = 25;
+  private liveFails = 0;
+  /** 끊긴 뒤 다시 걸기까지(1·2·4·8·16초, 다섯 번 넘게 실패하면 다음 동기화가 다시 건다). 시험에서 줄인다 */
+  liveRetryMs = 1000;
   private listeners = new Set<(s: SyncStatus) => void>();
   /** 지금 화면에서 편집 중인 항목 id(원격 text 반영을 미룬다) */
   readonly editing = new Set<string>();
@@ -173,7 +200,7 @@ export class SyncEngine {
 
   /** 서버가 켜 둔 로그인 수단 */
   async providers(server: string) {
-    return api<{ password: boolean; kakao: boolean; google?: boolean; storeReview?: boolean }>(this.fetchFn, server, '/api/auth/providers');
+    return api<ProvidersReply>(this.fetchFn, server, '/api/auth/providers');
   }
 
   /**
@@ -290,7 +317,10 @@ export class SyncEngine {
     this.liveRun = this.liveLoop().finally(() => (this.liveRun = null));
   }
 
-  /** 바로 받기: 서버가 바뀌었다고 답하면 동기화하고 다시 기다린다. 끊기거나 오류면 멈추고, 다음 동기화가 잘 끝나면 다시 건다 */
+  /**
+   * 바로 받기: 서버가 바뀌었다고 답하면 동기화하고 다시 기다린다. 끊기면 잠깐 쉬었다 다시 걸고(다섯 번까지),
+   * 그래도 안 되면 멈췄다가 다음 동기화가 잘 끝나면 다시 건다
+   */
   private async liveLoop() {
     while (this.live && !this.paused) {
       const acc = await this.account();
@@ -301,11 +331,27 @@ export class SyncEngine {
       const began = Date.now();
       let changed = false;
       try {
-        const r = await api<{ changed: boolean }>(this.fetchFn, acc.server, `/api/sync/wait?since=${since}`, { token: acc.token, signal: ac.signal, timeoutMs: 40_000 });
+        const r = await api<{ changed: boolean }>(this.fetchFn, acc.server, `/api/sync/wait?since=${since}&max=${this.liveMax}`, {
+          token: acc.token,
+          signal: ac.signal,
+          timeoutMs: (this.liveMax + 15) * 1000,
+        });
         changed = !!r?.changed;
+        this.liveFails = 0;
       } catch (e) {
-        if (e instanceof HttpError && (e.status === 404 || e.status === 405)) this.liveOffUntil = Date.now() + 60 * 60_000;
-        return;
+        if (e instanceof HttpError && (e.status === 404 || e.status === 405)) {
+          this.liveOffUntil = Date.now() + 60 * 60_000;
+          return;
+        }
+        // 끊었거나(뒤로 감 · 로그아웃) 로그인이 만료됐으면 그만
+        if (!this.live || this.paused || ac.signal.aborted || (e instanceof HttpError && e.status === 401)) return;
+        // 오래 기다리다 끊겼으면 중간 프록시가 자른 것: 다음부터 그보다 짧게 기다려 달라고 한다
+        const held = Math.floor((Date.now() - began) / 1000);
+        if (held >= 5) this.liveMax = Math.max(5, Math.min(this.liveMax, held - 2));
+        // 잠깐 쉬었다 다시 건다(네트워크가 바뀐 때 등). 계속 안 되면 멈추고 다음 동기화가 잘 끝나면 다시 건다
+        if (++this.liveFails > 5) return;
+        await new Promise((r) => setTimeout(r, this.liveRetryMs * 2 ** (this.liveFails - 1)));
+        continue;
       } finally {
         if (this.liveAbort === ac) this.liveAbort = null;
       }

@@ -1,5 +1,5 @@
 import type { Folder, Paragraph, Snapshot, Todo } from '../../../core/types';
-import { buildBlocks, folderLabelOf, neighborKeys, trimTrailingBlank } from '../model';
+import { buildBlocks, folderLabelOf, neighborKeys, trimTrailingBlank, withPreview } from '../model';
 
 const todo = (id: string, position: string, done_at: number | null = null, folder_id: string | null = null): Todo => ({
   id, folder_id, text: id, done: done_at != null, done_at, due_date: null, remind_at: null, repeat_freq: null, repeat_days: null, position,
@@ -110,4 +110,21 @@ test('메모 끝에 이어진 빈 문단은 그리지 않는다(데이터는 그
   // 지울 빈 줄이 없으면 같은 배열(다시 그리지 않게)
   const clean = list.slice(0, 3);
   expect(trimTrailingBlank(clean)).toBe(clean);
+});
+
+test('반복 항목을 숨기면(⋯ 메뉴) 반복 할 일은 할 차례든 기다리는 중이든 숨는다', () => {
+  const r = (id: string, position: string, done_at: number | null = null): Todo => ({ ...todo(id, position, done_at), repeat_freq: 'daily' });
+  const snap = { folders: [], todos: [todo('a', 'a0'), r('b', 'a1'), r('c', 'a2', 5)], paragraphs: [], shared: [] } as unknown as Snapshot;
+  expect(buildBlocks({ snap, filter: null, showDone: true, query: '' }).blocks.map((b) => b.key)).toEqual(['a', 'b', 'done', 'c']);
+  expect(buildBlocks({ snap, filter: null, showDone: true, showRepeat: false, query: '' }).blocks.map((b) => b.key)).toEqual(['a']);
+});
+
+test('입력 중 미리보기: 새 할 일 위치가 위면 맨 위, 아래면 완료 묶음 바로 위', () => {
+  const { blocks } = build({ todos: [todo('a', 'a0'), todo('b', 'a1'), todo('c', 'a2', 1)] });
+  expect(withPreview(blocks, 'top').map((b) => b.key)).toEqual(['preview', 'a', 'b', 'done', 'c']);
+  expect(withPreview(blocks, 'bottom').map((b) => b.key)).toEqual(['a', 'b', 'preview', 'done', 'c']);
+  expect(withPreview(blocks, null)).toBe(blocks);
+  // 미리보기는 끌어 놓을 자리 계산에서 건너뛴다
+  const shown = withPreview(blocks, 'top');
+  expect(neighborKeys(shown, 1)).toEqual([null, 'a1']);
 });

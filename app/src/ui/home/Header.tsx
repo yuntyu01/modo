@@ -138,6 +138,7 @@ export function FolderTabs({
   selected,
   onSelect,
   onLongPress,
+  onLongPressBase,
   onAdd,
   sharedIds,
 }: {
@@ -145,6 +146,8 @@ export function FolderTabs({
   selected: string | null;
   onSelect: (id: string | null) => void;
   onLongPress: (f: Folder) => void;
+  /** 전체를 길게 누르기(공유 메뉴, 사용자 요청 2026-10-26) */
+  onLongPressBase?: () => void;
   onAdd: () => void;
   sharedIds: Set<string>;
 }) {
@@ -189,7 +192,7 @@ export function FolderTabs({
       // PC: 오른쪽 위 아이콘(공유·복사·⋯) 밑으로 폴더가 들어가 아이콘을 가리지 않게 그 자리를 비운다
       style={[{ flexGrow: 0 }, desktop && { marginRight: 128 }]}
     >
-      {tab('base', t('baseFolder'), selected === null, () => onSelect(null))}
+      {tab('base', t('baseFolder'), selected === null, () => onSelect(null), onLongPressBase)}
       {folders.map((f) => tab(f.id, f.name, selected === f.id, () => onSelect(f.id), () => onLongPress(f), sharedIds.has(f.id)))}
       <Pressable accessibilityLabel={t('addFolder')} onPress={onAdd} hitSlop={12} style={[styles.tab, { marginLeft: -4.5 }]}>
         {/* 폴더 글자 높이와 비슷하게 */}

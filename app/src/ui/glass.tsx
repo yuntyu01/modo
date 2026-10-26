@@ -34,6 +34,20 @@ export function GlassBackground({ color }: { color: string }) {
   );
 }
 
+/** 화면 바탕(위쪽 테마색 그라데이션 → 바탕색). 메인 틀이 화면 전체에 깔고, 홈의 떠 있는 머리도 같은 자리를 잘라 바탕으로 쓴다 */
+export function ScreenGradient() {
+  const { theme } = useUi();
+  return (
+    <LinearGradient
+      pointerEvents="none"
+      colors={[theme.gradientTop, theme.gradientMid, theme.bg]}
+      // 테마마다 정한 위치(theme.gradientStops)에서 바탕색이 되게
+      locations={theme.gradientStops}
+      style={StyleSheet.absoluteFill}
+    />
+  );
+}
+
 /** 화면 아래쪽에서 목록이 점점 희미해지는 막. 하단바·입력창보다 아래 층에, 목록보다 위 층에 둔다. */
 export function BottomFade({ height }: { height: number }) {
   const { theme } = useUi();

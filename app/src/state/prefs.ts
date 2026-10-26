@@ -35,6 +35,8 @@ export type Prefs = {
   size: 's' | 'm' | 'l' | 'xl';
   newTodoAt: 'top' | 'bottom';
   showDone: boolean;
+  /** 반복 할 일 보이기(⋯ '반복 항목 숨기기', 사용자 요청 2026-10-26). 찾는 중에는 늘 보인다 */
+  showRepeat: boolean;
   /** 로고 심볼도 테마색으로(끄면 늘 대표색). 위젯 로고도 따른다 */
   logoAccent: boolean;
   /** 테마색을 마지막으로 바꾼 시각(밀리초). 계정 테마와 맞출 때 늦게 바꾼 쪽이 이긴다. 0 = 아직 안 바꿈 */
@@ -99,6 +101,7 @@ export const DEFAULT_PREFS: Prefs = {
   newTodoAt: 'bottom',
   // PC(큰 창): 완료한 할 일은 숨겨 두고 ⋯ '완료 항목 표시'로 꺼내 본다(미니창도 같다). 휴대폰은 목록 아래 '완료' 묶음으로
   showDone: Platform.OS !== 'web',
+  showRepeat: true,
   logoAccent: true,
   accentAt: 0,
   lookAts: {},

@@ -85,6 +85,10 @@ export default function More() {
           <Row
             label={t('hideDone')}
             right={<Switch label={t('hideDone')} value={!prefs.showDone} onChange={(v) => setPrefs({ showDone: !v })} />}
+          />
+          <Row
+            label={t('hideRepeat')}
+            right={<Switch label={t('hideRepeat')} value={!prefs.showRepeat} onChange={(v) => setPrefs({ showRepeat: !v })} />}
             last
           />
         </Group>

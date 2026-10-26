@@ -5,7 +5,9 @@ import type { Folder, FolderFilter, Paragraph, Snapshot, Todo } from '../../core
 export type Block =
   | { kind: 'todo'; key: string; sort: string; todo: Todo }
   /** 완료 묶음 머리 '완료 N'. count는 묶음에 보이는 개수, clearable은 '완료 비우기'로 지울 보통 할 일이 보이는지 */
-  | { kind: 'done'; key: 'done'; sort: ''; count: number; clearable: boolean };
+  | { kind: 'done'; key: 'done'; sort: ''; count: number; clearable: boolean }
+  /** 할 일을 입력하는 동안 들어갈 자리에 보이는 미리보기(저장하지 않음, Cards.PreviewCard) */
+  | { kind: 'preview'; key: 'preview'; sort: '' };
 
 /** 지워지지 않은 폴더(화면·탭에 보이는 순서 그대로) */
 export const liveFolders = (folders: Folder[]) => folders.filter((f) => !f.deleted_at);
@@ -91,18 +93,19 @@ export function visibleParagraphs(snap: Pick<Snapshot, 'paragraphs' | 'folders'>
 
 /**
  * 폴더 화면 구성: 그 폴더의 메모 문단들(메모 카드 하나)과 그 폴더의 할 일.
- * 예전엔 할 일 모드로 입력 중이면 들어갈 자리에 테두리만 있는 미리보기 카드를 끼웠는데, 입력창에만 쓰면 된다고 해서 뺐다
- * (사용자 요청 2026-10-19. 메모 모드의 이어 쓸 자리 커서는 어디에 쓰는지 보이게 남겼다).
+ * 할 일을 입력하는 동안의 미리보기는 화면이 withPreview로 따로 끼운다(글자마다 이 계산을 다시 하지 않게).
  */
-export function buildBlocks(args: { snap: Snapshot; filter: FolderFilter; showDone: boolean; query: string }) {
-  const { snap, filter, showDone, query } = args;
+export function buildBlocks(args: { snap: Snapshot; filter: FolderFilter; showDone: boolean; showRepeat?: boolean; query: string }) {
+  const { snap, filter, showDone, showRepeat = true, query } = args;
   const live = liveFolderIds(snap.folders);
   const hidden = hiddenFolderIds(snap.shared);
   const all = snap.todos.filter((t) => !t.deleted_at && todoInView(t.folder_id, filter, live, hidden) && matches(toPlain(t.text), query));
   // 완료 항목을 숨기면(⋯ 메뉴) 보통 할 일만 숨는다. 완료한 반복 할 일은 다음 회차까지 묶음 맨 위에 체크된 채로 보인다
   // (매월 반복을 만들면 목록에서 사라진 것처럼 보였다, 사용자 제보 2026-10-18). 찾는 중이면 다 보인다.
   const doneOpen = showDone || !!query;
-  const todos = all.filter((t) => doneOpen || !t.done || isRepeatDone(t));
+  // 반복 항목을 숨기면(⋯ 메뉴) 반복 할 일은 할 차례든 기다리는 중이든 모두 숨는다(찾는 중이면 보인다)
+  const repeatOpen = showRepeat || !!query;
+  const todos = all.filter((t) => (doneOpen || !t.done || isRepeatDone(t)) && (repeatOpen || !t.repeat_freq));
   const paragraphs = visibleParagraphs(snap, filter, query);
   const [open, finished] = splitDone(todos);
   const done = [...finished.filter(isRepeatDone), ...finished.filter((t) => !isRepeatDone(t))];
@@ -113,6 +116,18 @@ export function buildBlocks(args: { snap: Snapshot; filter: FolderFilter; showDo
   if (done.length) blocks.push({ kind: 'done', key: 'done', sort: '', count: done.length, clearable: done.some((t) => !isRepeatDone(t)) });
   for (const t of done) blocks.push({ kind: 'todo', key: t.id, sort: t.position, todo: t });
   return { blocks, paragraphs, todos };
+}
+
+/**
+ * 입력 중 미리보기를 끼운다: 새 할 일이 실제로 들어갈 자리(repo.addTodo와 같은 규칙: 모든 할 일의 맨 앞·맨 뒤 →
+ * 보이는 목록에서는 진행 중 목록의 맨 위, 또는 완료 묶음 바로 위). at이 없으면 그대로
+ */
+export function withPreview(blocks: Block[], at: 'top' | 'bottom' | null): Block[] {
+  if (!at) return blocks;
+  const preview: Block = { kind: 'preview', key: 'preview', sort: '' };
+  if (at === 'top') return [preview, ...blocks];
+  const end = blocks.findIndex((b) => b.kind !== 'todo' || b.todo.done);
+  return end < 0 ? [...blocks, preview] : [...blocks.slice(0, end), preview, ...blocks.slice(end)];
 }
 
 /** 끌어서 놓은 자리의 앞뒤 정렬 키(완료 묶음은 건너뛴다). 완료 묶음 안에 놓으면 진행 중 목록의 맨 끝. */

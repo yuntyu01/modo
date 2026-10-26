@@ -222,3 +222,35 @@ test('바로 받기: 기다리지 않고 바로 없다고 답하는 서버에는
   expect(urls.filter((u) => u.includes('/api/sync/wait')).length).toBe(1);
   sync.stop();
 });
+
+test('바로 받기가 중간에서 끊기면(프록시가 자름) 멈추지 않고 잠깐 쉬었다 다시 건다', async () => {
+  const db = await memoryDb();
+  const repo = new Repo(db, randomUUID);
+  await repo.init();
+  const urls: string[] = [];
+  let cut = 2;
+  const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+  const fakeFetch = (async (url: string, init?: RequestInit) => {
+    urls.push(url);
+    if (url.endsWith('/api/auth/exchange')) return json({ token: 'tok', user: { id: 'u1', email: '' } });
+    if (url.includes('/api/sync/pull')) return json({ folders: [], todos: [], paragraphs: [], deleted: [], cursor: 0, more: false, shared: [], foreign_ids: [] });
+    if (url.includes('/api/sync/wait')) {
+      // 처음 두 번은 게이트웨이가 자른다(504), 그 뒤로는 기다린다
+      if (cut-- > 0) return json({ error: 'gateway' }, 504);
+      return new Promise<Response>((_resolve, reject) => init?.signal?.addEventListener('abort', () => reject(new Error('aborted'))));
+    }
+    return json({ results: [] });
+  }) as typeof fetch;
+  const sync = new SyncEngine(repo, fakeFetch, 'test');
+  sync.liveRetryMs = 1;
+  await sync.loginExternal('http://srv', 'google', async () => `${AUTH_REDIRECT}?code=c&state=s`, pkce, 's');
+  sync.start(60_000, false);
+  const waits = () => urls.filter((u) => u.includes('/api/sync/wait')).length;
+  for (let i = 0; i < 400 && waits() < 3; i++) await new Promise((r) => setTimeout(r, 5));
+  // 두 번 잘려도 세 번째로 다시 걸려 있다(예전엔 첫 번째에서 멈추고 30초 주기 동기화를 기다렸다)
+  expect(waits()).toBe(3);
+  expect(urls.filter((u) => u.includes('/api/sync/wait')).every((u) => u.includes('max=25'))).toBe(true);
+  sync.stop();
+  await new Promise((r) => setTimeout(r, 20));
+  expect(waits()).toBe(3);
+});

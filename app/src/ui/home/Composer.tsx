@@ -19,6 +19,8 @@ type Props = {
   draftFolder?: FolderFilter;
   /** 입력 중(포커스 또는 초안 있음)이 바뀔 때만 알린다. 글자마다 부모를 다시 그리지 않으려고 */
   onComposingChange?: (composing: boolean) => void;
+  /** 할 일 모드에서 글자가 있는지(목록의 미리보기 카드). 바뀔 때만 알린다 */
+  onTypingChange?: (typing: boolean) => void;
   onSubmit: (todoMode: boolean, text: string) => Promise<boolean>;
   disabledReason?: string;
   onFocusChange?: (focused: boolean) => void;
@@ -52,6 +54,9 @@ export function Composer(props: Props) {
   const [focused, setFocused] = useState(false);
   const composing = focused || draft.length > 0;
   useEffect(() => onComposingChange?.(composing), [composing, onComposingChange]);
+  const typing = todoMode && draft.trim().length > 0;
+  const { onTypingChange } = props;
+  useEffect(() => onTypingChange?.(typing), [typing, onTypingChange]);
   // PC(시안): 입력창에 할 일/메모 토글을 두지 않는다(토글 안내도 없음)
   const pc = theme.desk || theme.mini;
   const showHint = !pc && !prefs.hintSeen && focused;

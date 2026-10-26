@@ -31,18 +31,13 @@ export default function Folders() {
   return (
     <SubScreen title={t('manageFolders')}>
       <Group>
-        {/* 전체는 고치기·지우기가 없지만 개수는 다른 줄과 같은 자리에(아이콘 자리만큼 비운다) */}
+        {/* 남은 할 일 수는 이름 아래 작은 줄로(예전엔 아이콘 옆 숫자만 있어 무엇의 수인지 애매했다, 사용자 의견 2026-10-26).
+            전체는 고치기·지우기가 없어 아이콘 없이 '모든 폴더' */}
         <Row
           label={t('baseFolder')}
+          sub={baseCount ? `${t('allFoldersSub')} · ${t('todoLeft', { n: baseCount })}` : t('allFoldersSub')}
           last={!folders.length}
-          right={
-            <View style={styles.actions}>
-              {baseCount ? <Text style={theme.kfont(13, { color: theme.subtle, marginRight: 6 })}>{baseCount}</Text> : null}
-              {Array.from({ length: serverApi && account ? 3 : 2 }, (_, i) => (
-                <View key={i} style={styles.iconSpace} />
-              ))}
-            </View>
-          }
+          right={<View />}
         />
         {folders.map((f, i) => {
           const mine = !sharedIds.has(f.id);
@@ -50,12 +45,12 @@ export default function Folders() {
             <Row
               key={f.id}
               label={f.name}
+              sub={count(f.id) ? t('todoLeft', { n: count(f.id) }) : undefined}
               onPress={mine ? () => setSheet({ type: 'rename', id: f.id }) : undefined}
               last={i === folders.length - 1}
               right={
                 <View style={styles.actions}>
                   {!mine ? <PeopleIcon color={theme.subtle} size={19} /> : null}
-                  {count(f.id) ? <Text style={theme.kfont(13, { color: theme.subtle, marginRight: 6 })}>{count(f.id)}</Text> : null}
                   {mine ? iconBtn(t('rename'), <EditIcon color={theme.subtle} size={19} />, () => setSheet({ type: 'rename', id: f.id })) : null}
                   {/* 계정으로 함께 쓰기는 서버가 있어야 해서, 서버에 닿고 로그인했을 때만 */}
                   {mine && serverApi && account
@@ -81,6 +76,5 @@ export default function Folders() {
 const styles = StyleSheet.create({
   actions: { flexDirection: 'row', alignItems: 'center', gap: 4, marginRight: -6 },
   icon: { padding: 6 },
-  iconSpace: { width: 31 },
   add: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14.5, height: 52, marginBottom: 12 },
 });

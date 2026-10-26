@@ -73,9 +73,14 @@ function Primary({ label, onPress, disabled, busy }: { label: string; onPress: (
   );
 }
 
+/** 공유 고르기의 묶음(폴더 id 자리에): 모든 폴더(내 폴더 전부), 전체(폴더 없는 할 일·메모 + 모든 폴더. 서버가 baseShare일 때만) */
+export const ALL_FOLDERS = '*folders';
+export const EVERYTHING = '*all';
+
 /**
  * 친구에게 공유: 내 폴더 하나를 고른 친구들에게(이미 친구라 다시 수락을 묻지 않는다) '보기만'(기본) 또는 '함께 편집'으로.
- * folderId가 없으면 먼저 공유할 내 폴더를 고른다(함께 탭의 빈 화면 '폴더 공유'): 공유받은 폴더와 기본 폴더는 고를 수 없고, '새 공유 폴더'로도 갈 수 있다.
+ * folderId가 없으면 먼저 공유할 것을 고른다(함께 탭의 빈 화면 '폴더 공유'): 맨 위에 전체·모든 폴더(사용자 요청 2026-10-26), 그 아래 내 폴더.
+ * 공유받은 폴더는 고를 수 없고, '새 공유 폴더'로도 갈 수 있다. folderId에 ALL_FOLDERS·EVERYTHING을 주면 그것을 고른 채로 열린다.
  */
 export function FriendShareSheet({
   open,
@@ -94,7 +99,7 @@ export function FriendShareSheet({
   onNew?: () => void;
   onShared?: (folderId: string) => void;
 }) {
-  const { t, theme, snap, showToast } = useApp();
+  const { t, theme, snap, showToast, serverApi, account } = useApp();
   const friends = useFriends();
   const [folderId, setFolderId] = useState<string | null>(null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
@@ -115,18 +120,37 @@ export function FriendShareSheet({
     const foreign = new Set(snap.shared.map((s) => s.folder_id));
     return liveFolders(snap.folders).filter((f) => !foreign.has(f.id));
   }, [snap.folders, snap.shared]);
+  // 전체: 내 계정 id가 '폴더 없는 것'의 공유 자리(서버 baseShare)
+  const baseId = serverApi?.baseShare && account ? account.id : null;
   const folder = mine.find((f) => f.id === folderId);
-  // 이 폴더를 이미 함께 쓰는 친구
-  const already = useMemo(() => new Set(list.filter((f) => f.folders.some((ff) => ff.folder_id === folderId && ff.mine)).map((f) => f.id)), [list, folderId]);
+  const targets = useMemo(
+    () =>
+      folderId === ALL_FOLDERS
+        ? mine.map((f) => f.id)
+        : folderId === EVERYTHING
+          ? baseId
+            ? [baseId, ...mine.map((f) => f.id)]
+            : []
+          : folder
+            ? [folder.id]
+            : [],
+    [folderId, mine, folder, baseId],
+  );
+  const targetName = folderId === ALL_FOLDERS ? t('shareAllFolders') : folderId === EVERYTHING ? t('baseFolder') : folder?.name;
+  // 고른 것을 모두 이미 함께 쓰는 친구(고를 수 없게 체크된 채로)
+  const already = useMemo(
+    () => new Set(list.filter((f) => targets.length > 0 && targets.every((id) => f.folders.some((ff) => ff.folder_id === id && ff.mine))).map((f) => f.id)),
+    [list, targets],
+  );
   const people = list.filter((f) => picked.has(f.id) && !already.has(f.id));
 
   const share = async () => {
-    if (!folder || !people.length || busy) return;
+    if (!targets.length || !people.length || busy) return;
     setBusy(true);
     try {
-      await friends.shareFolder(folder.id, people.map((p) => p.id), role);
+      await friends.shareFolder(targets, people.map((p) => p.id), role);
       showToast({ message: t('sharedWithFriends', { names: joinNames(people) }) });
-      onShared?.(folder.id);
+      onShared?.(targets[0]);
       onClose();
     } catch (e) {
       showToast({ message: errorText(e, t) });
@@ -137,12 +161,23 @@ export function FriendShareSheet({
 
   return (
     <Sheet visible={open} onClose={onClose} dialog>
-      {!folder ? (
+      {!targets.length ? (
         <>
           <SheetTitle
             title={preselect ? t('shareFolderChooser', { name: personName(list.find((f) => f.id === preselect) ?? { id: '', email: '', name: '' }) }) : t('shareToFriend')}
-            subtitle={mine.length ? undefined : t('noFolderToShare')}
+            subtitle={mine.length || baseId ? undefined : t('noFolderToShare')}
           />
+          {baseId ? (
+            <SheetButton label={t('baseFolder')} sub={t('shareEverythingSub')} icon={<FolderIcon color={theme.accent} size={20} />} onPress={() => setFolderId(EVERYTHING)} />
+          ) : null}
+          {mine.length > 1 ? (
+            <SheetButton
+              label={t('shareAllFolders')}
+              sub={t('shareAllFoldersSub', { n: mine.length })}
+              icon={<FolderIcon color={theme.accent} size={20} />}
+              onPress={() => setFolderId(ALL_FOLDERS)}
+            />
+          ) : null}
           {mine.map((f) => (
             <SheetButton key={f.id} label={f.name} icon={<FolderIcon color={theme.muted} size={20} />} onPress={() => setFolderId(f.id)} />
           ))}
@@ -150,7 +185,7 @@ export function FriendShareSheet({
         </>
       ) : (
         <>
-          <SheetTitle title={t('shareToFriend')} subtitle={folder.name} />
+          <SheetTitle title={t('shareToFriend')} subtitle={targetName} />
           <Text style={[theme.kfont(14, { color: theme.muted, lineHeight: 20 }), styles.hint]}>{t('shareToFriendHint')}</Text>
           {list.length ? (
             <FriendPicker

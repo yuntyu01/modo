@@ -165,6 +165,7 @@ export function SheetTitle({ title, subtitle }: { title: string; subtitle?: stri
 
 export function SheetButton({
   label,
+  sub,
   onPress,
   danger,
   icon,
@@ -172,6 +173,8 @@ export function SheetButton({
   selected,
 }: {
   label: string;
+  /** 이름 아래 작은 회색 설명(공유 고르기의 '전체'·'모든 폴더' 등) */
+  sub?: string;
   onPress: () => void;
   danger?: boolean;
   icon?: ReactNode;
@@ -189,14 +192,17 @@ export function SheetButton({
       style={({ pressed }) => [styles.sheetBtn, pressed && { backgroundColor: theme.raised }, disabled && { opacity: 0.4 }]}
     >
       {icon ? <View style={{ marginRight: 14 }}>{icon}</View> : null}
-      <Text
-        style={theme.font(16, {
-          color: danger ? theme.danger : selected === false ? theme.muted : theme.text,
-          ...(selected ? { fontWeight: '700' as const } : null),
-        })}
-      >
-        {label}
-      </Text>
+      <View style={sub ? { flex: 1, paddingVertical: 9 } : null}>
+        <Text
+          style={theme.font(16, {
+            color: danger ? theme.danger : selected === false ? theme.muted : theme.text,
+            ...(selected ? { fontWeight: '700' as const } : null),
+          })}
+        >
+          {label}
+        </Text>
+        {sub ? <Text style={theme.kfont(13, { color: theme.muted, marginTop: 2 })}>{sub}</Text> : null}
+      </View>
     </Pressable>
   );
 }
@@ -466,6 +472,7 @@ export function Group({ title, children, style, inset = [3, 4.5] }: { title?: st
 
 export function Row({
   label,
+  sub,
   value,
   icon,
   onPress,
@@ -475,6 +482,8 @@ export function Row({
   size = 'md',
 }: {
   label: string;
+  /** 이름 아래 작은 회색 줄(폴더 관리의 '할 일 3개' 등) */
+  sub?: string;
   value?: string;
   icon?: ReactNode;
   onPress?: () => void;
@@ -493,7 +502,14 @@ export function Row({
       style={({ pressed }) => [styles.row, size === 'sm' && { minHeight: 52.7 }, pressed && onPress ? { backgroundColor: theme.cardPressed } : null]}
     >
       {icon ? <View style={{ width: 26, alignItems: 'center', marginLeft: 0.5, marginRight: 21.5 }}>{icon}</View> : null}
-      <Text style={theme.kfont(size === 'sm' ? 15.5 : 16.5, { color: danger ? theme.danger : theme.text, flex: 1 })}>{label}</Text>
+      {sub ? (
+        <View style={{ flex: 1, paddingVertical: 8 }}>
+          <Text style={theme.kfont(size === 'sm' ? 15.5 : 16.5, { color: danger ? theme.danger : theme.text })}>{label}</Text>
+          <Text style={theme.kfont(13, { color: theme.subtle, marginTop: 2 })}>{sub}</Text>
+        </View>
+      ) : (
+        <Text style={theme.kfont(size === 'sm' ? 15.5 : 16.5, { color: danger ? theme.danger : theme.text, flex: 1 })}>{label}</Text>
+      )}
       {value ? <Text style={theme.kfont(size === 'sm' ? 14 : 13, { color: theme.subtle, marginRight: size === 'sm' ? 10 : 3 })}>{value}</Text> : null}
       {right ?? (onPress ? (
         <View style={{ marginRight: size === 'sm' ? -3.5 : -6.5 }}>

@@ -8,10 +8,10 @@ import type { FolderFilter, Paragraph } from '../../core/types';
 import { useApp } from '../../state/AppContext';
 import type { SheetState } from '../ItemSheets';
 import { takeMenuPoint } from '../webLongPress';
-import { DoneHeader, MemoBlock, TodoCard, type Editing } from './Cards';
+import { DoneHeader, MemoBlock, PreviewCard, TodoCard, type Editing } from './Cards';
 import { Composer } from './Composer';
-import { HomeList } from './HomeList';
-import { buildBlocks, folderLabelOf, isOrdered, neighborKeys, type Block, visibleParagraphs } from './model';
+import { HomeList, type HomeListProps } from './HomeList';
+import { buildBlocks, folderLabelOf, isOrdered, neighborKeys, type Block, visibleParagraphs, withPreview } from './model';
 import { sweepStore } from './sweep';
 import { BlurTargetContext, BottomFade } from '../glass';
 import { useBottomInset, useWide } from '../layout';
@@ -28,6 +28,8 @@ export function FolderBody({
   editing,
   setEditing,
   setSheet,
+  topPad,
+  onScroll,
 }: {
   /** 보여 줄 폴더(null = 기본) */
   filter: FolderFilter;
@@ -38,6 +40,9 @@ export function FolderBody({
   editing: Editing;
   setEditing: Dispatch<SetStateAction<Editing>>;
   setSheet: (s: SheetState) => void;
+  /** 목록 위에 겹쳐 뜬 머리 높이와 굴릴 때 할 일(휴대폰 홈: 굴리면 머리가 접힌다, collapse.ts) */
+  topPad?: number;
+  onScroll?: HomeListProps['onScroll'];
 }) {
   const { snap, prefs, repo, t, theme, canWrite, showToast } = useApp();
   const [todoMode, setTodoMode] = useState(true);
@@ -59,11 +64,14 @@ export function FolderBody({
 
   // 입력 중인지(포커스 또는 초안 있음)는 입력창이 바뀔 때만 알려 준다. 초안 글자는 입력창·메모 커서만 읽는다(메모 모드에서 이어 쓸 자리 표시).
   const [composing, setComposing] = useState(false);
+  // 할 일 모드로 글자를 치는 중(목록에 들어갈 자리 미리보기)
+  const [typing, setTyping] = useState(false);
 
   const { blocks } = useMemo(
-    () => buildBlocks({ snap, filter, showDone: prefs.showDone, query: search ?? '' }),
-    [snap, filter, prefs.showDone, search],
+    () => buildBlocks({ snap, filter, showDone: prefs.showDone, showRepeat: prefs.showRepeat, query: search ?? '' }),
+    [snap, filter, prefs.showDone, prefs.showRepeat, search],
   );
+  const shown = useMemo(() => withPreview(blocks, typing && writable && !search ? prefs.newTodoAt : null), [blocks, typing, writable, search, prefs.newTodoAt]);
   const paragraphs = useMemo(
     () => visibleParagraphs({ paragraphs: snap.paragraphs, folders: snap.folders }, filter, search ?? ''),
     [snap.paragraphs, snap.folders, filter, search],
@@ -140,6 +148,7 @@ export function FolderBody({
 
   const renderBlock = (b: Block, o: { onLongPress: (info: () => void) => void; active: boolean }) => {
     // 찾는 중에는 찾은 것만 보여서 지우기를 두지 않는다
+    if (b.kind === 'preview') return <PreviewCard folder={filter} />;
     if (b.kind === 'done') return <DoneHeader count={b.count} onClear={b.clearable && writable && !search ? clearDone : undefined} />;
     return (
       <TodoCard
@@ -188,12 +197,14 @@ export function FolderBody({
           style={[{ flex: 1 }, Platform.OS === 'web' && slideDir ? (slideDir > 0 ? slideStyles.fromRight : slideStyles.fromLeft) : null]}
         >
           <HomeList
-            blocks={blocks}
+            blocks={shown}
             dragEnabled={!search && !editing}
             isDraggable={(b) => isOrdered(b) && b.kind === 'todo' && canWrite(b.todo.folder_id)}
             renderBlock={renderBlock}
             onMove={onMove}
             bottomPad={(writable ? composerH : 0) + navInset + 16}
+            topPad={topPad}
+            onScroll={onScroll}
             header={memo ?? undefined}
             footer={
               search && blocks.length === 0 && !paragraphs.length ? (
@@ -224,6 +235,7 @@ export function FolderBody({
               setTodoMode={setTodoMode}
               draftFolder={filter}
               onComposingChange={setComposing}
+              onTypingChange={setTyping}
               disabledReason={writable ? undefined : t('readOnly')}
               onFocusChange={(f) => {
                 if (f) setEditing(null);

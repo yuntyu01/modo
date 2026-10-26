@@ -1,5 +1,6 @@
 import { memo, useCallback, useRef, type ReactElement } from 'react';
 import { StyleSheet, View } from 'react-native';
+import type { useAnimatedScrollHandler } from 'react-native-reanimated';
 import ReorderableList, { reorderItems, useIsActive, useReorderableDrag } from 'react-native-reorderable-list';
 import { scheduleOnRN } from 'react-native-worklets';
 
@@ -14,6 +15,10 @@ export type HomeListProps = {
   header?: ReactElement;
   footer?: ReactElement;
   bottomPad: number;
+  /** 목록 위에 겹쳐 떠 있는 머리 높이(휴대폰 홈: 머리가 굴리면 접힌다). 그만큼 비우고 시작한다 */
+  topPad?: number;
+  /** 굴릴 때(머리 접기, collapse.ts) */
+  onScroll?: ReturnType<typeof useAnimatedScrollHandler>;
 };
 
 /**
@@ -42,8 +47,11 @@ export function HomeList(p: HomeListProps) {
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="none"
       contentContainerStyle={[styles.content, { paddingBottom: p.bottomPad }]}
-      ListHeaderComponent={p.header}
+      ListHeaderComponent={p.topPad ? <><View style={{ height: p.topPad }} />{p.header}</> : p.header}
       ListFooterComponent={p.footer}
+      onScroll={p.onScroll}
+      // 겹친 머리 밑에서는 끌어도 보이지 않으니 머리 아래 가장자리에서부터 자동으로 굴린다
+      autoscrollThresholdOffset={p.topPad ? { start: p.topPad } : undefined}
       onReorder={({ from, to }) => {
         if (from === to) return;
         p.onMove(reorderItems(p.blocks, from, to), to);

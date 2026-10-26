@@ -222,6 +222,7 @@ export default function Together() {
         title={current ? folderName(current.folder_id) : friend ? name : t('together')}
         items={[
           { label: prefs.showDone ? t('hideDone') : t('showDone'), onPress: () => setPrefs({ showDone: !prefs.showDone }) },
+          { label: prefs.showRepeat ? t('hideRepeat') : t('showRepeat'), onPress: () => setPrefs({ showRepeat: !prefs.showRepeat }) },
           // 홈에 표시: 같은 공유 폴더를 내 홈에서도(내 설정만, 원본·권한 그대로). 내 폴더는 원래 홈에 있다
           current && !current.mine
             ? {

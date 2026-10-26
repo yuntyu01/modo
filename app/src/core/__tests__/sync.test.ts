@@ -254,3 +254,36 @@ test('바로 받기가 중간에서 끊기면(프록시가 자름) 멈추지 않
   await new Promise((r) => setTimeout(r, 20));
   expect(waits()).toBe(3);
 });
+
+test("친구가 공유한 '전체'(폴더 id = 친구 사용자 id)는 '민지의 전체'로 받는다, 항목은 그 폴더에", async () => {
+  const db = await memoryDb();
+  const repo = new Repo(db, randomUUID);
+  await repo.init();
+  const friend = '11111111-1111-4111-8111-111111111111';
+  const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  const fakeFetch = (async (url: string) => {
+    if (url.endsWith('/api/auth/exchange')) return json({ token: 'tok', user: { id: 'u1', email: '' } });
+    if (url.includes('/api/sync/pull'))
+      return json({
+        folders: [{ id: friend, name: '전체', position: 'a0V', created_at: 1, updated_at: 1, deleted_at: null }],
+        todos: [{ id: 't1', folder_id: friend, text: '민지 할 일', position: 'a0', done_at: null, created_at: 1, updated_at: 1, deleted_at: null }],
+        paragraphs: [],
+        deleted: [],
+        cursor: 7,
+        more: false,
+        shared: [{ folder_id: friend, role: 'view', owner: { id: friend, email: 'minji@example.test', name: '민지' }, home: true }],
+        foreign_ids: [friend, 't1'],
+      });
+    return json({ results: [] });
+  }) as typeof fetch;
+  const sync = new SyncEngine(repo, fakeFetch, 'test');
+  await sync.loginExternal('http://srv', 'google', async () => `${AUTH_REDIRECT}?code=c&state=s`, pkce, 's');
+  const snap = await repo.snapshot();
+  expect(snap.folders.find((f) => f.id === friend)?.name).toBe('민지의 전체');
+  expect(snap.todos.find((x) => x.id === 't1')?.folder_id).toBe(friend);
+  // 화면 언어로 바꿔 끼울 수 있다
+  sync.setBaseName((n) => `${n}'s All`);
+  await repo.write(() => repo.setKv('sync_cursor', 0));
+  await sync.syncNow();
+  expect((await repo.snapshot()).folders.find((f) => f.id === friend)?.name).toBe("민지's All");
+});

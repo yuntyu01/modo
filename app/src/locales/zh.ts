@@ -62,6 +62,7 @@ export const zh: Record<StringKey, string> = {
   todoLeft: '剩余待办 {n} 项',
   allFoldersSub: '所有文件夹',
   shareAllFolders: '所有文件夹',
+  friendBase: '{name}的全部',
   shareAllFoldersAction: '共享所有文件夹',
   shareAllFoldersSub: '一次共享我的 {n} 个文件夹',
   shareEverythingSub: '不在文件夹中的待办·备忘和所有文件夹',

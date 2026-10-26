@@ -160,6 +160,14 @@ export class SyncEngine {
   private liveFails = 0;
   /** 끊긴 뒤 다시 걸기까지(1·2·4·8·16초, 다섯 번 넘게 실패하면 다음 동기화가 다시 건다). 시험에서 줄인다 */
   liveRetryMs = 1000;
+  /**
+   * 친구가 공유한 '전체'(폴더 없는 할 일·메모, 폴더 id = 주인 사용자 id)의 이름. 서버는 '전체'로 보내는데 내 전체와 헷갈려
+   * '민지의 전체'로 둔다(위젯도 같은 이름을 읽는다). 앱은 화면 언어로 바꿔 끼운다(AppContext)
+   */
+  private baseName = (owner: string) => `${owner}의 전체`;
+  setBaseName(fn: (owner: string) => string) {
+    this.baseName = fn;
+  }
   private listeners = new Set<(s: SyncStatus) => void>();
   /** 지금 화면에서 편집 중인 항목 id(원격 text 반영을 미룬다) */
   readonly editing = new Set<string>();
@@ -491,6 +499,12 @@ export class SyncEngine {
         `/api/sync/pull?since=${since}&limit=1000${fd ? `&fd=${encodeURIComponent(fd)}` : ''}${ffd ? `&ffd=${encodeURIComponent(ffd)}` : ''}`,
         { token: acc.token },
       );
+      // 친구의 '전체'(사용자 요청 2026-10-26): 폴더 id가 공유한 사람의 사용자 id인 가짜 폴더. 이름을 그 사람 것으로
+      for (const s of p.shared) {
+        if (s.owner?.id !== s.folder_id) continue;
+        const f = p.folders.find((x) => x.id === s.folder_id);
+        if (f) f.name = this.baseName((s.owner.name ?? '').trim() || (s.owner.email ?? '').split('@')[0] || '?');
+      }
       if (p.folders.length || p.todos.length || p.paragraphs.length || p.deleted?.length) {
         await this.repo.applyRemote(p, this.editing, this.deferred);
       }

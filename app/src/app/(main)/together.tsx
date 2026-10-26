@@ -70,7 +70,13 @@ export default function Together() {
 
   const list = friends.data.friends;
   const friend = list.find((f) => f.id === picks?.friend) ?? list[0] ?? null;
-  const folderIndex = useMemo(() => new Map(snap.folders.filter((f) => !f.deleted_at).map((f, i) => [f.id, i])), [snap.folders]);
+  // 내가 공유한 '전체'(폴더 없는 할 일·메모)는 폴더 id 자리에 내 계정 id로 온다(사용자 요청 2026-10-26): 폴더 행이 없어도 맨 앞에
+  const myBase = account?.id ?? null;
+  const folderIndex = useMemo(() => {
+    const m = new Map(snap.folders.filter((f) => !f.deleted_at).map((f, i) => [f.id, i]));
+    if (myBase) m.set(myBase, -1);
+    return m;
+  }, [snap.folders, myBase]);
   // 이 기기에 있는(동기화된) 폴더만, 홈 폴더 줄과 같은 순서로. 방금 공유받아 아직 없는 폴더는 한 번 동기화해서 받는다
   const shared = useMemo(
     () => (friend ? friend.folders.filter((ff) => folderIndex.has(ff.folder_id)).sort((a, b) => folderIndex.get(a.folder_id)! - folderIndex.get(b.folder_id)!) : []),
@@ -86,7 +92,8 @@ export default function Together() {
 
   const current: FriendFolder | null = (friend && shared.find((ff) => ff.folder_id === picks?.folders[friend.id])) ?? shared[0] ?? null;
   const order = useMemo(() => shared.map((ff) => ff.folder_id), [shared]);
-  const folderName = (id: string) => snap.folders.find((f) => f.id === id)?.name ?? '';
+  const folderName = (id: string) => (id === myBase ? t('baseFolder') : (snap.folders.find((f) => f.id === id)?.name ?? ''));
+  const isMyBase = !!current && current.folder_id === myBase;
   const name = friend ? personName(friend) : '';
 
   // 보고 있던 폴더가 지워졌거나 공유가 끊기면 다른 폴더로 옮기고 짧게 알린다(친구를 바꾼 것과는 구분)
@@ -166,7 +173,8 @@ export default function Together() {
     body = (
       <FolderBody
         key={friend.id}
-        filter={current.folder_id}
+        // 내 '전체'는 홈의 전체와 같은 화면
+        filter={isMyBase ? null : current.folder_id}
         order={order}
         search={search}
         editing={editing}
@@ -240,7 +248,7 @@ export default function Together() {
           { label: t('newShared'), onPress: () => setCreating(true) },
           friend ? { label: t('friendManage'), onPress: () => setManaging(friend) } : null,
           current && !current.mine ? { label: t('leaveFolder'), onPress: () => setConfirm('leave'), danger: true } : null,
-          current?.mine ? { label: t('deleteFolderAll'), onPress: () => setSheet({ type: 'deleteFolder', id: current.folder_id }), danger: true } : null,
+          current?.mine && !isMyBase ? { label: t('deleteFolderAll'), onPress: () => setSheet({ type: 'deleteFolder', id: current.folder_id }), danger: true } : null,
         ]}
       />
       <ItemSheets state={sheet} setState={setSheet} />

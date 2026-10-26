@@ -531,6 +531,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const locales = useLocales();
   const lang = useMemo(() => resolveLang(prefs.language, locales), [prefs.language, locales]);
   const t = useMemo(() => translator(lang), [lang]);
+  // 친구가 공유한 '전체'의 이름을 화면 언어로('민지의 전체'). 휴대폰 엔진만(PC는 메인 프로세스 엔진이 한국어 기본값)
+  useEffect(() => {
+    if (boot?.sync instanceof SyncEngine) boot.sync.setBaseName((name) => t('friendBase', { name }));
+  }, [boot, t]);
   const registerFlush = useCallback((fn: () => Promise<void> | void) => {
     flushers.current.add(fn);
     return () => flushers.current.delete(fn);

@@ -23,7 +23,9 @@ type Shares = { owner?: { id: string; email: string; name: string }; can_manage?
 export default function ShareFolder() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { theme, t, snap, account, sync, showToast } = useApp();
-  const folder = snap.folders.find((f) => f.id === id);
+  // 내 '전체'(폴더 없는 할 일·메모)는 폴더 id 자리에 내 계정 id(서버 baseShare, 사용자 요청 2026-10-26). 링크 공유는 없다
+  const isBase = !!account && id === account.id;
+  const folder = isBase ? { id, name: t('baseFolder') } : snap.folders.find((f) => f.id === id);
   const [shares, setShares] = useState<Shares>({ members: [], links: [] });
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<Role>('edit');
@@ -223,6 +225,9 @@ export default function ShareFolder() {
         ))}
       </View>
 
+      {/* 링크 공유는 폴더만(전체에는 없다) */}
+      {isBase ? null : (
+      <>
       <Text style={[styles.label, theme.kfont(14.5, { color: theme.tab })]}>{t('linkSection')}</Text>
       <View style={[styles.card, { backgroundColor: theme.card, paddingLeft: 14, paddingRight: 15.5, paddingTop: 18.5, paddingBottom: 14.5 }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -256,6 +261,8 @@ export default function ShareFolder() {
           <Text style={theme.kfont(14.5, { color: theme.text, marginLeft: 6.5 })}>{t('copyLink')}</Text>
         </Pressable>
       </View>
+      </>
+      )}
 
       {shares.members.length || link ? (
         <Pressable onPress={() => setConfirmStop(true)} hitSlop={10} accessibilityRole="button" style={{ alignSelf: 'flex-start', marginLeft: 7, marginTop: -2 }}>

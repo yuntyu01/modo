@@ -62,6 +62,7 @@ export const ja: Record<StringKey, string> = {
   todoLeft: '残りのToDo {n}件',
   allFoldersSub: 'すべてのフォルダ',
   shareAllFolders: 'すべてのフォルダ',
+  friendBase: '{name}のすべて',
   shareAllFoldersAction: 'すべてのフォルダを共有',
   shareAllFoldersSub: '自分のフォルダ{n}個をまとめて',
   shareEverythingSub: 'フォルダ外のToDo・メモとすべてのフォルダ',

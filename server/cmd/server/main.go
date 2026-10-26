@@ -64,6 +64,8 @@ func main() {
 		// 이메일 로그인은 없앴다. 테스트·E2E 서버만 PASSWORD_LOGIN=1로 켠다(계정을 만들 때)
 		PasswordLoginOff: os.Getenv("PASSWORD_LOGIN") != "1",
 		StoreReviewEmail: os.Getenv("STORE_REVIEW_EMAIL"),
+		// 주인용 활동 집계(GET /api/admin/activity). 비우면(32자 미만이어도) 그 주소는 404
+		AdminToken: os.Getenv("ADMIN_TOKEN"),
 	})
 	if err := waitAndMigrate(ctx, srvAPI); err != nil {
 		log.Fatal("database_migration_failed")
@@ -93,6 +95,8 @@ func main() {
 			}
 		}
 	}()
+	// 활동 기록: 메모리에 모은 요청 수를 5분마다 DB에 더한다(끌 때 마지막 것은 아래 ListenAndServe 뒤에서)
+	go srvAPI.RunActivity(ctx)
 	backupsEnabled := os.Getenv("MODO_BACKUPS_ENABLED") == "1"
 	backupDir := env("BACKUP_DIR", "/var/lib/modo/backups")
 	if backupsEnabled {
@@ -159,6 +163,12 @@ func main() {
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal("http_server_failed")
 	}
+	// 정상 종료(재배포 등): 아직 안 쓴 활동 기록을 마저 쓴다
+	flushCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := srvAPI.FlushActivity(flushCtx); err != nil {
+		log.Print("activity_flush_failed_on_shutdown")
+	}
 }
 
 // DB 컨테이너가 서버보다 늦게 뜰 수 있어 잠깐 재시도한다.
@@ -183,7 +193,8 @@ func cors(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		// X-Modo-Client: 앱 판(활동 기록 2단계에서 앱이 붙인다, internal/api/activity.go)
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Modo-Client")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return

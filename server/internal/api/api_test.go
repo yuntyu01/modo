@@ -51,7 +51,7 @@ var testConfig Config
 func resetDB(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	if _, err := pool.Exec(context.Background(), `
-		DROP TABLE IF EXISTS friend_requests, friendships, shares, folder_members, base_members, share_links, applied_ops, tombstones, paragraphs, todos, folders,
+		DROP TABLE IF EXISTS daily_activity, friend_requests, friendships, shares, folder_members, base_members, share_links, applied_ops, tombstones, paragraphs, todos, folders,
 			kakao_unlink_jobs, login_codes, oauth_states, oauth_identities, password_logins, sessions, users, items, app_meta CASCADE;
 		DROP FUNCTION IF EXISTS items_owner_from_folder, folders_owner_to_items CASCADE`); err != nil {
 		t.Fatal(err)
@@ -63,6 +63,7 @@ type client struct {
 	srv   *httptest.Server
 	token string
 	id    string
+	ua    string // 있으면 User-Agent(활동 기록 테스트가 앱처럼 보낸다)
 }
 
 func (c *client) do(method, path string, body, out any) int {
@@ -74,6 +75,9 @@ func (c *client) do(method, path string, body, out any) int {
 	req, _ := http.NewRequest(method, c.srv.URL+path, &buf)
 	if c.token != "" {
 		req.Header.Set("Authorization", "Bearer "+c.token)
+	}
+	if c.ua != "" {
+		req.Header.Set("User-Agent", c.ua)
 	}
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {

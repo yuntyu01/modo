@@ -235,14 +235,16 @@ func (s *Server) auth(next http.HandlerFunc) http.HandlerFunc {
 		}
 		sum := sha256.Sum256([]byte(token))
 		var u authUser
+		var device string
 		// 요청마다 세션 행을 고쳐 쓰지 않는다: 마지막 사용 시각은 1시간에 한 번만 갱신(오래 안 쓴 세션 정리용이라 충분).
+		// 기기 이름은 활동 기록의 플랫폼(activity.go). 같은 조회로 읽는다
 		err := s.db.QueryRow(r.Context(), `
 			WITH touch AS (
 				UPDATE sessions SET last_used_at = now()
 				WHERE token_hash = $1 AND last_used_at < now() - interval '1 hour'
 			)
-			SELECT u.id, COALESCE(u.email, ''), u.name FROM sessions s JOIN users u ON u.id = s.user_id
-			WHERE s.token_hash = $1`, sum[:]).Scan(&u.ID, &u.Email, &u.Name)
+			SELECT u.id, COALESCE(u.email, ''), u.name, s.device FROM sessions s JOIN users u ON u.id = s.user_id
+			WHERE s.token_hash = $1`, sum[:]).Scan(&u.ID, &u.Email, &u.Name, &device)
 		if errors.Is(err, pgx.ErrNoRows) {
 			errJSON(w, http.StatusUnauthorized, "session_expired", "로그인이 만료됐습니다")
 			return
@@ -255,6 +257,7 @@ func (s *Server) auth(next http.HandlerFunc) http.HandlerFunc {
 			errJSON(w, 401, "session_expired", "삭제 요청된 계정입니다")
 			return
 		}
+		s.countActivity(r, u.ID, device)
 		next(w, r.WithContext(context.WithValue(r.Context(), ctxKey{}, u)))
 	}
 }

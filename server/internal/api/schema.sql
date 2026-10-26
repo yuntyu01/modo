@@ -293,3 +293,22 @@ CREATE TABLE IF NOT EXISTS kakao_unlink_jobs (
     attempts INTEGER NOT NULL DEFAULT 0,
     last_attempt_at TIMESTAMPTZ
 );
+
+-- ---------- 활동 기록(activity.go) ----------
+-- 하루 · 계정 · 플랫폼 · 앱 판마다 요청 수만 센다(일간·주간 사용자 수, PC·휴대폰 비율, 옛 판을 쓰는 사람 보기).
+-- 내용(할 일 · 폴더 이름), IP, User-Agent 원문은 두지 않는다. 계정을 지우면 함께 지워지고 400일 지난 날은 Cleanup이 지운다.
+-- day: 서울 날짜. platform: android | ios | windows | desktop | other(세션 기기 이름에서). app_version: 모르면 ''.
+-- requests: 로그인한 요청 전부, syncs: 동기화(push · pull), waits: 바로 받기(/api/sync/wait). 서버가 5분마다 모아서 더한다.
+CREATE TABLE IF NOT EXISTS daily_activity (
+    user_id     UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    day         DATE        NOT NULL,
+    platform    TEXT        NOT NULL,
+    app_version TEXT        NOT NULL DEFAULT '',
+    requests    INTEGER     NOT NULL DEFAULT 0,
+    syncs       INTEGER     NOT NULL DEFAULT 0,
+    waits       INTEGER     NOT NULL DEFAULT 0,
+    first_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (user_id, day, platform, app_version)
+);
+CREATE INDEX IF NOT EXISTS daily_activity_day ON daily_activity (day);

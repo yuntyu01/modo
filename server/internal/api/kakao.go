@@ -55,6 +55,8 @@ type Config struct {
 	PasswordLoginOff bool
 	// Existing store-review account only. Empty disables review login; never permits registration.
 	StoreReviewEmail string
+	// 주인용 활동 집계(GET /api/admin/activity)의 Bearer 토큰. 32자 미만이면 그 주소를 끈다(404)
+	AdminToken string
 }
 
 func (c *Config) defaults() {

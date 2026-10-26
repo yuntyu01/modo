@@ -24,13 +24,91 @@ Android 로그인 화면은 서버가 `storeReview=true`를 알릴 때만 `Store
 ## 보관·삭제 구현
 
 - `DELETE /api/me`: 현재 세션으로만 자신의 계정을 삭제한다. 요청 본문은 `{"confirmation":"DELETE"}`이다. 응답 204는 운영 DB 삭제 완료, 202는 영속 저널에 접수되어 접근은 차단됐고 재시도 중임을 뜻한다.
-- 삭제 의사를 먼저 별도 영속 저널에 fsync하고 모든 세션을 차단한다. 사용자 행 삭제의 FK CASCADE가 소유 폴더·메모·할 일·완료 기록·로그인·세션·공유 링크·멤버십·재전송 기록에 반영된다. 다른 사용자가 소유한 폴더는 삭제하지 않는다.
+- 삭제 의사를 먼저 별도 영속 저널에 fsync하고 모든 세션을 차단한다. 사용자 행 삭제의 FK CASCADE가 소유 폴더·메모·할 일·완료 기록·로그인·세션·공유 링크·멤버십·재전송 기록·활동 기록에 반영된다. 다른 사용자가 소유한 폴더는 삭제하지 않는다.
 - 실패 작업은 매시간 재시도하고 7일을 넘기면 `/healthz`를 실패시킨다. 미완료 삭제 저널은 만료시키지 않는다.
 - 삭제 완료 후 UUID와 처리 시각만 복원 방지를 위해 최대 30일 보관한다. 콘텐츠·이메일·비밀번호·토큰은 저널에 없다.
 - 애플리케이션 로그는 일별 파일로 회전하고 30일이 되기 전에 삭제한다. 요청 본문·이메일·IP·비밀번호·토큰을 로그에 기록하지 않는다. 오류는 고정된 이벤트 코드만 기록한다.
 - 백업은 하루 한 번 생성하고 15분마다 만료를 확인한다. 29일 된 백업을 지워 최대 30일 안에 만료되도록 여유를 둔다. 실패 시 마지막 성공 백업을 보존하고 상태 점검을 실패시킨다.
 - 백업은 DB만 포함한다. 삭제 저널은 DB 백업과 분리된 앱 영속 저장소에 둔다. JSON 내보내기 파일·다른 기기의 오프라인 복사본은 사용자가 별도 관리한다.
 - 호스팅 프록시·Cloudflare·DB 자체 로그와 외부 백업은 계정 설정에서 추가 검증해야 한다. 소스의 설정만으로 실제 적용을 주장하지 않는다.
+
+## 활동 기록(1단계, 서버만)
+
+일간·주간 사용자 수, 다시 온 비율, PC·휴대폰 비율, 바로 받기가 없는 옛 PC 판을 아직 쓰는 사람을 보려고 서버가 하루 사용량만 센다(`server/internal/api/activity.go`). 앱은 바꾸지 않았다.
+
+- 표 `daily_activity`: 한 줄 = 계정 UUID·날짜(서울)·플랫폼·앱 판. 열은 `requests`(로그인한 API 요청 전부), `syncs`(동기화 `/api/sync/push`·`/api/sync/pull`, 바뀐 것이 있으면 한 번 동기화에 2), `waits`(바로 받기 `/api/sync/wait`, 최대 25초 기다리는 요청), `first_at`·`last_at`(그날 처음·마지막 요청 시각).
+- 플랫폼: 앱이 로그인할 때 보낸 세션 기기 이름(`Android`·`iPhone`·`Windows`·`Desktop`)을 `android`·`ios`·`windows`·`desktop`으로, 그 밖은 `other`.
+- 앱 판: PC는 Electron User-Agent의 `<앱 이름>/<판>`(예: `modo-desktop/1.0.43`), iPhone은 CFNetwork User-Agent의 빌드 번호(마케팅 판이 아님). Android(OkHttp)는 판을 보내지 않아 비어 있다(`''`). 판을 몰라도 `waits`가 있으면 바로 받기가 있는 판이다.
+- 2단계(앱 변경): 앱이 `X-Modo-Client: android/1.0.44`처럼 `<플랫폼>/<판>`을 붙이면 서버가 그 판을 먼저 쓴다. 서버는 이미 받으며 CORS도 허용해 두었다.
+- 남기지 않는 것: 할 일·메모·폴더 이름 같은 내용, 이메일, IP, User-Agent 원문(판 번호만 뽑는다), 기기 모델, 요청 경로·시각별 기록.
+- 요청마다 DB에 쓰지 않는다. 서버 메모리에 모아 5분마다 한 문장으로 더하고, 정상 종료(재배포) 때 마저 쓴다. 갑자기 죽으면 최대 5분 치를 잃는다. 단일 replica 전제다.
+- 보관: 400일(약 13개월)이 지난 날은 매시간 정리에서 지운다. 계정을 지우면 FK CASCADE로 함께 지워지고 아직 메모리에 있던 숫자도 버린다. DB 백업에 든 것은 백업 만료(최대 30일)와 함께 사라진다.
+
+### 집계 보기
+
+`ADMIN_TOKEN`(32자 이상 난수)을 넣으면 `GET /api/admin/activity?days=N`이 켜진다. 없거나 32자 미만이면 404다. 응답은 숫자만이고 계정 id·이메일은 없다. 토큰은 문서·로그·채팅에 넣지 않는다.
+
+```sh
+openssl rand -hex 32   # 한 번 만들어 KoDeploy 환경 변수 ADMIN_TOKEN에 넣는다
+curl -s -H "Authorization: Bearer $ADMIN_TOKEN" 'https://modo.kodeploy.com/api/admin/activity?days=14'
+```
+
+```json
+{
+  "daily": [
+    "… 앞의 12일 …",
+    {"day": "2026-10-25", "users": 3, "platforms": {"android": 3, "windows": 2}, "requests": 1840, "syncs": 512, "waits": 1203},
+    {"day": "2026-10-26", "users": 2, "platforms": {"android": 2, "windows": 1}, "requests": 640, "syncs": 180, "waits": 410}
+  ],
+  "days": 14,
+  "latest": {"day": "2026-10-26", "dau": 2, "mau": 3, "wau": 3},
+  "return": {"d1": {"base": 30, "returned": 21, "rate": 0.7}, "d7": {"base": 12, "returned": 6, "rate": 0.5}},
+  "today": "2026-10-26",
+  "versions": [
+    {"platform": "android", "version": "", "users": 3},
+    {"platform": "windows", "version": "1.0.43", "users": 1},
+    {"platform": "windows", "version": "1.0.30", "users": 1}
+  ]
+}
+```
+
+- `daily`: 날마다 사용자 수(DAU)와 플랫폼별 사용자 수(PC·휴대폰을 다 쓰면 양쪽에 센다), 요청·동기화·바로 받기 합. 오늘(서울)까지, 빈 날도 0으로 나온다. 보기 전에 메모리의 숫자를 먼저 쓴다.
+- `latest`: 오늘 DAU, WAU(최근 7일), MAU(최근 30일).
+- `versions`: 최근 7일에 쓴 사람마다 플랫폼별 마지막 판의 분포. `""`는 판을 모름.
+- `return.d1`·`return.d7`: 기간 안 어제까지, 어느 날 쓴 사람이 다음 날·7일 뒤 그날에도 쓴 비율. `base`는 비교한 (사람, 날) 수, `rate`는 `base`가 0이면 `null`.
+- `days`는 1~400(기본 30). 접속 주소마다 1분에 10번까지.
+
+DB를 직접 볼 때:
+
+```sql
+-- 날마다 DAU와 PC·휴대폰 사용자 수
+SELECT day, count(DISTINCT user_id) AS dau,
+  count(DISTINCT user_id) FILTER (WHERE platform IN ('windows', 'desktop')) AS pc,
+  count(DISTINCT user_id) FILTER (WHERE platform IN ('android', 'ios')) AS phone
+FROM daily_activity WHERE day > current_date - 30 GROUP BY day ORDER BY day;
+
+-- WAU · MAU
+SELECT count(DISTINCT user_id) FILTER (WHERE day > current_date - 7) AS wau, count(DISTINCT user_id) AS mau
+FROM daily_activity WHERE day > current_date - 30;
+
+-- 최근 7일 PC 판 분포(사람마다 마지막 판)
+SELECT app_version, count(*) FROM (
+  SELECT DISTINCT ON (user_id) app_version FROM daily_activity
+  WHERE platform IN ('windows', 'desktop') AND day > current_date - 7 ORDER BY user_id, last_at DESC
+) v GROUP BY app_version ORDER BY 2 DESC;
+
+-- 최근 7일 동기화는 했는데 바로 받기가 없던 줄(대략 옛 판): 플랫폼별 사람 수
+SELECT platform, count(DISTINCT user_id) FROM daily_activity
+WHERE day > current_date - 7 AND syncs > 0 AND waits = 0 GROUP BY platform;
+```
+
+### 주인이 할 일
+
+1. KoDeploy에서 이 커밋을 배포한다(push만으로는 배포되지 않는다). 표는 서버가 켜질 때 만들어진다.
+2. KoDeploy 환경 변수 `ADMIN_TOKEN`에 `openssl rand -hex 32` 값을 넣는다(Compose 대안은 `.env`의 `ADMIN_TOKEN`).
+3. 개인정보처리방침에 추가: 수집 항목 "서비스 이용 기록(이용 날짜, 기기 종류(Android·iPhone·Windows), 앱 버전, 날짜별 요청·동기화 횟수, 그날 처음·마지막 이용 시각)", 목적 "이용 통계와 서비스 품질 개선(동기화 지연 등 문제 파악)", 보관 "400일(약 13개월) 뒤 삭제, 회원 탈퇴 시 즉시 삭제(백업은 30일 안에 만료)", 제3자 제공·광고 사용 없음. 할 일 내용과 IP는 이 기록에 넣지 않는다고 적는다.
+4. Play Console → 앱 콘텐츠 → 데이터 보안: **앱 활동 → 앱 상호작용**을 추가한다. 수집함, 공유하지 않음, 일시적 처리 아님, 필수(사용자가 끌 수 없음), 목적은 **분석**. 앱 버전·기기 종류는 이 기록에 딸린 값이다. 더 보수적으로 하려면 **앱 정보 및 성능 → 기타 앱 성능 데이터**도 같은 설정으로 고른다. 전송 중 암호화(HTTPS)와 삭제 요청 가능은 기존 답을 그대로 둔다.
+5. iPhone을 App Store에 낼 때는 앱 개인정보 보호에 사용 데이터 → 제품 상호작용(사용자에 연결됨, 추적에 쓰지 않음, 목적 분석)을 넣는다.
 
 ## 외부 삭제 요청 처리
 

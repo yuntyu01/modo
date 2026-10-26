@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -77,7 +78,14 @@ func (s *Server) eraseAccount(ctx context.Context, id string, enqueue bool) erro
 	if _, err = tx.Exec(ctx, `DELETE FROM users WHERE id=$1`, id); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	if err = tx.Commit(ctx); err != nil {
+		return err
+	}
+	// 활동 기록은 FK CASCADE로 함께 지워졌다. 아직 메모리에만 있는 숫자도 버린다
+	if u, err := uuid.Parse(id); err == nil {
+		s.activity.forget(u)
+	}
+	return nil
 }
 
 func (s *Server) retryKakaoUnlinks(ctx context.Context) error {

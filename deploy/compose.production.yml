@@ -37,6 +37,8 @@ services:
       MODO_BACKUPS_ENABLED: "0"
       # HTTPS 프록시 뒤라 접속 주소가 모두 프록시로 보인다. 0이면 로그인 요청 수 제한을 전체 사용자가 함께 쓴다.
       TRUST_PROXY: "1"
+      # 주인용 활동 집계(GET /api/admin/activity). 32자 이상 난수, 비우면 그 주소는 404
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-}
     volumes:
       - modo-logs:/var/lib/modo/logs
       - modo-erasures:/var/lib/modo/erasures

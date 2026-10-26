@@ -22,6 +22,8 @@ type Server struct {
 	googleVerifier *oidc.IDTokenVerifier
 	// push가 끝나면 바로 받기(/api/sync/wait)로 기다리는 요청을 깨운다
 	changes        changeHub
+	// 아직 DB에 안 쓴 활동 기록(activity.go). 5분마다 FlushActivity가 쓴다
+	activity activityLog
 }
 
 func New(db *pgxpool.Pool, cfg Config) *Server {
@@ -39,7 +41,7 @@ func (s *Server) Migrate(ctx context.Context) error {
 	return err
 }
 
-// Cleanup: 오래된 재전송 기록(30일), 오래 안 쓴 세션(180일), 끝난 외부 로그인 상태를 지운다. main이 주기적으로 부른다.
+// Cleanup: 오래된 재전송 기록(30일), 오래 안 쓴 세션(180일), 끝난 외부 로그인 상태, 400일 지난 활동 기록을 지운다. main이 주기적으로 부른다.
 func (s *Server) Cleanup(ctx context.Context) error {
 	if err := s.ApplyErasures(ctx); err != nil {
 		return err
@@ -53,6 +55,7 @@ func (s *Server) Cleanup(ctx context.Context) error {
 		`DELETE FROM oauth_states WHERE expires_at < now()`,
 		`DELETE FROM login_codes WHERE expires_at < now()`,
 		`DELETE FROM friend_requests WHERE status <> 'pending' AND responded_at < now() - interval '30 days'`,
+		`DELETE FROM daily_activity WHERE day < current_date - 400`, // activityKeepDays
 	} {
 		if _, err := s.db.Exec(ctx, q); err != nil {
 			return err
@@ -105,6 +108,9 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/friends/requests/{id}/decline", s.auth(s.declineFriend))
 	mux.HandleFunc("DELETE /api/friends/requests/{id}", s.auth(s.cancelFriendRequest))
 	mux.HandleFunc("DELETE /api/friends/{user}", s.auth(s.removeFriend))
+
+	// 주인용 활동 집계(ADMIN_TOKEN). 사용자 로그인과 상관없다
+	mux.HandleFunc("GET /api/admin/activity", s.adminActivity)
 }
 
 func decode(w http.ResponseWriter, r *http.Request, v any) bool {

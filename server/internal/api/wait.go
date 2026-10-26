@@ -82,16 +82,22 @@ func (s *Server) wait(w http.ResponseWriter, r *http.Request) {
 }
 
 // 커서 뒤에 이 사람이 받을 변경이 있는지. pull과 같은 범위: 내 것 + 내 폴더 · 공유받은 폴더에 든 것
+// + 공유받은 '전체'(주인의 폴더 없는 항목과 그 가짜 폴더 행 = 공유 행의 seq, 사용자 요청 2026-10-26)
 func (s *Server) hasChanges(ctx context.Context, user uuid.UUID, since int64) (bool, error) {
 	var changed bool
 	err := s.db.QueryRow(ctx, `
-		WITH f AS (SELECT folder_id AS id FROM folder_members WHERE user_id = $1 UNION ALL SELECT id FROM folders WHERE owner_id = $1)
+		WITH f AS (SELECT folder_id AS id FROM folder_members WHERE user_id = $1 UNION ALL SELECT id FROM folders WHERE owner_id = $1),
+			o AS (SELECT owner_id AS id FROM base_members WHERE user_id = $1)
 		SELECT EXISTS (SELECT 1 FROM folders WHERE seq > $2 AND (owner_id = $1 OR id IN (SELECT id FROM f)))
+			OR EXISTS (SELECT 1 FROM base_members WHERE user_id = $1 AND seq > $2)
 			OR EXISTS (SELECT 1 FROM todos WHERE owner_id = $1 AND seq > $2)
 			OR EXISTS (SELECT 1 FROM todos WHERE folder_id IN (SELECT id FROM f) AND seq > $2)
+			OR EXISTS (SELECT 1 FROM todos WHERE owner_id IN (SELECT id FROM o) AND seq > $2)
 			OR EXISTS (SELECT 1 FROM paragraphs WHERE owner_id = $1 AND seq > $2)
 			OR EXISTS (SELECT 1 FROM paragraphs WHERE folder_id IN (SELECT id FROM f) AND seq > $2)
+			OR EXISTS (SELECT 1 FROM paragraphs WHERE owner_id IN (SELECT id FROM o) AND seq > $2)
 			OR EXISTS (SELECT 1 FROM tombstones WHERE owner_id = $1 AND seq > $2)
-			OR EXISTS (SELECT 1 FROM tombstones WHERE folder_id IN (SELECT id FROM f) AND seq > $2)`, user, since).Scan(&changed)
+			OR EXISTS (SELECT 1 FROM tombstones WHERE folder_id IN (SELECT id FROM f) AND seq > $2)
+			OR EXISTS (SELECT 1 FROM tombstones WHERE owner_id IN (SELECT id FROM o) AND seq > $2)`, user, since).Scan(&changed)
 	return changed, err
 }

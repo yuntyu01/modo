@@ -106,6 +106,20 @@ func friendsOf(ctx context.Context, q querier, me uuid.UUID) (friendsPayload, er
 			JOIN folder_members o ON o.folder_id = mine.folder_id AND o.user_id = ANY($2)
 			JOIN folders f ON f.id = mine.folder_id
 			WHERE mine.user_id = $1 AND f.owner_id <> o.user_id AND f.deleted_at IS NULL
+			-- 전체(폴더 없는 항목) 공유도 같은 목록에: folder_id = 주인 사용자 id(사용자 요청 2026-10-26)
+			UNION ALL
+			-- 친구가 내게 공유한 전체
+			SELECT b.owner_id, b.owner_id, b.role, 'owner', b.home FROM base_members b
+			WHERE b.user_id = $1 AND b.owner_id = ANY($2)
+			UNION ALL
+			-- 내가 친구에게 공유한 전체
+			SELECT b.user_id, b.owner_id, 'owner', b.role, true FROM base_members b
+			WHERE b.owner_id = $1 AND b.user_id = ANY($2)
+			UNION ALL
+			-- 다른 사람의 전체에 나와 친구가 함께 참여 중
+			SELECT o.user_id, mine.owner_id, mine.role, o.role, mine.home FROM base_members mine
+			JOIN base_members o ON o.owner_id = mine.owner_id AND o.user_id = ANY($2)
+			WHERE mine.user_id = $1
 			ORDER BY 2`, me, ids)
 		if err != nil {
 			return out, err

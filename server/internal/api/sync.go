@@ -139,6 +139,9 @@ type rowKey struct {
 type folderInfo struct {
 	owner uuid.UUID
 	role  string // owner | edit | view | none (이 push를 보낸 사람 기준)
+	// 진짜 폴더가 아니라 남의 '전체'(폴더 id 자리에 온 주인 사용자 id, 사용자 요청 2026-10-26).
+	// 그 '전체'에 든 항목은 DB에 folder_id 없이 owner_id = 주인으로 둔다
+	base bool
 }
 
 // pushTx: 한 번의 push를 한 트랜잭션으로 처리한다. 필요한 행·폴더·재전송 기록을 먼저 한꺼번에 읽고(FOR UPDATE),
@@ -241,6 +244,8 @@ func (p *pushTx) load(ctx context.Context, tx pgx.Tx, ops []op) error {
 	ids := map[string][]uuid.UUID{}
 	items := []uuid.UUID{}
 	folderIDs := []uuid.UUID{}
+	// 남의 '전체'에 든 행(folder_id 없음, owner_id가 다른 사람)의 주인
+	baseOwners := []uuid.UUID{}
 	for _, o := range ops {
 		opIDs = append(opIDs, o.OpID)
 		ent, ok := entities[o.Entity]
@@ -296,9 +301,13 @@ func (p *pushTx) load(ctx context.Context, tx pgx.Tx, ops []op) error {
 			cur := map[string]json.RawMessage{}
 			json.Unmarshal(b, &cur)
 			p.rows[rowKey{table, id}] = cur
-			var fid uuid.UUID
-			if json.Unmarshal(cur["folder_id"], &fid) == nil && fid != uuid.Nil {
+			if table == "folders" {
+				continue
+			}
+			if fid := uuidOf(cur["folder_id"]); fid != uuid.Nil {
 				folderIDs = append(folderIDs, fid)
+			} else if own := uuidOf(cur["owner_id"]); own != uuid.Nil && own != p.user {
+				baseOwners = append(baseOwners, own)
 			}
 		}
 		rows.Close()
@@ -344,6 +353,45 @@ func (p *pushTx) load(ctx context.Context, tx pgx.Tx, ops []op) error {
 			p.folders[id] = fi
 		}
 		rows.Close()
+		if err := rows.Err(); err != nil {
+			return err
+		}
+	}
+
+	// '전체' 공유: 폴더로 없는 id 중 사용자 id(남의 '전체')와 남의 '전체'에 든 행의 주인. 내 권한은 base_members에서.
+	// 폴더 만들기의 id도 본다: 사용자 id로 폴더를 만들어 남의 '전체'처럼 보이게 하지 못하게(apply).
+	// 내 id는 넣지 않는다: 주인 자신의 push는 예전과 같다(내 '전체'는 folder_id 없음)
+	look := []uuid.UUID{}
+	for _, id := range append(folderIDs, baseOwners...) {
+		if _, ok := p.folders[id]; !ok && id != p.user {
+			look = append(look, id)
+		}
+	}
+	if len(look) > 0 {
+		rows, err := tx.Query(ctx, `
+			SELECT u.id, m.role FROM users u
+			LEFT JOIN base_members m ON m.owner_id = u.id AND m.user_id = $2
+			WHERE u.id = ANY($1)`, look, p.user)
+		if err != nil {
+			return err
+		}
+		for rows.Next() {
+			var id uuid.UUID
+			var role *string
+			if err := rows.Scan(&id, &role); err != nil {
+				rows.Close()
+				return err
+			}
+			fi := folderInfo{owner: id, role: "none", base: true}
+			if role != nil {
+				fi.role = *role
+			}
+			p.folders[id] = fi
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -488,6 +536,10 @@ func (p *pushTx) apply(o op) opResult {
 	if p.tomb[o.ID] {
 		return opResult{Status: "gone", Message: "이미 영구 삭제된 항목"}
 	}
+	// '전체'는 폴더 행이 아니다(id = 사용자 id): 이름 바꾸기·지우기·같은 id로 폴더 만들기를 받지 않는다
+	if o.Entity == "folder" && (o.ID == p.user || p.folders[o.ID].base) {
+		return opResult{Status: "forbidden", Message: "전체는 바꿀 수 없습니다"}
+	}
 	key := rowKey{ent.table, o.ID}
 	cur, exists := p.rows[key]
 	if !exists {
@@ -516,6 +568,13 @@ func (p *pushTx) insert(o op, ent entity, key rowKey, values map[string]any, pur
 			// 폴더가 서버에 없다(폴더 생성이 거절됐거나 순서가 꼬였다). 내용을 잃지 않게 기본 폴더에 둔다.
 			values["folder_id"] = nil
 			res.Message = "폴더가 없어 기본 폴더에 저장했습니다"
+		case fi.base:
+			// 편집으로 공유받은 남의 '전체'에 새 항목: 폴더 없이 그 주인의 항목으로 둔다(주인의 '전체'에 보인다)
+			if fi.role != "edit" {
+				return opResult{Status: "forbidden", Message: "폴더에 쓸 권한이 없습니다"}
+			}
+			values["folder_id"] = nil
+			owner = fi.owner
 		case fi.role == "owner" || fi.role == "edit":
 			owner = nil // 폴더 항목의 주인은 폴더 주인
 		default:
@@ -547,8 +606,19 @@ func (p *pushTx) update(o op, ent entity, key rowKey, values map[string]any, cur
 	}
 
 	// 권한: 폴더는 소유자만, 항목은 소유자 또는 그 폴더의 편집 권한자.
+	// 폴더 없는 남의 항목은 그 주인의 '전체'를 편집으로 공유받은 사람만(사용자 요청 2026-10-26)
 	if rowOwner != p.user {
-		if o.Entity == "folder" || rowFolder == uuid.Nil || p.folders[rowFolder].role != "edit" {
+		if o.Entity == "folder" {
+			return opResult{Status: "forbidden", Message: "권한이 없습니다"}
+		}
+		where := p.folders[rowFolder]
+		if rowFolder == uuid.Nil {
+			where = p.folders[rowOwner]
+			if !where.base {
+				return opResult{Status: "forbidden", Message: "권한이 없습니다"}
+			}
+		}
+		if where.role != "edit" {
 			return opResult{Status: "forbidden", Message: "권한이 없습니다"}
 		}
 	}
@@ -577,7 +647,17 @@ func (p *pushTx) update(o op, ent entity, key rowKey, values map[string]any, cur
 		cur[col] = raw(v)
 	}
 
-	if v, ok := values["folder_id"]; ok && !jsonEqual(cur["folder_id"], o.Fields["folder_id"].New) {
+	// 이 사람이 보는 지금 폴더: 남의 '전체'에 든 항목은 pull이 folder_id = 주인 id로 보낸다(같은 값이면 옮기기가 아니다).
+	// 그대로면 주인 id를 folder_id에 쓰지 않게 뺀다(DB에는 folder_id 없이 둔다)
+	seen := cur["folder_id"]
+	inOthersBase := rowFolder == uuid.Nil && rowOwner != p.user
+	if inOthersBase {
+		seen = raw(rowOwner)
+	}
+	if _, ok := values["folder_id"]; ok && inOthersBase && jsonEqual(seen, o.Fields["folder_id"].New) {
+		delete(values, "folder_id")
+	}
+	if v, ok := values["folder_id"]; ok && !jsonEqual(seen, o.Fields["folder_id"].New) {
 		target, _ := v.(uuid.UUID)
 		if target == uuid.Nil {
 			if p.user != rowOwner {
@@ -592,7 +672,13 @@ func (p *pushTx) update(o op, ent entity, key rowKey, values map[string]any, cur
 			if fi.owner != rowOwner || (fi.role != "owner" && fi.role != "edit") {
 				return opResult{Status: "forbidden", Message: "그 폴더로 옮길 수 없습니다"}
 			}
-			set("owner_id", nil)
+			if fi.base {
+				// 같은 주인의 '전체'로(편집 권한자만): 폴더 없이 주인의 항목으로 둔다. folder_id는 아래에서 NULL로 쓴다
+				values["folder_id"] = nil
+				set("owner_id", fi.owner)
+			} else {
+				set("owner_id", nil)
+			}
 		}
 	}
 
@@ -705,28 +791,41 @@ func (s *Server) pull(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 공유받은 폴더와 공유받은 '전체'(사용자 요청 2026-10-26). '전체'는 folder_id 자리에 주인 사용자 id
 	shared := []sharedFolder{}
+	sharedIDs := []uuid.UUID{}
+	baseOwners := []uuid.UUID{}
 	rows, err := tx.Query(ctx, `
-		SELECT m.folder_id, m.role, o.id, COALESCE(o.email, ''), o.name, m.home FROM folder_members m
+		SELECT m.folder_id, m.role, o.id, COALESCE(o.email, ''), o.name, m.home, false FROM folder_members m
 		JOIN folders f ON f.id = m.folder_id JOIN users o ON o.id = f.owner_id
-		WHERE m.user_id = $1`, u.ID)
+		WHERE m.user_id = $1
+		UNION ALL
+		SELECT b.owner_id, b.role, o.id, COALESCE(o.email, ''), o.name, b.home, true FROM base_members b
+		JOIN users o ON o.id = b.owner_id
+		WHERE b.user_id = $1`, u.ID)
 	if err != nil {
 		serverError(w, err)
 		return
 	}
 	for rows.Next() {
 		var sf sharedFolder
-		rows.Scan(&sf.FolderID, &sf.Role, &sf.Owner.ID, &sf.Owner.Email, &sf.Owner.Name, &sf.Home)
+		var base bool
+		if err := rows.Scan(&sf.FolderID, &sf.Role, &sf.Owner.ID, &sf.Owner.Email, &sf.Owner.Name, &sf.Home, &base); err != nil {
+			rows.Close()
+			serverError(w, err)
+			return
+		}
 		shared = append(shared, sf)
+		if base {
+			baseOwners = append(baseOwners, sf.FolderID)
+		} else {
+			sharedIDs = append(sharedIDs, sf.FolderID)
+		}
 	}
 	rows.Close()
 	if err := rows.Err(); err != nil {
 		serverError(w, err)
 		return
-	}
-	sharedIDs := make([]uuid.UUID, len(shared))
-	for i, sf := range shared {
-		sharedIDs[i] = sf.FolderID
 	}
 	// 볼 수 있는 폴더 = 내 폴더 + 공유받은 폴더. 폴더에 든 항목은 이 목록으로, 기본 폴더 항목은 owner_id로 찾는다.
 	visible := slices.Clone(sharedIDs)
@@ -746,24 +845,36 @@ func (s *Server) pull(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 두 갈래를 각각 (owner_id, seq) / (folder_id, seq) 인덱스로 읽는다.
-	items := func(table, cols string) string {
+	// 세 갈래를 각각 (owner_id, seq) / (folder_id, seq) / (owner_id, seq) 인덱스로 읽는다.
+	// 셋째 갈래는 공유받은 '전체'($5 = 주인들)의 폴더 없는 항목: folder_id를 주인 id로 바꿔 보낸다(앱에는 그 '전체' 폴더에 든 항목)
+	items := func(table, cols, baseCols string) string {
 		return fmt.Sprintf(`(SELECT seq, %[2]s FROM %[1]s t WHERE owner_id = $2 AND seq > $1 ORDER BY seq LIMIT $4)
-			UNION ALL (SELECT seq, %[2]s FROM %[1]s t WHERE folder_id = ANY($3) AND seq > $1 ORDER BY seq LIMIT $4)`, table, cols)
+			UNION ALL (SELECT seq, %[2]s FROM %[1]s t WHERE folder_id = ANY($3) AND seq > $1 ORDER BY seq LIMIT $4)
+			UNION ALL (SELECT seq, %[3]s FROM %[1]s t WHERE owner_id = ANY($5) AND seq > $1 ORDER BY seq LIMIT $4)`, table, cols, baseCols)
 	}
+	const itemCols = `to_jsonb(t) - 'seq' - 'owner_id'`
+	const baseItemCols = `(to_jsonb(t) - 'seq' - 'owner_id') || jsonb_build_object('folder_id', t.owner_id)`
+	const tombCols = `jsonb_build_object('id', id, 'entity', entity)`
 	queries := []struct {
 		name, sql string
 		folders   []uuid.UUID
 	}{
-		{"folders", `SELECT seq, to_jsonb(t) - 'seq' - 'owner_id' FROM folders t WHERE seq > $1 AND (owner_id = $2 OR id = ANY($3)) ORDER BY seq LIMIT $4`, sharedIDs},
-		{"todos", items("todos", `to_jsonb(t) - 'seq' - 'owner_id'`), visible},
-		{"paragraphs", items("paragraphs", `to_jsonb(t) - 'seq' - 'owner_id'`), visible},
-		{"deleted", items("tombstones", `jsonb_build_object('id', id, 'entity', entity)`), visible},
+		// 공유받은 '전체'는 진짜 폴더 행이 없어 공유 행(base_members)으로 폴더 행을 만들어 보낸다: id = 주인 id, 이름 '전체',
+		// 순서는 그 주인의 폴더들 뒤. seq는 공유를 만들거나 권한을 바꿀 때 매긴다(share.go)
+		{"folders", `(SELECT seq, to_jsonb(t) - 'seq' - 'owner_id' FROM folders t WHERE seq > $1 AND (owner_id = $2 OR id = ANY($3)) ORDER BY seq LIMIT $4)
+			UNION ALL (SELECT b.seq, jsonb_build_object('id', b.owner_id, 'name', '전체'::text,
+				'position', COALESCE((SELECT max(f.position COLLATE "C") FROM folders f WHERE f.owner_id = b.owner_id) || 'V', 'a0'),
+				'created_at', (extract(epoch FROM b.created_at) * 1000)::bigint, 'updated_at', (extract(epoch FROM b.created_at) * 1000)::bigint,
+				'deleted_at', NULL::bigint)
+			FROM base_members b WHERE b.user_id = $2 AND b.owner_id = ANY($5) AND b.seq > $1 ORDER BY b.seq LIMIT $4)`, sharedIDs},
+		{"todos", items("todos", itemCols, baseItemCols), visible},
+		{"paragraphs", items("paragraphs", itemCols, baseItemCols), visible},
+		{"deleted", items("tombstones", tombCols, tombCols), visible},
 	}
 	all := []pulled{}
 	more := false
 	for _, q := range queries {
-		rows, err := tx.Query(ctx, q.sql, since, u.ID, q.folders, limit+1)
+		rows, err := tx.Query(ctx, q.sql, since, u.ID, q.folders, limit+1, baseOwners)
 		if err != nil {
 			serverError(w, err)
 			return
@@ -807,12 +918,15 @@ func (s *Server) pull(w http.ResponseWriter, r *http.Request) {
 	// 공유가 끊기거나 항목이 공유 폴더 밖으로 옮겨지면 클라이언트가 이 목록으로 지운다.
 	// 목록의 요약(foreign_digest)이 클라이언트가 보낸 것(fd)과 같으면 목록은 빼고 foreign_same만 준다:
 	// 바뀐 게 없는 동기화(30초마다)에 공유 폴더 항목 수만큼의 id를 매번 보내지 않게(2026-10-18). fd를 안 보내는 예전 앱은 늘 목록을 받는다.
+	// 공유받은 '전체'도 같다: 가짜 폴더 id(= 주인 id)와 주인의 폴더 없는 항목. 공유가 끝나면 빠져 앱이 지운다
 	if !more {
-		ids := []uuid.UUID{}
+		ids := slices.Clone(baseOwners)
 		rows, err := tx.Query(ctx, `
 			SELECT id FROM folders WHERE id = ANY($1)
 			UNION ALL SELECT id FROM todos WHERE folder_id = ANY($1)
-			UNION ALL SELECT id FROM paragraphs WHERE folder_id = ANY($1)`, sharedIDs)
+			UNION ALL SELECT id FROM paragraphs WHERE folder_id = ANY($1)
+			UNION ALL SELECT id FROM todos WHERE owner_id = ANY($2)
+			UNION ALL SELECT id FROM paragraphs WHERE owner_id = ANY($2)`, sharedIDs, baseOwners)
 		if err != nil {
 			serverError(w, err)
 			return

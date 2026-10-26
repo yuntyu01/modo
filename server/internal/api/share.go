@@ -30,31 +30,46 @@ type link struct {
 }
 
 // 폴더 소유자만 공유를 관리한다.
-func (s *Server) ownedFolder(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
+// 폴더 id 자리에 내 사용자 id가 오면 내 '전체'(폴더 없는 항목)다(base = true, 사용자 요청 2026-10-26).
+func (s *Server) ownedFolder(w http.ResponseWriter, r *http.Request) (id uuid.UUID, base bool, ok bool) {
 	u := userFrom(r.Context())
 	id, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
 		badRequest(w, "id가 잘못됐습니다")
-		return uuid.Nil, false
+		return uuid.Nil, false, false
+	}
+	if id == u.ID {
+		return id, true, true
 	}
 	var owner uuid.UUID
 	err = s.db.QueryRow(r.Context(), `SELECT owner_id FROM folders WHERE id = $1 AND deleted_at IS NULL`, id).Scan(&owner)
 	if errors.Is(err, pgx.ErrNoRows) {
+		// 남의 '전체'를 공유받은 사람은 폴더 참여자처럼 공유를 바꿀 수 없다
+		var member bool
+		if err := s.db.QueryRow(r.Context(), `SELECT EXISTS (SELECT 1 FROM base_members WHERE owner_id = $1 AND user_id = $2)`, id, u.ID).Scan(&member); err != nil {
+			serverError(w, err)
+			return uuid.Nil, false, false
+		}
+		if member {
+			errJSON(w, http.StatusForbidden, "not_owner", "폴더 소유자만 공유를 바꿀 수 있습니다")
+			return uuid.Nil, false, false
+		}
 		errJSON(w, http.StatusNotFound, "folder_not_synced", "폴더가 아직 서버에 없습니다. 동기화 후 다시 시도해 주세요")
-		return uuid.Nil, false
+		return uuid.Nil, false, false
 	}
 	if err != nil {
 		serverError(w, err)
-		return uuid.Nil, false
+		return uuid.Nil, false, false
 	}
 	if owner != u.ID {
 		errJSON(w, http.StatusForbidden, "not_owner", "폴더 소유자만 공유를 바꿀 수 있습니다")
-		return uuid.Nil, false
+		return uuid.Nil, false, false
 	}
-	return id, true
+	return id, false, true
 }
 
 // 폴더의 참여자 보기: 소유자는 참여자·링크와 함께 바꿀 수 있고(can_manage), 참여자는 누가 함께 쓰는지만 본다(링크는 소유자만).
+// '전체'(폴더 id = 주인 사용자 id)도 같은 모양으로 답한다. 링크는 없다.
 func (s *Server) listShares(w http.ResponseWriter, r *http.Request) {
 	u := userFrom(r.Context())
 	ctx := r.Context()
@@ -69,6 +84,15 @@ func (s *Server) listShares(w http.ResponseWriter, r *http.Request) {
 		SELECT o.id, COALESCE(o.email, ''), o.name, m.role FROM folders f JOIN users o ON o.id = f.owner_id
 		LEFT JOIN folder_members m ON m.folder_id = f.id AND m.user_id = $2
 		WHERE f.id = $1 AND f.deleted_at IS NULL`, folder, u.ID).Scan(&owner.ID, &owner.Email, &owner.Name, &myRole)
+	base := false
+	if errors.Is(err, pgx.ErrNoRows) {
+		// 폴더가 아니면 '전체': 내 id면 내 전체, 남의 id면 내가 공유받은 그 사람의 전체(아니면 아래에서 404)
+		base = true
+		err = s.db.QueryRow(ctx, `
+			SELECT o.id, COALESCE(o.email, ''), o.name, m.role FROM users o
+			LEFT JOIN base_members m ON m.owner_id = o.id AND m.user_id = $2
+			WHERE o.id = $1`, folder, u.ID).Scan(&owner.ID, &owner.Email, &owner.Name, &myRole)
+	}
 	if errors.Is(err, pgx.ErrNoRows) {
 		errJSON(w, http.StatusNotFound, "folder_not_synced", "폴더가 아직 서버에 없습니다. 동기화 후 다시 시도해 주세요")
 		return
@@ -93,9 +117,15 @@ func (s *Server) listShares(w http.ResponseWriter, r *http.Request) {
 	if myRole != nil {
 		out.MyRole = *myRole
 	}
-	rows, err := s.db.Query(ctx, `
+	membersSQL := `
 		SELECT m.user_id, COALESCE(u.email, ''), u.name, m.role, m.created_at FROM folder_members m JOIN users u ON u.id = m.user_id
-		WHERE m.folder_id = $1 ORDER BY m.created_at`, folder)
+		WHERE m.folder_id = $1 ORDER BY m.created_at`
+	if base {
+		membersSQL = `
+		SELECT m.user_id, COALESCE(u.email, ''), u.name, m.role, m.created_at FROM base_members m JOIN users u ON u.id = m.user_id
+		WHERE m.owner_id = $1 ORDER BY m.created_at`
+	}
+	rows, err := s.db.Query(ctx, membersSQL, folder)
 	if err != nil {
 		serverError(w, err)
 		return
@@ -106,7 +136,7 @@ func (s *Server) listShares(w http.ResponseWriter, r *http.Request) {
 		out.Members = append(out.Members, m)
 	}
 	rows.Close()
-	if !manage {
+	if !manage || base {
 		writeJSON(w, http.StatusOK, out)
 		return
 	}
@@ -134,7 +164,7 @@ func validRole(w http.ResponseWriter, role string) bool {
 }
 
 func (s *Server) addMember(w http.ResponseWriter, r *http.Request) {
-	folder, ok := s.ownedFolder(w, r)
+	folder, base, ok := s.ownedFolder(w, r)
 	if !ok {
 		return
 	}
@@ -174,8 +204,28 @@ func (s *Server) addMember(w http.ResponseWriter, r *http.Request) {
 		errJSON(w, http.StatusBadRequest, "self_invite", "자기 자신은 초대할 수 없습니다")
 		return
 	}
+	// '전체'는 친구에게만(이메일로 와도 친구가 아니면 없는 사람처럼 답한다)
+	if base && b.UserID == "" {
+		a, bb := friendPair(userFrom(r.Context()).ID, m.UserID)
+		var friends bool
+		if err := s.db.QueryRow(r.Context(), `SELECT EXISTS (SELECT 1 FROM friendships WHERE a = $1 AND b = $2)`, a, bb).Scan(&friends); err != nil {
+			serverError(w, err)
+			return
+		}
+		if !friends {
+			errJSON(w, http.StatusNotFound, "user_not_found", "그 이메일로 가입한 사용자가 없습니다")
+			return
+		}
+	}
 	m.Role, m.CreatedAt = b.Role, time.Now()
 	err = s.withSeqWrite(r.Context(), func(tx pgx.Tx) error {
+		if base {
+			// 공유 행의 seq(기본값)가 가짜 폴더 행 '전체'의 순번이 된다. 항목보다 먼저 매겨져 폴더가 먼저 내려간다
+			if _, err := tx.Exec(r.Context(), `INSERT INTO base_members (owner_id, user_id, role) VALUES ($1, $2, $3)`, folder, m.UserID, m.Role); err != nil {
+				return err
+			}
+			return bumpBase(r.Context(), tx, folder)
+		}
 		if _, err := tx.Exec(r.Context(), `INSERT INTO folder_members (folder_id, user_id, role) VALUES ($1, $2, $3)`, folder, m.UserID, m.Role); err != nil {
 			return err
 		}
@@ -190,11 +240,13 @@ func (s *Server) addMember(w http.ResponseWriter, r *http.Request) {
 		serverError(w, err)
 		return
 	}
+	// 받는 사람이 기다리던 바로 받기(/api/sync/wait)를 깨운다
+	s.changes.bump()
 	writeJSON(w, http.StatusCreated, m)
 }
 
 func (s *Server) updateMember(w http.ResponseWriter, r *http.Request) {
-	folder, ok := s.ownedFolder(w, r)
+	folder, base, ok := s.ownedFolder(w, r)
 	if !ok {
 		return
 	}
@@ -210,6 +262,14 @@ func (s *Server) updateMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err = s.withSeqWrite(r.Context(), func(tx pgx.Tx) error {
+		if base {
+			// 권한은 pull의 shared로 간다. 가짜 폴더 행의 순번만 새로 매겨 받는 사람의 바로 받기가 깨게 한다(항목은 이미 받았다)
+			tag, err := tx.Exec(r.Context(), `UPDATE base_members SET role = $3, seq = nextval('change_seq') WHERE owner_id = $1 AND user_id = $2`, folder, user, b.Role)
+			if err == nil && tag.RowsAffected() == 0 {
+				err = pgx.ErrNoRows
+			}
+			return err
+		}
 		tag, err := tx.Exec(r.Context(), `UPDATE folder_members SET role = $3 WHERE folder_id = $1 AND user_id = $2`, folder, user, b.Role)
 		if err != nil {
 			return err
@@ -227,11 +287,12 @@ func (s *Server) updateMember(w http.ResponseWriter, r *http.Request) {
 		serverError(w, err)
 		return
 	}
+	s.changes.bump()
 	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) removeMember(w http.ResponseWriter, r *http.Request) {
-	folder, ok := s.ownedFolder(w, r)
+	folder, base, ok := s.ownedFolder(w, r)
 	if !ok {
 		return
 	}
@@ -241,6 +302,11 @@ func (s *Server) removeMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err = s.withSeqWrite(r.Context(), func(tx pgx.Tx) error {
+		if base {
+			// 빠진 사람은 다음 pull의 foreign_ids에서 이 항목들이 빠져 앱이 지운다. 남은 사람이 다시 받을 것은 없다
+			_, err := tx.Exec(r.Context(), `DELETE FROM base_members WHERE owner_id = $1 AND user_id = $2`, folder, user)
+			return err
+		}
 		if _, err := tx.Exec(r.Context(), `DELETE FROM folder_members WHERE folder_id = $1 AND user_id = $2`, folder, user); err != nil {
 			return err
 		}
@@ -262,6 +328,10 @@ func (s *Server) leaveFolder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tag, err := s.db.Exec(r.Context(), `DELETE FROM folder_members WHERE folder_id = $1 AND user_id = $2`, folder, u.ID)
+	if err == nil && tag.RowsAffected() == 0 {
+		// 공유받은 '전체'에서 나가기(폴더 id 자리에 주인 사용자 id)
+		tag, err = s.db.Exec(r.Context(), `DELETE FROM base_members WHERE owner_id = $1 AND user_id = $2`, folder, u.ID)
+	}
 	if err != nil {
 		serverError(w, err)
 		return
@@ -288,6 +358,10 @@ func (s *Server) setFolderHome(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tag, err := s.db.Exec(r.Context(), `UPDATE folder_members SET home = $3 WHERE folder_id = $1 AND user_id = $2`, folder, u.ID, b.Home)
+	if err == nil && tag.RowsAffected() == 0 {
+		// 공유받은 '전체'(폴더 id 자리에 주인 사용자 id)
+		tag, err = s.db.Exec(r.Context(), `UPDATE base_members SET home = $3 WHERE owner_id = $1 AND user_id = $2`, folder, u.ID, b.Home)
+	}
 	if err != nil {
 		serverError(w, err)
 		return
@@ -300,8 +374,12 @@ func (s *Server) setFolderHome(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) createLink(w http.ResponseWriter, r *http.Request) {
-	folder, ok := s.ownedFolder(w, r)
+	folder, base, ok := s.ownedFolder(w, r)
 	if !ok {
+		return
+	}
+	if base {
+		badRequest(w, "전체는 링크로 공유할 수 없습니다")
 		return
 	}
 	raw := make([]byte, 18)
@@ -316,8 +394,12 @@ func (s *Server) createLink(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) deleteLink(w http.ResponseWriter, r *http.Request) {
-	folder, ok := s.ownedFolder(w, r)
+	folder, base, ok := s.ownedFolder(w, r)
 	if !ok {
+		return
+	}
+	if base {
+		badRequest(w, "전체는 링크로 공유할 수 없습니다")
 		return
 	}
 	if _, err := s.db.Exec(r.Context(), `DELETE FROM share_links WHERE folder_id = $1 AND token = $2`, folder, r.PathValue("token")); err != nil {
@@ -350,6 +432,20 @@ func bumpFolder(ctx context.Context, tx pgx.Tx, folder uuid.UUID) error {
 		`UPDATE paragraphs SET seq = nextval('change_seq') WHERE folder_id = $1`,
 	} {
 		if _, err := tx.Exec(ctx, q, folder); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// '전체'를 새로 공유받은 사람이 커서와 상관없이 주인의 폴더 없는 항목을 받도록 seq를 새로 매긴다(bumpFolder와 같은 이유).
+// owner_id는 폴더 없는 항목에만 있다(폴더에 든 항목은 NULL).
+func bumpBase(ctx context.Context, tx pgx.Tx, owner uuid.UUID) error {
+	for _, q := range []string{
+		`UPDATE todos SET seq = nextval('change_seq') WHERE owner_id = $1`,
+		`UPDATE paragraphs SET seq = nextval('change_seq') WHERE owner_id = $1`,
+	} {
+		if _, err := tx.Exec(ctx, q, owner); err != nil {
 			return err
 		}
 	}

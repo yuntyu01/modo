@@ -239,6 +239,21 @@ CREATE INDEX IF NOT EXISTS share_links_folder ON share_links (folder_id);
 -- 공유받은 폴더를 내 홈(목록 탭)에도 보일지: 참여자 각자의 설정. 숨겨도 공유는 그대로(함께 탭에는 보인다)
 ALTER TABLE folder_members ADD COLUMN IF NOT EXISTS home BOOLEAN NOT NULL DEFAULT true;
 
+-- '전체'(폴더 없는 항목) 공유(사용자 요청 2026-10-26): 주인의 폴더 없는 항목 전체를 친구에게. 진짜 폴더가 없어 따로 둔다.
+-- 공유 경로(/api/folders/{id}/…)와 동기화에서는 폴더 id 자리에 주인의 사용자 id를 쓴다.
+-- seq: 받는 사람에게 내려 줄 가짜 폴더 행('전체')의 순번. 공유를 만들거나 권한을 바꿀 때 새로 매긴다.
+CREATE TABLE IF NOT EXISTS base_members (
+    owner_id   UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id    UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role       TEXT        NOT NULL CHECK (role IN ('view', 'edit')),
+    home       BOOLEAN     NOT NULL DEFAULT true,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    seq        BIGINT      NOT NULL DEFAULT nextval('change_seq'),
+    PRIMARY KEY (owner_id, user_id),
+    CHECK (owner_id <> user_id)
+);
+CREATE INDEX IF NOT EXISTS base_members_user ON base_members (user_id);
+
 -- ---------- 친구 ----------
 -- 친구는 폴더 공유(folder_members)와 따로다: 친구가 되어도 공유한 폴더만 보이고, 친구를 끊어도 공유는 그대로다.
 -- 요청: 보낸 사람 → 받는 사람 한 쌍에 하나. 수락하면 지우고 friendships에 한 줄. 거절·취소는 지우기만(알리지 않는다).

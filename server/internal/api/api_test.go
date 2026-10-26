@@ -51,7 +51,7 @@ var testConfig Config
 func resetDB(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	if _, err := pool.Exec(context.Background(), `
-		DROP TABLE IF EXISTS friend_requests, friendships, shares, folder_members, share_links, applied_ops, tombstones, paragraphs, todos, folders,
+		DROP TABLE IF EXISTS friend_requests, friendships, shares, folder_members, base_members, share_links, applied_ops, tombstones, paragraphs, todos, folders,
 			kakao_unlink_jobs, login_codes, oauth_states, oauth_identities, password_logins, sessions, users, items, app_meta CASCADE;
 		DROP FUNCTION IF EXISTS items_owner_from_folder, folders_owner_to_items CASCADE`); err != nil {
 		t.Fatal(err)

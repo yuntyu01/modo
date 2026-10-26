@@ -87,7 +87,8 @@ func (s *Server) kakaoCallbackURL() string { return s.cfg.PublicURL + "/api/auth
 
 func (s *Server) providers(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	writeJSON(w, http.StatusOK, map[string]bool{"password": !s.cfg.PasswordLoginOff, "kakao": s.kakaoEnabled(), "google": s.googleEnabled(), "storeReview": s.storeReviewEnabled()})
+	// baseShare: '전체'(폴더 없는 항목)를 친구와 공유할 수 있는 서버(사용자 요청 2026-10-26). 앱은 이게 true일 때만 그 메뉴를 보인다
+	writeJSON(w, http.StatusOK, map[string]bool{"password": !s.cfg.PasswordLoginOff, "kakao": s.kakaoEnabled(), "google": s.googleEnabled(), "storeReview": s.storeReviewEnabled(), "baseShare": true})
 }
 
 var challengeRe = regexp.MustCompile(`^[A-Za-z0-9_-]{43,128}$`)

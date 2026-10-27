@@ -168,7 +168,7 @@ function MiniWindow() {
       window.localStorage.setItem(COLLAPSED_KEY, v ? '1' : '0');
     } catch {}
   };
-  // 바탕 아래 여백: 줄인 모양은 아래 + 없이 카드(아래 간격 6)로 끝나서, 그만큼 빼 옆 여백(6)과 같게
+  // 바탕 아래 여백: 줄인 모양은 아래 + 없이 카드(아래 간격 6)로 끝나서, 그만큼 빼 옆 여백(8)과 같게
   const frameBottom = collapsed && !composing ? FRAME_BOTTOM - MINI_CARD_GAP : FRAME_BOTTOM;
   // 창 높이 = 위(머리·탭) + 목록 내용 + 바탕 아래 여백. 바탕 크기가 아니라 내용으로 재야 창이 늘어난다.
   const report = () => {
@@ -566,7 +566,7 @@ function MiniWindow() {
   );
 }
 
-const FRAME_BOTTOM = 6;
+const FRAME_BOTTOM = 8;
 /** 시트를 여는 동안 미니창 최소 높이: 가장 큰 시트(반복 설정·날짜 달력)가 스크롤 없이 들어가는 높이 */
 const SHEET_H = 600;
 // v2: 예전에 끌어 둔 높이(메모보다 훨씬 길게 남아 있던 것)는 한 번 비워 내용에 맞게(최소 2줄) 다시 시작한다(사용자 요청 2026-10-18)
@@ -657,22 +657,22 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: 'transparent' },
   login: { alignItems: 'center', justifyContent: 'center', paddingTop: 12 },
   loginBtn: { marginTop: 10, paddingVertical: 6, paddingHorizontal: 12 },
-  // 창 = 바탕(둘레 투명 여백 없음): 창 가장자리, 곧 크기 조절 손잡이가 보이는 바탕 끝에 있다. 바깥 모서리 18(부드럽게), 안쪽 좌우 6·아래 6
-  // (12에서 절반으로, 사용자 요청 2026-10-27)
+  // 창 = 바탕(둘레 투명 여백 없음): 창 가장자리, 곧 크기 조절 손잡이가 보이는 바탕 끝에 있다. 바깥 모서리 18(부드럽게), 안쪽 좌우 8·아래 8
+  // (12 → 절반 6은 너무 좁아 8, 사용자 요청 2026-10-27)
   frame: {
     flex: 1,
     borderRadius: FRAME_RADIUS,
-    paddingHorizontal: 6,
+    paddingHorizontal: 8,
     paddingBottom: FRAME_BOTTOM,
   },
   // 작은 창이라 머리(로고·버튼)와 폴더 줄을 낮게. 로고 위아래가 넓어 보여 50 → 45(사용자 요청 2026-10-23),
-  // 바탕 여백을 절반으로 줄이면서 로고 위아래도 14.5 → 7.5로 45 → 31(2026-10-27)
+  // 바탕 여백을 줄이면서 로고 위아래도 조금 14.5 → 11.5로 45 → 39(2026-10-27)
   head: {
     flexDirection: 'row',
     alignItems: 'center',
     // 바로 아래 폴더 줄보다 위에(버튼 말풍선이 폴더 이름에 가려지지 않게)
     zIndex: 2,
-    height: 31,
+    height: 39,
     paddingLeft: 3,
     paddingRight: 0,
   },
@@ -687,14 +687,14 @@ const styles = StyleSheet.create({
   tabs: {
     paddingLeft: 4,
     paddingRight: 8,
-    // 폴더 줄 아래(메모 칸까지)도 바탕 여백과 같이 절반으로 9 → 5
-    paddingBottom: 5,
+    // 폴더 줄 아래(메모 칸까지)도 바탕 여백과 같이 조금 9 → 7
+    paddingBottom: 7,
     alignItems: 'center',
   },
   tab: { marginRight: 18, alignItems: 'center' },
-  // 접은 모양: 한 줄(높이 31, 펼친 머리와 같게: 폴더 글자 줄 위아래 6), 로고 옆에 폴더
+  // 접은 모양: 한 줄(높이 39, 펼친 머리와 같게: 폴더 글자 줄 위아래 10), 로고 옆에 폴더
   top: { zIndex: 5 },
-  collapsedHead: { height: 31 },
+  collapsedHead: { height: 39 },
   collapsedTabsBox: { flex: 1, flexGrow: 1, marginLeft: 16 },
   collapsedTabs: { alignItems: 'center', paddingRight: 8 },
   tools: { flexDirection: 'row', alignItems: 'center', overflow: 'hidden' },
@@ -709,9 +709,9 @@ const styles = StyleSheet.create({
     animationDuration: '220ms',
     animationTimingFunction: 'ease-out',
   } as object,
-  // 스크롤 막대가 카드 위에 겹치지 않게 목록을 바탕 안쪽 여백(6)까지 넓히고, 카드는 그만큼 안쪽에서 시작
-  list: { flexShrink: 1, marginHorizontal: -6 },
-  listBody: { paddingTop: 0, paddingHorizontal: 6 },
+  // 스크롤 막대가 카드 위에 겹치지 않게 목록을 바탕 안쪽 여백(8)까지 넓히고, 카드는 그만큼 안쪽에서 시작
+  list: { flexShrink: 1, marginHorizontal: -8 },
+  listBody: { paddingTop: 0, paddingHorizontal: 8 },
   // 메모 칸 안 스크롤 막대도 글자 위가 아니라 메모 칸 오른쪽 여백에
   memoScroll: { marginRight: -10 },
   memoScrollBody: { paddingRight: 10 },
@@ -745,9 +745,9 @@ const styles = StyleSheet.create({
   menu: {
     position: 'absolute',
     zIndex: 10,
-    // 펼친 머리(31) 바로 아래, ⋯ 단추(아래 끝 29.5) 밑. 오른쪽 끝은 X 단추 오른쪽 끝 가까이
-    top: 34,
-    right: 4,
+    // 펼친 머리(39) 바로 아래, ⋯ 단추(아래 끝 33.5) 밑. 오른쪽 끝은 X 단추 오른쪽 끝 가까이
+    top: 38,
+    right: 6,
     minWidth: 190,
     borderRadius: 14,
     paddingVertical: 6,

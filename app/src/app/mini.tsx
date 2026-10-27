@@ -387,7 +387,7 @@ function MiniWindow() {
             </View>
           ) : (
             <>
-              <View style={[styles.head, drag]}>
+              <View style={[styles.head, styles.openHead, drag]}>
                 <Pressable onPress={() => desktop?.openSettings()} accessibilityRole="button" accessibilityLabel="modo" style={noDrag}>
                   <Logo height={16} color={theme.text} markColor={theme.mark} />
                 </Pressable>
@@ -666,7 +666,7 @@ const styles = StyleSheet.create({
     paddingBottom: FRAME_BOTTOM,
   },
   // 작은 창이라 머리(로고·버튼)와 폴더 줄을 낮게. 로고 위아래가 넓어 보여 50 → 45(사용자 요청 2026-10-23),
-  // 바탕 여백을 줄이면서 로고 아래(폴더 줄까지)는 14.5 → 11.5, 로고 위는 넉넉히 14(2026-10-27)
+  // 바탕 여백을 줄이면서 작게 보기 줄은 41.5(폴더 글자 줄 위 12.5), 펼친 머리는 로고 위 16 · 로고 아래(폴더 줄까지) 13.5로 넉넉히(2026-10-27)
   head: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -688,12 +688,13 @@ const styles = StyleSheet.create({
   tabs: {
     paddingLeft: 4,
     paddingRight: 8,
-    // 폴더 줄 아래(메모 칸까지)도 바탕 여백과 같이 조금 9 → 7
-    paddingBottom: 7,
+    // 폴더 줄 아래(메모 칸까지)
+    paddingBottom: 9,
     alignItems: 'center',
   },
   tab: { marginRight: 18, alignItems: 'center' },
-  // 접은 모양: 한 줄(펼친 머리와 같은 높이·자리라 접고 펴도 로고·버튼이 그 자리에), 로고 옆에 폴더
+  openHead: { height: 45.5 },
+  // 접은 모양: 한 줄(head 그대로), 로고 옆에 폴더
   top: { zIndex: 5 },
   collapsedTabsBox: { flex: 1, flexGrow: 1, marginLeft: 16 },
   collapsedTabs: { alignItems: 'center', paddingRight: 8 },
@@ -733,7 +734,8 @@ const styles = StyleSheet.create({
     paddingRight: 13,
     paddingTop: 11,
     paddingBottom: 11,
-    marginBottom: 8,
+    // 메모 칸과 첫 할 일 사이도 할 일 카드 사이와 같게(8 → 6, 사용자 요청 2026-10-27)
+    marginBottom: MINI_CARD_GAP,
   },
   // '+' 바: 가로로 긴 모양은 그대로, 높이 28
   add: {
@@ -745,8 +747,8 @@ const styles = StyleSheet.create({
   menu: {
     position: 'absolute',
     zIndex: 10,
-    // 펼친 머리 바로 아래, ⋯ 단추(아래 끝 36) 밑. 오른쪽 끝은 X 단추 오른쪽 끝 가까이
-    top: 40,
+    // 펼친 머리 바로 아래, ⋯ 단추(아래 끝 38) 밑. 오른쪽 끝은 X 단추 오른쪽 끝 가까이
+    top: 42,
     right: 6,
     minWidth: 190,
     borderRadius: 14,

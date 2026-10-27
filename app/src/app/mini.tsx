@@ -666,13 +666,14 @@ const styles = StyleSheet.create({
     paddingBottom: FRAME_BOTTOM,
   },
   // 작은 창이라 머리(로고·버튼)와 폴더 줄을 낮게. 로고 위아래가 넓어 보여 50 → 45(사용자 요청 2026-10-23),
-  // 바탕 여백을 줄이면서 로고 위아래도 조금 14.5 → 11.5로 45 → 39(2026-10-27)
+  // 바탕 여백을 줄이면서 로고 줄도 위로: 로고 위 14.5 → 8(바탕 옆 여백과 같게), 로고 아래(폴더 줄까지) 14.5 → 11.5(2026-10-27)
   head: {
     flexDirection: 'row',
     alignItems: 'center',
     // 바로 아래 폴더 줄보다 위에(버튼 말풍선이 폴더 이름에 가려지지 않게)
     zIndex: 2,
-    height: 39,
+    height: 35.5,
+    paddingBottom: 3.5,
     paddingLeft: 3,
     paddingRight: 0,
   },
@@ -694,7 +695,7 @@ const styles = StyleSheet.create({
   tab: { marginRight: 18, alignItems: 'center' },
   // 접은 모양: 한 줄(높이 39, 펼친 머리와 같게: 폴더 글자 줄 위아래 10), 로고 옆에 폴더
   top: { zIndex: 5 },
-  collapsedHead: { height: 39 },
+  collapsedHead: { height: 39, paddingBottom: 0 },
   collapsedTabsBox: { flex: 1, flexGrow: 1, marginLeft: 16 },
   collapsedTabs: { alignItems: 'center', paddingRight: 8 },
   tools: { flexDirection: 'row', alignItems: 'center', overflow: 'hidden' },
@@ -745,8 +746,8 @@ const styles = StyleSheet.create({
   menu: {
     position: 'absolute',
     zIndex: 10,
-    // 펼친 머리(39) 바로 아래, ⋯ 단추(아래 끝 33.5) 밑. 오른쪽 끝은 X 단추 오른쪽 끝 가까이
-    top: 38,
+    // 펼친 머리 바로 아래, ⋯ 단추(아래 끝 30) 밑. 오른쪽 끝은 X 단추 오른쪽 끝 가까이
+    top: 34,
     right: 6,
     minWidth: 190,
     borderRadius: 14,

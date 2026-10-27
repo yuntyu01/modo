@@ -334,7 +334,7 @@ function MiniWindow() {
         >
           {collapsed ? (
             // 줄인 머리: 로고 그림 · 폴더 · (고정해 두었으면 고정 표시) · ⋯. ⋯를 누르면 고정 · +(입력칸) · 펼치기가 옆으로 펼쳐진다
-            <View style={[styles.head, styles.collapsedHead, drag]}>
+            <View style={[styles.head, drag]}>
               <Pressable onPress={() => desktop?.openSettings()} accessibilityRole="button" accessibilityLabel="modo" style={noDrag}>
                 <Mark height={13} color={theme.mark} />
               </Pressable>
@@ -693,9 +693,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   tab: { marginRight: 18, alignItems: 'center' },
-  // 접은 모양: 한 줄(높이 39, 펼친 머리와 같게: 폴더 글자 줄 위아래 10), 로고 옆에 폴더
+  // 접은 모양: 한 줄(펼친 머리와 같은 높이·자리라 접고 펴도 로고·버튼이 그 자리에), 로고 옆에 폴더
   top: { zIndex: 5 },
-  collapsedHead: { height: 39, paddingTop: 0 },
   collapsedTabsBox: { flex: 1, flexGrow: 1, marginLeft: 16 },
   collapsedTabs: { alignItems: 'center', paddingRight: 8 },
   tools: { flexDirection: 'row', alignItems: 'center', overflow: 'hidden' },

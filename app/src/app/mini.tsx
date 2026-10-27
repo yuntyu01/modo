@@ -666,15 +666,15 @@ const styles = StyleSheet.create({
     paddingBottom: FRAME_BOTTOM,
   },
   // 작은 창이라 머리(로고·버튼)와 폴더 줄을 낮게. 로고 위아래가 넓어 보여 50 → 45(사용자 요청 2026-10-23),
-  // 바탕 여백을 줄이면서 펼친 머리는 로고 위 16 · 로고 아래(폴더 줄까지) 13.5로 넉넉히(2026-10-27).
-  // 작게 보기 줄은 로고·단추 가운데를 펼친 머리와 같은 높이(24)에 둬서 접고 펴도 로고가 움직이지 않는다
+  // 바탕 여백을 줄이면서 펼친 머리는 로고 위 14 · 로고 아래(폴더 줄까지) 13.5(2026-10-27).
+  // 작게 보기 줄은 로고·단추 가운데를 펼친 머리와 같은 높이(22)에 둬서 접고 펴도 로고가 움직이지 않는다
   head: {
     flexDirection: 'row',
     alignItems: 'center',
     // 바로 아래 폴더 줄보다 위에(버튼 말풍선이 폴더 이름에 가려지지 않게)
     zIndex: 2,
-    height: 43.5,
-    paddingTop: 4.5,
+    height: 41.5,
+    paddingTop: 2.5,
     paddingLeft: 3,
     paddingRight: 0,
   },
@@ -694,7 +694,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   tab: { marginRight: 18, alignItems: 'center' },
-  openHead: { height: 45.5, paddingTop: 2.5 },
+  openHead: { height: 43.5, paddingTop: 0.5 },
   // 접은 모양: 한 줄(head 그대로), 로고 옆에 폴더
   top: { zIndex: 5 },
   // 펼친 로고 안의 그림은 글자 줄에 맞춰 상자 가운데보다 2 아래에 있어, 접은 줄의 그림도 2 내려 접고 펴도 그 자리에
@@ -750,8 +750,8 @@ const styles = StyleSheet.create({
   menu: {
     position: 'absolute',
     zIndex: 10,
-    // 펼친 머리 바로 아래, ⋯ 단추(아래 끝 38) 밑. 오른쪽 끝은 X 단추 오른쪽 끝 가까이
-    top: 42,
+    // 펼친 머리 바로 아래, ⋯ 단추(아래 끝 36) 밑. 오른쪽 끝은 X 단추 오른쪽 끝 가까이
+    top: 40,
     right: 6,
     minWidth: 190,
     borderRadius: 14,

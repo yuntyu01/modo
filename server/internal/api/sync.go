@@ -584,6 +584,11 @@ func (p *pushTx) insert(o op, ent entity, key rowKey, values map[string]any, pur
 	cols := []string{"id", "owner_id"}
 	args := []any{o.ID, owner}
 	cur := map[string]json.RawMessage{"id": raw(o.ID), "owner_id": raw(owner)}
+	if o.Entity != "folder" {
+		// 누가 올렸는지(공유 폴더에서는 폴더 주인과 다를 수 있다). 서버만 쓰고 앱에는 내려 보내지 않는다(pull)
+		cols = append(cols, "created_by")
+		args = append(args, p.user)
+	}
 	for name, v := range values {
 		cols = append(cols, name)
 		args = append(args, v)
@@ -736,7 +741,7 @@ func (p *pushTx) createOnExisting(o op, ent entity, values map[string]any, cur m
 	return res
 }
 
-// 원본 바로 뒤에 같은 폴더로 사본을 만든다. 정렬 키에 문자를 덧붙이면 원본 바로 뒤로 간다.
+// 원본 바로 뒤에 같은 폴더로 사본을 만든다(올린 사람 = 사본의 글을 보낸 사람). 정렬 키에 문자를 덧붙이면 원본 바로 뒤로 간다.
 // 같은 push의 UPDATE보다 먼저 큐에 넣어 원본의 바뀌기 전 폴더·주인을 복사한다.
 func (p *pushTx) conflictCopy(ent entity, id uuid.UUID, text string) uuid.UUID {
 	copyID := uuid.New()
@@ -746,9 +751,9 @@ func (p *pushTx) conflictCopy(ent entity, id uuid.UUID, text string) uuid.UUID {
 		extra = ", done_at, due_date"
 	}
 	p.batch.Queue(fmt.Sprintf(`
-		INSERT INTO %[1]s (id, owner_id, folder_id, text, position, created_at, updated_at, conflict_of%[2]s)
-		SELECT $2, owner_id, folder_id, $3, position || 'V', $4, $4, id%[2]s FROM %[1]s WHERE id = $1`, ent.table, extra),
-		id, copyID, text, now)
+		INSERT INTO %[1]s (id, owner_id, folder_id, text, position, created_at, updated_at, conflict_of, created_by%[2]s)
+		SELECT $2, owner_id, folder_id, $3, position || 'V', $4, $4, id, $5%[2]s FROM %[1]s WHERE id = $1`, ent.table, extra),
+		id, copyID, text, now, p.user)
 	return copyID
 }
 
@@ -852,8 +857,9 @@ func (s *Server) pull(w http.ResponseWriter, r *http.Request) {
 			UNION ALL (SELECT seq, %[2]s FROM %[1]s t WHERE folder_id = ANY($3) AND seq > $1 ORDER BY seq LIMIT $4)
 			UNION ALL (SELECT seq, %[3]s FROM %[1]s t WHERE owner_id = ANY($5) AND seq > $1 ORDER BY seq LIMIT $4)`, table, cols, baseCols)
 	}
-	const itemCols = `to_jsonb(t) - 'seq' - 'owner_id'`
-	const baseItemCols = `(to_jsonb(t) - 'seq' - 'owner_id') || jsonb_build_object('folder_id', t.owner_id)`
+	// created_by(누가 올렸는지)는 서버에서 보기 위한 열이라 앱에는 보내지 않는다
+	const itemCols = `to_jsonb(t) - 'seq' - 'owner_id' - 'created_by'`
+	const baseItemCols = `(to_jsonb(t) - 'seq' - 'owner_id' - 'created_by') || jsonb_build_object('folder_id', t.owner_id)`
 	const tombCols = `jsonb_build_object('id', id, 'entity', entity)`
 	queries := []struct {
 		name, sql string

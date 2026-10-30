@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -472,6 +473,60 @@ func TestItemOwnerIsFolders(t *testing.T) {
 	// 서버에 없는 폴더로 옮기기는 거절(다음 pull에서 원래 폴더로 돌아간다)
 	if r := a.push(update("todo", item, "folder_id", nil, uuid.NewString())); r[0].Status != "forbidden" {
 		t.Fatalf("move to missing folder: %+v", r)
+	}
+}
+
+// 공유 폴더에 친구가 올린 할 일: 주인은 폴더 주인, 올린 사람(created_by)은 친구. 사람이 보는 v_todos에 이름·서울 시각으로 보이고
+// 앱에는 created_by를 내려 보내지 않는다(사용자 요청 2026-10-30)
+func TestCreatedByAndReadableViews(t *testing.T) {
+	srv, pool := newTestServerDB(t)
+	owner := signup(t, srv, "by-owner@example.com")
+	guest := signup(t, srv, "by-guest@example.com")
+	ctx := context.Background()
+	pool.Exec(ctx, `UPDATE users SET name = '주인' WHERE id = $1`, owner.id)
+	pool.Exec(ctx, `UPDATE users SET name = '친구' WHERE id = $1`, guest.id)
+	work, mine, theirs := uuid.NewString(), uuid.NewString(), uuid.NewString()
+	owner.push(create("folder", work, map[string]any{"name": "같이", "position": "V", "created_at": 1, "updated_at": 1}))
+	if code := owner.do("POST", "/api/folders/"+work+"/members", map[string]string{"email": "by-guest@example.com", "role": "edit"}, nil); code != 201 {
+		t.Fatalf("invite: %d", code)
+	}
+	// 2026-10-30 09:00 서울 = 00:00 UTC
+	const at = 1793318400000
+	owner.push(create("todo", mine, map[string]any{"text": "주인 것", "position": "V", "created_at": at, "updated_at": at, "folder_id": work}))
+	if r := guest.push(create("todo", theirs, map[string]any{"text": "친구가 올림", "position": "W", "created_at": at, "updated_at": at, "folder_id": work,
+		"repeat_freq": "weekly", "repeat_days": 1 | 4 | 16, "done_log": "2026-10-26,2026-10-28"})); r[0].Status != "ok" {
+		t.Fatalf("guest push: %+v", r)
+	}
+	var ownerName, by, folder, state, repeat, created string
+	var days []time.Time
+	if err := pool.QueryRow(ctx, `SELECT owner_name, created_by_name, folder, state, repeat, done_days, to_char(created_at, 'YYYY-MM-DD HH24:MI') FROM v_todos WHERE id = $1`, theirs).
+		Scan(&ownerName, &by, &folder, &state, &repeat, &days, &created); err != nil {
+		t.Fatal(err)
+	}
+	if ownerName != "주인" || by != "친구" || folder != "같이" || state != "할 일" || repeat != "매주 월수금" || len(days) != 2 || created != "2026-10-30 09:00" {
+		t.Fatalf("v_todos: owner %q by %q folder %q state %q repeat %q days %v created %q", ownerName, by, folder, state, repeat, days, created)
+	}
+	pool.QueryRow(ctx, `SELECT created_by_name FROM v_todos WHERE id = $1`, mine).Scan(&by)
+	if by != "주인" {
+		t.Fatalf("owner's own item by %q", by)
+	}
+	for _, v := range []string{"v_users", "v_folders", "v_paragraphs", "v_shares"} {
+		if _, err := pool.Exec(ctx, "SELECT * FROM "+v); err != nil {
+			t.Fatalf("%s: %v", v, err)
+		}
+	}
+	for _, it := range owner.pull(0).Todos {
+		if _, ok := it["created_by"]; ok {
+			t.Fatalf("pull sent created_by: %v", it)
+		}
+	}
+	// 올린 계정을 지우면 올린 사람만 비우고 항목은 주인 것으로 남는다
+	if _, err := pool.Exec(ctx, `DELETE FROM users WHERE id = $1`, guest.id); err != nil {
+		t.Fatal(err)
+	}
+	var left *string
+	if err := pool.QueryRow(ctx, `SELECT created_by::text FROM todos WHERE id = $1`, theirs).Scan(&left); err != nil || left != nil {
+		t.Fatalf("after guest deleted: %v %v", left, err)
 	}
 }
 

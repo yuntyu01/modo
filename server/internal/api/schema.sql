@@ -312,3 +312,111 @@ CREATE TABLE IF NOT EXISTS daily_activity (
     PRIMARY KEY (user_id, day, platform, app_version)
 );
 CREATE INDEX IF NOT EXISTS daily_activity_day ON daily_activity (day);
+
+-- ---------- 올린 사람(사용자 요청 2026-10-30) ----------
+-- 폴더에 든 항목의 주인은 폴더 주인이라(위 '항목의 주인') 공유 폴더에서 친구가 올린 할 일도 폴더 주인 것으로만 보였고,
+-- 누가 올렸는지는 어디에도 남지 않았다. created_by = 그 항목을 서버에 처음 올린 계정(sync.go insert · 충돌 사본은 사본을 보낸 계정).
+-- 주인(누구 것인지)과는 다른 사실이라 따로 둔다. 서버에서 보기 위한 열이라 앱에는 내려 보내지 않는다(pull).
+-- 올린 계정을 지우면 비운다(항목은 폴더 주인 것으로 남는다).
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'todos' AND column_name = 'created_by') THEN
+    ALTER TABLE todos ADD COLUMN created_by UUID REFERENCES users(id) ON DELETE SET NULL;
+    ALTER TABLE paragraphs ADD COLUMN created_by UUID REFERENCES users(id) ON DELETE SET NULL;
+    -- 이미 있던 항목: 주인 말고는 쓸 수 있는 사람이 없는 곳(편집 공유가 없는 폴더 · '전체')의 것만 주인이 올린 것으로 채운다.
+    -- 편집 공유 중인 곳의 항목은 누가 올렸는지 알 수 없어 비워 둔다
+    UPDATE todos t SET created_by = COALESCE(t.owner_id, (SELECT f.owner_id FROM folders f WHERE f.id = t.folder_id))
+      WHERE NOT EXISTS (SELECT 1 FROM folder_members m WHERE m.folder_id = t.folder_id AND m.role = 'edit')
+        AND NOT EXISTS (SELECT 1 FROM base_members b WHERE t.folder_id IS NULL AND b.owner_id = t.owner_id AND b.role = 'edit');
+    UPDATE paragraphs t SET created_by = COALESCE(t.owner_id, (SELECT f.owner_id FROM folders f WHERE f.id = t.folder_id))
+      WHERE NOT EXISTS (SELECT 1 FROM folder_members m WHERE m.folder_id = t.folder_id AND m.role = 'edit')
+        AND NOT EXISTS (SELECT 1 FROM base_members b WHERE t.folder_id IS NULL AND b.owner_id = t.owner_id AND b.role = 'edit');
+  END IF;
+END $$;
+-- 계정을 지울 때 created_by를 비우는 FK 동작이 표 전체를 훑지 않게
+CREATE INDEX IF NOT EXISTS todos_created_by ON todos (created_by) WHERE created_by IS NOT NULL;
+CREATE INDEX IF NOT EXISTS paragraphs_created_by ON paragraphs (created_by) WHERE created_by IS NOT NULL;
+
+-- ---------- 사람이 보기 쉬운 보기(view, 사용자 요청 2026-10-30) ----------
+-- 저장은 그대로 둔다: 시각을 epoch 밀리초로 두는 것은 동기화가 앱과 같은 값을 그대로 주고받고 바뀌기 전 값과 똑같은지로
+-- 충돌을 가리기 때문이다(sync.go). DB를 직접 들여다볼 때는 아래 v_* 를 본다: 주인·올린 사람 이름, 폴더 이름,
+-- 서울 시각, 상태(할 일 · 완료 · 휴지통), 반복('매주 월수금'), 루틴 한 날(날짜 목록). 읽기만 한다(쓰기는 원래 표에).
+-- 서버가 켜질 때마다 다시 만든다(열을 바꿔도 되게 지우고 만든다).
+DROP VIEW IF EXISTS v_users, v_folders, v_todos, v_paragraphs, v_shares;
+
+-- epoch 밀리초 → 서울 시각
+CREATE OR REPLACE FUNCTION ms_kst(ms BIGINT) RETURNS TIMESTAMP LANGUAGE sql IMMUTABLE AS
+  $$ SELECT to_timestamp(ms / 1000.0) AT TIME ZONE 'Asia/Seoul' $$;
+-- 반복 규칙 → '매일' · '매주 월수금' · '매월'(요일 비트 월=1 … 일=64)
+CREATE OR REPLACE FUNCTION repeat_label(freq TEXT, days SMALLINT) RETURNS TEXT LANGUAGE sql IMMUTABLE AS $$
+  SELECT CASE freq
+    WHEN 'daily' THEN '매일'
+    WHEN 'monthly' THEN '매월'
+    WHEN 'weekly' THEN '매주 ' || COALESCE((SELECT string_agg(d, '' ORDER BY i)
+      FROM unnest(ARRAY['월', '화', '수', '목', '금', '토', '일']) WITH ORDINALITY AS w(d, i)
+      WHERE days & (1 << (i::int - 1)) <> 0), '')
+  END $$;
+
+CREATE VIEW v_users AS
+SELECT u.id, u.name, u.email,
+  concat_ws(', ',
+    (SELECT string_agg(o.provider, ', ' ORDER BY o.provider) FROM oauth_identities o WHERE o.user_id = u.id),
+    CASE WHEN EXISTS (SELECT 1 FROM password_logins p WHERE p.user_id = u.id) THEN 'password' END) AS login,
+  u.created_at AT TIME ZONE 'Asia/Seoul' AS joined_at,
+  (SELECT max(s.last_used_at) FROM sessions s WHERE s.user_id = u.id) AT TIME ZONE 'Asia/Seoul' AS last_seen_at,
+  (SELECT count(*) FROM folders f WHERE f.owner_id = u.id AND f.deleted_at IS NULL) AS folders,
+  (SELECT count(*) FROM todos t LEFT JOIN folders f ON f.id = t.folder_id
+    WHERE COALESCE(t.owner_id, f.owner_id) = u.id AND t.deleted_at IS NULL AND t.done_at IS NULL) AS open_todos,
+  u.theme_id
+FROM users u;
+
+CREATE VIEW v_folders AS
+SELECT f.id, f.name, f.owner_id, o.name AS owner_name, o.email AS owner_email,
+  (SELECT string_agg(m.name || '(' || CASE fm.role WHEN 'edit' THEN '편집' ELSE '보기' END || ')', ', ' ORDER BY m.name)
+    FROM folder_members fm JOIN users m ON m.id = fm.user_id WHERE fm.folder_id = f.id) AS shared_with,
+  (SELECT count(*) FROM todos t WHERE t.folder_id = f.id AND t.deleted_at IS NULL AND t.done_at IS NULL) AS open_todos,
+  CASE WHEN f.deleted_at IS NOT NULL THEN '휴지통' ELSE '사용 중' END AS state,
+  ms_kst(f.created_at) AS created_at, ms_kst(f.updated_at) AS updated_at, ms_kst(f.deleted_at) AS deleted_at,
+  f.position
+FROM folders f JOIN users o ON o.id = f.owner_id;
+
+-- folder: 폴더 이름, 폴더가 없으면 '전체'. owner = 누구 것인지(폴더 주인 또는 '전체'의 주인), created_by = 누가 올렸는지
+CREATE VIEW v_todos AS
+SELECT t.id, t.text,
+  CASE WHEN t.deleted_at IS NOT NULL THEN '휴지통' WHEN t.done_at IS NOT NULL THEN '완료' ELSE '할 일' END AS state,
+  COALESCE(f.name, '전체') AS folder,
+  COALESCE(t.owner_id, f.owner_id) AS owner_id, o.name AS owner_name, o.email AS owner_email,
+  t.created_by, c.name AS created_by_name, c.email AS created_by_email,
+  t.due_date, repeat_label(t.repeat_freq, t.repeat_days) AS repeat,
+  string_to_array(NULLIF(t.done_log, ''), ',')::date[] AS done_days,
+  ms_kst(t.remind_at) AS remind_at, ms_kst(t.done_at) AS done_at,
+  ms_kst(t.created_at) AS created_at, ms_kst(t.updated_at) AS updated_at, ms_kst(t.deleted_at) AS deleted_at,
+  t.folder_id, t.conflict_of, t.position
+FROM todos t
+LEFT JOIN folders f ON f.id = t.folder_id
+LEFT JOIN users o ON o.id = COALESCE(t.owner_id, f.owner_id)
+LEFT JOIN users c ON c.id = t.created_by;
+
+CREATE VIEW v_paragraphs AS
+SELECT p.id, p.text,
+  CASE WHEN p.deleted_at IS NOT NULL THEN '휴지통' ELSE '메모' END AS state,
+  COALESCE(f.name, '전체') AS folder,
+  COALESCE(p.owner_id, f.owner_id) AS owner_id, o.name AS owner_name, o.email AS owner_email,
+  p.created_by, c.name AS created_by_name, c.email AS created_by_email,
+  ms_kst(p.created_at) AS created_at, ms_kst(p.updated_at) AS updated_at, ms_kst(p.deleted_at) AS deleted_at,
+  p.folder_id, p.conflict_of, p.position
+FROM paragraphs p
+LEFT JOIN folders f ON f.id = p.folder_id
+LEFT JOIN users o ON o.id = COALESCE(p.owner_id, f.owner_id)
+LEFT JOIN users c ON c.id = p.created_by;
+
+-- 누가 누구에게 무엇을 공유했나(폴더 공유 + '전체' 공유)
+CREATE VIEW v_shares AS
+SELECT f.name AS folder, o.name AS owner_name, m.name AS member_name, m.email AS member_email,
+  CASE fm.role WHEN 'edit' THEN '편집' ELSE '보기' END AS role, fm.home AS on_home,
+  fm.created_at AT TIME ZONE 'Asia/Seoul' AS shared_at, fm.folder_id, fm.user_id
+FROM folder_members fm JOIN folders f ON f.id = fm.folder_id JOIN users o ON o.id = f.owner_id JOIN users m ON m.id = fm.user_id
+UNION ALL
+SELECT '전체', o.name, m.name, m.email,
+  CASE b.role WHEN 'edit' THEN '편집' ELSE '보기' END, b.home,
+  b.created_at AT TIME ZONE 'Asia/Seoul', b.owner_id, b.user_id
+FROM base_members b JOIN users o ON o.id = b.owner_id JOIN users m ON m.id = b.user_id;

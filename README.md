@@ -327,6 +327,8 @@ cd desktop && npm run test:unit                   # 데이터 폴더 옮기기(�
 - 아무도 읽지 않던 `version` 열은 없앴다(변경 추적은 `seq`).
 - 완료 여부는 `done_at IS NOT NULL`로만. 반복은 `repeat_freq`(daily/weekly/monthly)·`repeat_days`(매주 요일 비트) 두 열(CHECK로 범위 제한, 다음 예정일은 `due_date`). 두 열 사이 조건은 걸지 않는다(필드별로 동기화돼 잠깐 어긋날 수 있음).
 - 공유: `folder_members`(폴더·사용자·권한), `share_links`(토큰·폴더). 재전송 기록 `applied_ops`(30일).
+- **올린 사람 `created_by`(2026-10-30)**: 주인(누구 것인지)과 따로, 할 일·메모를 서버에 처음 올린 계정. 공유 폴더에서 친구가 올린 할 일도 예전엔 폴더 주인 것으로만 남아 누가 올렸는지 알 수 없었다. `users` 외래키(`ON DELETE SET NULL`: 올린 계정을 지우면 비우고 항목은 주인 것으로 남는다). 서버가 켜질 때 한 번 이미 있던 행을 채운다: 주인 말고는 쓸 수 없는 곳(편집 공유가 없는 폴더 · 편집 공유가 없는 '전체')은 주인으로, 편집 공유 중인 곳은 알 수 없어 비워 둔다. 서버에서 보기 위한 열이라 pull로 앱에 보내지 않는다(앱 DB는 그대로).
+- **DB를 직접 볼 때는 `v_*` 보기(view, 2026-10-30)**: `v_todos` · `v_paragraphs`(주인·올린 사람 이름과 이메일, 폴더 이름(없으면 '전체'), 상태 '할 일'·'완료'·'휴지통', 반복 '매주 월수금', 루틴 한 날 `date[]`, 시각은 서울 시각), `v_folders`(주인 · 공유한 사람과 권한 · 남은 할 일 수), `v_users`(로그인 수단 · 가입 · 마지막 접속 · 남은 할 일 수), `v_shares`(누가 누구에게 무엇을, 폴더와 '전체'). 예: `SELECT text, folder, owner_name, created_by_name, created_at FROM v_todos ORDER BY created_at DESC LIMIT 20;` 저장 형식은 그대로다: 시각을 epoch 밀리초로 두는 것은 동기화가 앱과 같은 값을 그대로 주고받고 '바뀌기 전 값과 똑같은지'로 충돌을 가리기 때문이라(`sync.go`), 날짜형으로 바꾸면 휴대폰·PC 동기화를 함께 고쳐야 한다. 보기는 읽기 전용, 서버가 켜질 때마다 다시 만든다.
 
 앱(SQLite, 위젯·빠른 추가와 같은 파일)
 - `folders`·`todos`·`paragraphs`에 주인·version·purged 열이 없다. 남의 것 = 공유받은 폴더(`shared_folders`: 폴더·권한·주인 id)와 그 안의 항목. 주인의 이메일·이름은 `people`에 한 번만.

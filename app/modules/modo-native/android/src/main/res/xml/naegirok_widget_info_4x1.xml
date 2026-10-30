@@ -3,6 +3,7 @@
   한 줄(4×1) 위젯: 위젯 고르기 화면에 따로 보이는 같은 위젯(WidgetSizes.kt). 삼성 잠금화면의 넓은 칸처럼 낮은 자리에 맞게
   폴더 고르기(이전/다음 폴더)와 할 일 하나씩 넘기기(다음 할 일)를 보여 준다(HomeWidget.strip, 사용자 요청 2026-10-21).
   어느 위젯이든 놓인 크기에 맞는 모양을 고른다(동그라미 칸 = 개수, 낮은 칸 = 한 줄, 큰 칸 = 목록).
+  Android 16+는 xml-v36/naegirok_widget_info_4x1.xml(위젯 고르기·잠금화면에서 뺀 판)을 쓴다: 함께 바꿀 것.
 -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
   android:minWidth="250dp"

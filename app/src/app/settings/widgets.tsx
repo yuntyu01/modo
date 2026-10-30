@@ -13,7 +13,8 @@ import { Note, SubScreen } from '../../ui/SubScreen';
  * 빠른 설정 타일·'빠른 추가' 앱 아이콘은 뺐다(사용자 요청 2026-10-21. 위젯 +와 잠금화면 알림의 입력줄은 그대로).
  * 두 묶음의 항목 이름을 같게 해서 같은 것을 어떻게 넣는지만 고르게 했다. 긴 회색 설명은 뺐다(사용자 요청 2026-10-19).
  * 위젯을 자동으로 넣으면 먼저 크기(3×3·4×4)를 고르고, 앱을 내리고 홈 화면으로 가서 놓인 위젯을 보여 준다(ModoNativeModule requestPinWidget).
- * 런처의 위젯 고르기 화면에도 두 크기가 따로 보인다(WidgetSizes.kt).
+ * 안드로이드 16+는 크기 판(2×2·4×4·4×1)을 런처·잠금화면의 위젯 고르기에서 빼(삼성 잠금화면에 modo가 4개 나왔다, 사용자 요청 2026-10-30)
+ * 크기는 여기서만 고른다(WidgetSizes.kt). 그 아래 안드로이드는 런처 고르기에도 크기별로 보인다.
  */
 export default function Widgets() {
   const { t, theme } = useUi();
@@ -45,7 +46,7 @@ export default function Widgets() {
               ['2x2', 'widgetSizeSmall'],
               ['3x3', 'widgetSizeMid'],
               ['4x4', 'widgetSizeLarge'],
-              // 한 줄: 폴더 고르기 · 할 일 하나씩(삼성 잠금화면의 넓은 칸에도 알맞다)
+              // 한 줄: 폴더 고르기 · 할 일 하나씩
               ['4x1', 'widgetSizeStrip'],
             ] as const
           ).map(([size, label]) => (

@@ -2,6 +2,7 @@
   <string name="app_name_widget">modo</string>
   <string name="widget_description">メモとToDoを、ひとつに。</string>
   <string name="base_folder">すべて</string>
+  <string name="friend_base">%1$sのすべて</string>
   <string name="add">追加</string>
   <string name="widget_empty">空です。+ ですぐに書いてみましょう</string>
   <string name="mark_done">%1$s を完了</string>

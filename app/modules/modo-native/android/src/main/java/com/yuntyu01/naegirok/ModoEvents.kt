@@ -39,6 +39,8 @@ object ModoEvents {
   /** 위젯·잠금화면 알림·알람을 DB에 맞춘다. 문단(메모)만 바뀌었으면 위젯만(잠금화면 알림·알람은 할 일만 쓴다). null·빈 목록 = 전부 */
   fun refresh(ctx: Context, tables: List<String>?) {
     scheduleMidnight(ctx)
+    // 앱 없이도 다른 기기에서 바뀐 것을 받아 위젯에 보이게(NotesSync.pullAll). 로그인하지 않았으면 끈다
+    NotesSync.keepPulling(ctx, NotesDb.use(ctx) { NotesDb.signedIn(it) } == true)
     liftDueRepeats(ctx)
     NotesWidgetProvider.refreshAll(ctx)
     if (!tables.isNullOrEmpty() && tables.all { it == "paragraphs" }) return

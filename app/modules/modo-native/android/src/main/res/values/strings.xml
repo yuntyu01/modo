@@ -2,6 +2,8 @@
   <string name="app_name_widget">modo</string>
   <string name="widget_description">떠오른 생각과 해야 할 일을 한곳에.</string>
   <string name="base_folder">전체</string>
+  <!-- 친구가 공유한 '전체'(app i18n friendBase와 같다) -->
+  <string name="friend_base">%1$s의 전체</string>
   <string name="add">추가</string>
   <string name="widget_empty">비어 있어요. + 로 바로 적어 보세요</string>
   <string name="mark_done">%1$s 완료하기</string>

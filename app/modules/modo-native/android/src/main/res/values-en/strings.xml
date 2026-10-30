@@ -2,6 +2,7 @@
   <string name="app_name_widget">modo</string>
   <string name="widget_description">Simple, modern Memo &amp; ToDo.</string>
   <string name="base_folder">All</string>
+  <string name="friend_base">%1$s\'s All</string>
   <string name="add">Add</string>
   <string name="widget_empty">Empty. Tap + to write</string>
   <string name="mark_done">Complete %1$s</string>

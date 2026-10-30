@@ -3,7 +3,7 @@
   같은 위젯의 2×2 판(작게, 사용자 요청 2026-10-22, WidgetSizes.kt). 홈 화면만.
   칸이 좁으면 폴더 이름 · 할 일 하나씩(HomeWidget.strip), 넉넉하면 목록(HomeWidget.render): 놓인 크기에 맞게 고른다.
   옛 런처(Android 11 이하)는 minWidth·minHeight로 처음 크기를 정한다(약 70×칸 - 30dp).
-  Android 16+는 xml-v36/naegirok_widget_info_2x2.xml(잠금화면 위젯 고르기에서 뺀 판)을 쓴다: 함께 바꿀 것.
+  Android 16+는 xml-v36/naegirok_widget_info_2x2.xml(위젯 고르기·잠금화면에서 뺀 판)을 쓴다: 함께 바꿀 것.
 -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
   android:minWidth="110dp"

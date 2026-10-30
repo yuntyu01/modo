@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 16+(xml-v36): 위젯 고르기 목록에는 내지 않고(hide_from_picker) 앱의 '위젯 놓기' 크기 버튼으로만 놓는다(requestPinWidget).
+  잠금화면에도 내지 않는다: 삼성 잠금화면 고르기에 modo가 크기마다 하나씩 4개 나왔다(사용자 요청 2026-10-30). 잠금화면은 기본(3×3)
+  하나만 두고 놓인 칸 크기에 맞는 모양(낮으면 한 줄)을 그린다.
+  나머지는 xml/naegirok_widget_info_4x1.xml과 같다(함께 바꿀 것).
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+  android:minWidth="250dp"
+  android:minHeight="40dp"
+  android:minResizeWidth="110dp"
+  android:minResizeHeight="40dp"
+  android:targetCellWidth="4"
+  android:targetCellHeight="1"
+  android:resizeMode="horizontal|vertical"
+  android:updatePeriodMillis="0"
+  android:initialLayout="@layout/widget_lock"
+  android:previewLayout="@layout/widget_strip_preview"
+  android:description="@string/widget_description_strip"
+  android:configure="com.yuntyu01.naegirok.widget.WidgetConfigActivity"
+  android:widgetFeatures="reconfigurable|configuration_optional|hide_from_picker"
+  android:widgetCategory="home_screen|not_keyguard" />

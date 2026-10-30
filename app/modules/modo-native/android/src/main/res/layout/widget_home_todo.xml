@@ -13,12 +13,14 @@
   android:paddingTop="4dp"
   android:paddingBottom="4dp">
   <!-- 동그라미(누르면 완료): 빈 동그라미 → 채운 동그라미 + 체크로 바뀌며(톡 커지는 움직임) 잠시 뒤 줄이 빠진다.
-       동그라미는 25dp(예전 21dp는 작아 보였다, 사용자 요청 2026-10-22) -->
+       동그라미는 25dp(예전 21dp는 작아 보였다, 사용자 요청 2026-10-22).
+       칸(44dp)은 누르기 쉽게 크고 줄 밖으로 10dp 나간다. 예전 12dp는 동그라미 테두리(약 0.8dp)와 완료 때 채운 원(1dp)이
+       줄 끝에 걸려 옆이 조금 잘렸다(사용자 제보 2026-10-30): 10dp면 테두리 1.2dp · 채운 원 1dp 안쪽, 톡 커지는 움직임까지 들어간다 -->
   <ViewFlipper
     android:id="@+id/item_check"
     android:layout_width="44dp"
     android:layout_height="44dp"
-    android:layout_marginStart="-12dp"
+    android:layout_marginStart="-10dp"
     android:inAnimation="@anim/widget_check_in"
     android:outAnimation="@anim/widget_check_out">
     <ImageView
@@ -79,12 +81,12 @@
       android:textSize="13sp"
       android:visibility="gone" />
   </LinearLayout>
-  <!-- 오른쪽 동그라미(체크 위치 = 오른쪽): 왼쪽 것과 같은 모양, 바깥으로 같은 만큼 -->
+  <!-- 오른쪽 동그라미(체크 위치 = 오른쪽): 왼쪽 것과 같은 모양, 바깥으로 같은 만큼(10dp) -->
   <ViewFlipper
     android:id="@+id/item_check_end"
     android:layout_width="44dp"
     android:layout_height="44dp"
-    android:layout_marginEnd="-12dp"
+    android:layout_marginEnd="-10dp"
     android:inAnimation="@anim/widget_check_in"
     android:outAnimation="@anim/widget_check_out"
     android:visibility="gone">

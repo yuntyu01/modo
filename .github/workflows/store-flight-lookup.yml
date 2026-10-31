@@ -1,0 +1,30 @@
+name: Store configuration verification
+on:
+  push:
+    branches: [codex/store-flight-lookup]
+    paths: ['.github/workflows/store-flight-lookup.yml']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: windows-latest
+    steps:
+      - uses: microsoft/microsoft-store-apppublisher@v1.1
+      - name: Verify CLI and draft guard
+        shell: pwsh
+        env:
+          TENANT: ${{ secrets.STORE_TENANT_ID }}
+          SELLER: ${{ secrets.STORE_SELLER_ID }}
+          CLIENT: ${{ secrets.STORE_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.STORE_CLIENT_SECRET }}
+          FLIGHT: ${{ vars.MODO_STORE_FLIGHT_ID }}
+          PRODUCT: ${{ vars.MODO_STORE_PRODUCT_ID }}
+        run: |
+          msstore reconfigure --tenantId $env:TENANT --sellerId $env:SELLER --clientId $env:CLIENT --clientSecret $env:CLIENT_SECRET
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $flightJson = msstore flights get $env:PRODUCT $env:FLIGHT
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $flight = $flightJson | ConvertFrom-Json
+          if (-not $flight.flightId) { throw 'Flight response did not include an ID' }
+          if (-not $flight.pendingFlightSubmission.id) { throw 'Expected a pending submission to verify the draft guard' }
+          Write-Host 'Verified CLI authentication and existing submission protection.'

@@ -40,3 +40,5 @@ jobs:
               read('SUBMISSION',base+'/submissions/'+pending)
               read('STATUS',base+'/submissions/'+pending+'/status')
           PY
+
+# Check status after cancellation

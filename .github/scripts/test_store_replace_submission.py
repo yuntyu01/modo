@@ -51,6 +51,17 @@ class ReplaceSubmissionTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "invalid submission ID"):
             replace_pending(lambda url, method="GET": {"pendingApplicationSubmission": {"id": "../x"}}, "PRODUCT")
 
+    def test_canceled_submission_rejection_requests_manual_draft_update(self):
+        def api(url, method="GET"):
+            if method == "DELETE":
+                raise urllib.error.HTTPError(url, 400, "Rejected", {}, io.BytesIO())
+            return {"status": "Canceled"} if url.endswith("/status") else {
+                "pendingFlightSubmission": {"id": "123"}
+            }
+
+        with self.assertRaisesRegex(RuntimeError, "update or remove the canceled draft"):
+            replace_pending(api, "PRODUCT", "FLIGHT")
+
 
 if __name__ == "__main__":
     unittest.main()

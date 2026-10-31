@@ -34,16 +34,18 @@ class ReplaceSubmissionTests(unittest.TestCase):
             replace_pending(api, "PRODUCT")
         self.assertNotIn("DELETE", calls)
 
-    def test_microsoft_conflict_is_reported(self):
-        def api(url, method="GET"):
-            if method == "DELETE":
-                raise urllib.error.HTTPError(url, 409, "Conflict", {}, io.BytesIO())
-            return {"status": "Certification"} if url.endswith("/status") else {
-                "pendingApplicationSubmission": {"id": "123"}
-            }
+    def test_microsoft_refusing_cancellation_is_reported(self):
+        for code in (400, 409):
+            with self.subTest(code=code):
+                def api(url, method="GET"):
+                    if method == "DELETE":
+                        raise urllib.error.HTTPError(url, code, "Rejected", {}, io.BytesIO())
+                    return {"status": "Certification"} if url.endswith("/status") else {
+                        "pendingApplicationSubmission": {"id": "123"}
+                    }
 
-        with self.assertRaisesRegex(RuntimeError, "would not cancel"):
-            replace_pending(api, "PRODUCT")
+                with self.assertRaisesRegex(RuntimeError, f"HTTP {code}.*cancel it in Partner Center"):
+                    replace_pending(api, "PRODUCT")
 
     def test_malformed_submission_id_is_rejected(self):
         with self.assertRaisesRegex(RuntimeError, "invalid submission ID"):

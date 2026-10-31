@@ -44,7 +44,7 @@ jobs:
           $flight = (msstore flights get $env:MODO_STORE_PRODUCT_ID $env:MODO_STORE_FLIGHT_ID | ConvertFrom-Json)
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           if ($flight.pendingFlightSubmission.id -ne '1152921505702181492') { throw 'Flight pending submission changed; refusing to replace it' }
-          $status = (msstore flights submission status $env:MODO_STORE_PRODUCT_ID $env:MODO_STORE_FLIGHT_ID | ConvertFrom-Json)
+          $status = (msstore flights submission get $env:MODO_STORE_PRODUCT_ID $env:MODO_STORE_FLIGHT_ID | ConvertFrom-Json)
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           if ($status.status -ne 'Canceled') { throw 'The expected previous flight is not canceled; refusing to replace it' }
       - name: Replace canceled flight and submit same package

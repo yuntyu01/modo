@@ -49,10 +49,10 @@ def replace_pending(api, product, flight=None):
     try:
         api(submission_url, method="DELETE")
     except urllib.error.HTTPError as error:
-        if error.code == 409:
+        if error.code in {400, 409}:
             raise RuntimeError(
-                f"Microsoft would not cancel submission {submission} "
-                f"while its status is {status}; cancel it in Partner Center "
+                f"Microsoft rejected cancellation of submission {submission} "
+                f"with HTTP {error.code} while its status is {status}; cancel it in Partner Center "
                 "or wait for certification, then run the workflow again."
             ) from error
         raise

@@ -121,7 +121,16 @@ jobs:
           }
           msstore reconfigure --tenantId $env:STORE_TENANT_ID --sellerId $env:STORE_SELLER_ID --clientId $env:STORE_CLIENT_ID --clientSecret $env:STORE_CLIENT_SECRET
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          $cli = @('publish', '.', '-i', $env:PACKAGE, '-id', $env:MODO_STORE_PRODUCT_ID, '-f', $env:MODO_STORE_FLIGHT_ID)
+          # Avoid deleting an existing flight draft; msstore publish otherwise replaces it.
+          $flightJson = msstore flights get $env:MODO_STORE_PRODUCT_ID $env:MODO_STORE_FLIGHT_ID
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $flight = $flightJson | ConvertFrom-Json
+          if ($flight.pendingFlightSubmission.id) {
+            Write-Error 'A pending flight submission already exists. Review it in Partner Center before publishing.'
+            exit 1
+          }
+          $packageDir = Split-Path -Parent $env:PACKAGE
+          $cli = @('publish', './desktop', '-i', $packageDir, '-id', $env:MODO_STORE_PRODUCT_ID, '-f', $env:MODO_STORE_FLIGHT_ID)
           msstore @cli
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
 

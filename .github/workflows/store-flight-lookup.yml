@@ -1,44 +1,57 @@
-name: Diagnose Store submission status
+name: Recover private Store flight
 on:
   push:
     branches: [codex/store-flight-lookup]
     paths: ['.github/workflows/store-flight-lookup.yml']
 permissions:
   contents: read
+  actions: read
 jobs:
-  diagnose:
-    runs-on: ubuntu-latest
+  recover:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      MODO_STORE_PRODUCT_ID: ${{ vars.MODO_STORE_PRODUCT_ID }}
+      MODO_STORE_FLIGHT_ID: ${{ vars.MODO_STORE_FLIGHT_ID }}
+      STORE_TENANT_ID: ${{ secrets.STORE_TENANT_ID }}
+      STORE_CLIENT_ID: ${{ secrets.STORE_CLIENT_ID }}
+      STORE_CLIENT_SECRET: ${{ secrets.STORE_CLIENT_SECRET }}
+      STORE_SELLER_ID: ${{ secrets.STORE_SELLER_ID }}
     steps:
-      - name: Read status without changing submissions
-        env:
-          TENANT: ${{ secrets.STORE_TENANT_ID }}
-          CLIENT: ${{ secrets.STORE_CLIENT_ID }}
-          SECRET: ${{ secrets.STORE_CLIENT_SECRET }}
-          FLIGHT: ${{ vars.MODO_STORE_FLIGHT_ID }}
-          PRODUCT: ${{ vars.MODO_STORE_PRODUCT_ID }}
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+      - uses: actions/download-artifact@v4
+        with:
+          name: modo-windows-1.0.57
+          run-id: 41181100308
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/store-artifact
+      - name: Check and stage exact package
+        shell: pwsh
         run: |
-          python - <<'PY'
-          import json,os,urllib.parse,urllib.request,urllib.error
-          data=urllib.parse.urlencode({'grant_type':'client_credentials','client_id':os.environ['CLIENT'],'client_secret':os.environ['SECRET'],'resource':'https://manage.devcenter.microsoft.com'}).encode()
-          token=json.load(urllib.request.urlopen('https://login.microsoftonline.com/'+os.environ['TENANT']+'/oauth2/token',data))['access_token']
-          base='https://manage.devcenter.microsoft.com/v1.0/my/applications/'+os.environ['PRODUCT']+'/flights/'+os.environ['FLIGHT']
-          def read(label,url):
-              try:
-                  req=urllib.request.Request(url,headers={'Authorization':'Bearer '+token})
-                  obj=json.load(urllib.request.urlopen(req,timeout=60))
-                  print(label,'OK','status=',obj.get('status'),'pending=',(obj.get('pendingFlightSubmission') or {}).get('id'),'published=',(obj.get('lastPublishedFlightSubmission') or {}).get('id'))
-                  return obj
-              except urllib.error.HTTPError as e:
-                  try:
-                      body=json.load(e)
-                      print(label,'HTTP',e.code,'code=',body.get('code'),'message=',str(body.get('message'))[:300])
-                  except Exception:
-                      print(label,'HTTP',e.code)
-          f=read('FLIGHT',base)
-          pending=(f.get('pendingFlightSubmission') or {}).get('id') if f else None
-          if pending:
-              read('SUBMISSION',base+'/submissions/'+pending)
-              read('STATUS',base+'/submissions/'+pending+'/status')
-          PY
-
-# Check status after cancellation
+          $packages = @(Get-ChildItem (Join-Path $env:RUNNER_TEMP 'store-artifact') -Filter 'modo-1.0.57-store-x64.appx' -File -Recurse)
+          if ($packages.Count -ne 1) { throw 'Expected exactly one 1.0.57 Store package' }
+          $target = Join-Path $env:RUNNER_TEMP 'store-flight-package'
+          New-Item -ItemType Directory -Force $target | Out-Null
+          Copy-Item -LiteralPath $packages[0].FullName -Destination $target
+      - uses: microsoft/microsoft-store-apppublisher@v1.1
+      - name: Verify previously canceled flight
+        shell: pwsh
+        run: |
+          msstore reconfigure --tenantId $env:STORE_TENANT_ID --sellerId $env:STORE_SELLER_ID --clientId $env:STORE_CLIENT_ID --clientSecret $env:STORE_CLIENT_SECRET
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $flight = (msstore flights get $env:MODO_STORE_PRODUCT_ID $env:MODO_STORE_FLIGHT_ID | ConvertFrom-Json)
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          if ($flight.pendingFlightSubmission.id -ne '1152921505702181492') { throw 'Flight pending submission changed; refusing to replace it' }
+          $status = (msstore flights submission status $env:MODO_STORE_PRODUCT_ID $env:MODO_STORE_FLIGHT_ID | ConvertFrom-Json)
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          if ($status.status -ne 'Canceled') { throw 'The expected previous flight is not canceled; refusing to replace it' }
+      - name: Replace canceled flight and submit same package
+        shell: pwsh
+        run: |
+          python .github/scripts/store_replace_submission.py flight
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $packageDir = Join-Path $env:RUNNER_TEMP 'store-flight-package'
+          msstore publish './desktop' -i $packageDir -id $env:MODO_STORE_PRODUCT_ID -f $env:MODO_STORE_FLIGHT_ID
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }

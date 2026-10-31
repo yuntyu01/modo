@@ -2,9 +2,9 @@
 #   1. checks  앱 타입·린트, 데스크톱 단위 테스트
 #   2. package Store용 APPX를 만든다(npm run dist:store). 패키지 신원은 Partner Center의 값(저장소 변수 MODO_STORE_*)
 #              버전은 1.0.<실행 번호>: Store는 올릴 때마다 더 큰 버전을 요구한다(끝 자리는 0)
-#   3. submit  Microsoft Store Developer CLI(msstore)로 Partner Center에 제출한다.
-#              비공개 패키지 플라이트 ID가 있을 때만 제출한다(일반 공개 제출은 하지 않는다).
-# 비밀값·변수가 없으면 그 단계는 건너뛰고(경고만) 만든 패키지는 아티팩트로 남긴다.
+#   3. submit  같은 APPX를 비공개 플라이트와 일반 공개 Store에 각각 제출한다.
+# 새 빌드가 나오면 제출 중인 이전 버전의 교체를 요청한다. Microsoft가 취소를 거부하면 실패로 알린다.
+# 사용자가 작성 중인 미제출 초안은 삭제하지 않는다. 비밀값·변수가 없으면 제출을 실패로 알린다.
 # 처음 한 번 하는 설정은 README 'Microsoft Store 자동 배포'. 커밋 메시지에 [skip ci]를 넣으면 이 푸시는 돌지 않는다.
 name: Windows Store
 
@@ -71,6 +71,9 @@ jobs:
           Pop-Location
           Push-Location desktop
           npm run test:unit; if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          Pop-Location
+          python -m unittest discover -s .github/scripts -p 'test_store_replace_submission.py'
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
 
       # Store는 올릴 때마다 더 큰 버전(Major.Minor.Build.0)을 요구한다: package.json의 주·부 버전 + 실행 번호
       - name: Version
@@ -91,21 +94,15 @@ jobs:
         working-directory: desktop
         run: |
           if (-not $env:MODO_STORE_IDENTITY -or -not $env:MODO_STORE_PUBLISHER -or -not $env:MODO_STORE_PUBLISHER_NAME) {
-            Write-Host "::warning::저장소 변수 MODO_STORE_IDENTITY·MODO_STORE_PUBLISHER·MODO_STORE_PUBLISHER_NAME이 없어 Store 패키지를 만들지 않았어요(README 'Microsoft Store 자동 배포')."
-            npm run dist:win; if ($LASTEXITCODE) { exit $LASTEXITCODE }
-            "file=" >> $env:GITHUB_OUTPUT
-            exit 0
+            Write-Error "Store package identity variables are missing."
+            exit 1
           }
           npm run dist:store; if ($LASTEXITCODE) { exit $LASTEXITCODE }
           $file = Get-ChildItem dist -Filter *.appx | Select-Object -First 1
           if (-not $file) { Write-Error "dist에 .appx가 없어요"; exit 1 }
           "file=$($file.FullName)" >> $env:GITHUB_OUTPUT
 
-      - name: Install msstore CLI
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && steps.package.outputs.file != '' && env.HAS_STORE_API == 'true' && env.MODO_STORE_PRODUCT_ID == '9P8SSJ8GBB1X' && env.MODO_STORE_FLIGHT_ID != ''
-        uses: microsoft/microsoft-store-apppublisher@v1.1
-
-      - name: Submit to Partner Center
+      - name: Check Store configuration
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && steps.package.outputs.file != ''
         shell: pwsh
         env:
@@ -113,26 +110,70 @@ jobs:
           STORE_SELLER_ID: ${{ secrets.STORE_SELLER_ID }}
           STORE_CLIENT_ID: ${{ secrets.STORE_CLIENT_ID }}
           STORE_CLIENT_SECRET: ${{ secrets.STORE_CLIENT_SECRET }}
-          PACKAGE: ${{ steps.package.outputs.file }}
         run: |
-          if ($env:HAS_STORE_API -ne 'true' -or $env:MODO_STORE_PRODUCT_ID -ne '9P8SSJ8GBB1X' -or -not $env:MODO_STORE_FLIGHT_ID) {
-            Write-Host "::warning::modo 제품 ID·API 비밀값·비공개 플라이트 ID가 모두 있어야 자동 제출합니다. 일반 공개 제출은 하지 않았어요. 패키지는 아티팩트에 있어요."
-            exit 0
-          }
-          msstore reconfigure --tenantId $env:STORE_TENANT_ID --sellerId $env:STORE_SELLER_ID --clientId $env:STORE_CLIENT_ID --clientSecret $env:STORE_CLIENT_SECRET
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          # Avoid deleting an existing flight draft; msstore publish otherwise replaces it.
-          $flightJson = msstore flights get $env:MODO_STORE_PRODUCT_ID $env:MODO_STORE_FLIGHT_ID
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          $flight = $flightJson | ConvertFrom-Json
-          if ($flight.pendingFlightSubmission.id) {
-            Write-Error 'A pending flight submission already exists. Review it in Partner Center before publishing.'
+          if ($env:MODO_STORE_PRODUCT_ID -ne '9P8SSJ8GBB1X' -or -not $env:MODO_STORE_FLIGHT_ID -or -not $env:STORE_TENANT_ID -or -not $env:STORE_SELLER_ID -or -not $env:STORE_CLIENT_ID -or -not $env:STORE_CLIENT_SECRET) {
+            Write-Error 'Store product ID, flight ID and all four Store credentials are required.'
             exit 1
           }
+
+      - name: Install msstore CLI
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && steps.package.outputs.file != '' && env.HAS_STORE_API == 'true' && env.MODO_STORE_PRODUCT_ID == '9P8SSJ8GBB1X' && env.MODO_STORE_FLIGHT_ID != ''
+        uses: microsoft/microsoft-store-apppublisher@v1.1
+
+      - name: Configure Store CLI
+        id: configure
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && steps.package.outputs.file != ''
+        shell: pwsh
+        env:
+          STORE_TENANT_ID: ${{ secrets.STORE_TENANT_ID }}
+          STORE_SELLER_ID: ${{ secrets.STORE_SELLER_ID }}
+          STORE_CLIENT_ID: ${{ secrets.STORE_CLIENT_ID }}
+          STORE_CLIENT_SECRET: ${{ secrets.STORE_CLIENT_SECRET }}
+        run: |
+          msstore reconfigure --tenantId $env:STORE_TENANT_ID --sellerId $env:STORE_SELLER_ID --clientId $env:STORE_CLIENT_ID --clientSecret $env:STORE_CLIENT_SECRET
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+
+      - name: Submit private flight
+        id: flight
+        if: always() && steps.configure.outcome == 'success'
+        continue-on-error: true
+        shell: pwsh
+        env:
+          STORE_TENANT_ID: ${{ secrets.STORE_TENANT_ID }}
+          STORE_CLIENT_ID: ${{ secrets.STORE_CLIENT_ID }}
+          STORE_CLIENT_SECRET: ${{ secrets.STORE_CLIENT_SECRET }}
+          PACKAGE: ${{ steps.package.outputs.file }}
+        run: |
+          python .github/scripts/store_replace_submission.py flight
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
           $packageDir = Split-Path -Parent $env:PACKAGE
           $cli = @('publish', './desktop', '-i', $packageDir, '-id', $env:MODO_STORE_PRODUCT_ID, '-f', $env:MODO_STORE_FLIGHT_ID)
           msstore @cli
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+
+      - name: Submit public Store update
+        id: public
+        if: always() && steps.configure.outcome == 'success'
+        continue-on-error: true
+        shell: pwsh
+        env:
+          STORE_TENANT_ID: ${{ secrets.STORE_TENANT_ID }}
+          STORE_CLIENT_ID: ${{ secrets.STORE_CLIENT_ID }}
+          STORE_CLIENT_SECRET: ${{ secrets.STORE_CLIENT_SECRET }}
+          PACKAGE: ${{ steps.package.outputs.file }}
+        run: |
+          python .github/scripts/store_replace_submission.py public
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $packageDir = Split-Path -Parent $env:PACKAGE
+          msstore publish './desktop' -i $packageDir -id $env:MODO_STORE_PRODUCT_ID
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+
+      - name: Report submission failures
+        if: always() && (steps.flight.outcome == 'failure' || steps.public.outcome == 'failure')
+        shell: pwsh
+        run: |
+          Write-Error 'At least one Store submission failed. Check the private and public submission steps separately.'
+          exit 1
 
       # Store submission uses the local package, independently of Actions archive capacity.
       - name: Archive Windows package
@@ -152,3 +193,4 @@ jobs:
         if: always() && steps.archive.outcome == 'failure'
         shell: pwsh
         run: Write-Host '::warning::Windows archive upload failed. Check the separate Store submission step for status; archive storage is not required for Store submission.'
+
